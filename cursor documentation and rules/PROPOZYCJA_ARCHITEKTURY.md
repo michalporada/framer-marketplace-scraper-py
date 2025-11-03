@@ -95,12 +95,10 @@ scraper-v2/
 │
 ├── scripts/
 │   ├── setup_db.py                 # Setup bazy danych
-│   ├── export_data.py              # Export danych do CSV
-│   └── clean_data.py               # Czyszczenie danych
+│   └── export_data.py              # Export danych do CSV
+│   # clean_data.py - nie zaimplementowane (opcjonalne)
 │
-├── docs/
-│   ├── API.md                      # Dokumentacja API
-│   └── DEPLOYMENT.md               # Instrukcje deployment
+│   # docs/ - folder nie istnieje (dokumentacja w głównym katalogu i README.md)
 │
 ├── .env.example                    # Przykładowe zmienne środowiskowe
 ├── .gitignore
