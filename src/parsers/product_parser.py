@@ -253,7 +253,7 @@ class ProductParser:
                     creator_name = creator_link_text
                     # Remove "Creator" suffix if present
                     creator_name = re.sub(r"\s+Creator\s*$", "", creator_name, flags=re.IGNORECASE)
-                
+
                 # Extract creator avatar from link or nearby
                 # Try img inside the link
                 creator_img = creator_link.find("img")
@@ -261,7 +261,7 @@ class ProductParser:
                     avatar_src = creator_img.get("src") or creator_img.get("data-src")
                     if avatar_src:
                         creator_avatar_url = self.decode_nextjs_image_url(avatar_src)
-                
+
                 # If no avatar in link, try to find avatar nearby (parent or sibling)
                 if not creator_avatar_url:
                     # Look for img with alt containing username or near the link
@@ -272,14 +272,16 @@ class ProductParser:
                             avatar_src = nearby_img.get("src") or nearby_img.get("data-src")
                             if avatar_src:
                                 creator_avatar_url = self.decode_nextjs_image_url(avatar_src)
-                
+
                 # Try to find avatar by looking for images with creator-related attributes
                 if not creator_avatar_url:
                     # Look for images with alt/aria-label containing username
                     if creator_username:
                         avatar_imgs = soup.find_all("img", alt=re.compile(creator_username, re.I))
                         if not avatar_imgs:
-                            avatar_imgs = soup.find_all("img", attrs={"aria-label": re.compile(creator_username, re.I)})
+                            avatar_imgs = soup.find_all(
+                                "img", attrs={"aria-label": re.compile(creator_username, re.I)}
+                            )
                         if avatar_imgs:
                             avatar_src = avatar_imgs[0].get("src") or avatar_imgs[0].get("data-src")
                             if avatar_src:

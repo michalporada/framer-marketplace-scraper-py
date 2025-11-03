@@ -103,7 +103,9 @@ class CreatorParser:
             if not avatar_url:
                 # Try to find avatar in header/profile section
                 # Look for common profile image containers
-                profile_sections = soup.find_all(["header", "div"], class_=re.compile(r"profile|avatar|user", re.I))
+                profile_sections = soup.find_all(
+                    ["header", "div"], class_=re.compile(r"profile|avatar|user", re.I)
+                )
                 for section in profile_sections:
                     img = section.find("img")
                     if img:
@@ -122,7 +124,9 @@ class CreatorParser:
                         if img:
                             avatar_src = img.get("src") or img.get("data-src")
                             if avatar_src:
-                                avatar_url = self._product_parser.decode_nextjs_image_url(avatar_src)
+                                avatar_url = self._product_parser.decode_nextjs_image_url(
+                                    avatar_src
+                                )
 
             # Extract bio
             bio = None

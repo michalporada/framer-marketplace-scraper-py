@@ -210,9 +210,7 @@ class MarketplaceScraper:
                 return await self.scrape_product(url, skip_if_processed=skip_processed)
 
         # Scrape with progress bar
-        tasks = [
-            scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)
-        ]
+        tasks = [scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)]
         results = await tqdm.gather(*tasks, desc="Scraping products")
 
         success_count = sum(1 for r in results if r)
