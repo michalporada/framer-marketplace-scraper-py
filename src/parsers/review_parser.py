@@ -95,7 +95,9 @@ class ReviewParser:
                     author_url = f"{settings.base_url}{author_url}"
             else:
                 # Try to find author name in text
-                author_elem = container.find(["span", "div"], class_=re.compile(r"author|name", re.I))
+                author_elem = container.find(
+                    ["span", "div"], class_=re.compile(r"author|name", re.I)
+                )
                 if author_elem:
                     author = author_elem.get_text().strip()
 
@@ -118,7 +120,9 @@ class ReviewParser:
             if rating is None:
                 # Try to extract numeric rating from text
                 rating_text = container.get_text()
-                rating_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:out of|/)\s*5", rating_text, re.IGNORECASE)
+                rating_match = re.search(
+                    r"(\d+(?:\.\d+)?)\s*(?:out of|/)\s*5", rating_text, re.IGNORECASE
+                )
                 if rating_match:
                     rating = float(rating_match.group(1))
                 else:
@@ -128,7 +132,9 @@ class ReviewParser:
             # Extract review content
             content = None
             # Look for review text
-            content_elem = container.find(["p", "div"], class_=re.compile(r"content|text|review", re.I))
+            content_elem = container.find(
+                ["p", "div"], class_=re.compile(r"content|text|review", re.I)
+            )
             if content_elem:
                 content = content_elem.get_text().strip()
             else:
@@ -151,7 +157,9 @@ class ReviewParser:
                 date_data = parse_relative_date(date_text)
                 if date_data.get("normalized"):
                     try:
-                        review_date = datetime.fromisoformat(date_data["normalized"].replace("Z", "+00:00"))
+                        review_date = datetime.fromisoformat(
+                            date_data["normalized"].replace("Z", "+00:00")
+                        )
                     except Exception:
                         pass
 
@@ -194,4 +202,3 @@ class ReviewParser:
         # It might not be very reliable, but can extract some basic information
         # Implementation depends on actual HTML structure of Framer reviews
         return reviews
-

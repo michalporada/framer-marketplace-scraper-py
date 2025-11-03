@@ -20,7 +20,9 @@ class CreatorStats(BaseModel):
 class Creator(BaseModel):
     """Model for a creator/profile."""
 
-    username: str = Field(..., description="Creator username (without @, may contain special characters like -790ivi)")
+    username: str = Field(
+        ..., description="Creator username (without @, may contain special characters like -790ivi)"
+    )
     name: Optional[str] = Field(None, description="Creator display name")
     profile_url: HttpUrl = Field(..., description="URL to creator's profile")
     avatar_url: Optional[HttpUrl] = Field(None, description="Avatar/profile image URL")
@@ -57,4 +59,3 @@ class Creator(BaseModel):
             }
         }
     }
-

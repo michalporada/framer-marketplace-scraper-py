@@ -112,7 +112,7 @@ async def retry_async(
         except exceptions as e:
             last_exception = e
             if attempt < max_retries - 1:
-                wait_time = min(initial_wait * (2 ** attempt), max_wait)
+                wait_time = min(initial_wait * (2**attempt), max_wait)
                 logger.warning(
                     "retry_attempt",
                     attempt=attempt + 1,
@@ -122,6 +122,7 @@ async def retry_async(
                     error_type=type(e).__name__,
                 )
                 import asyncio
+
                 await asyncio.sleep(wait_time)
             else:
                 logger.error(
@@ -183,7 +184,7 @@ def retry_sync(
         except exceptions as e:
             last_exception = e
             if attempt < max_retries - 1:
-                wait_time = min(initial_wait * (2 ** attempt), max_wait)
+                wait_time = min(initial_wait * (2**attempt), max_wait)
                 logger.warning(
                     "retry_attempt",
                     attempt=attempt + 1,
@@ -193,6 +194,7 @@ def retry_sync(
                     error_type=type(e).__name__,
                 )
                 import time
+
                 time.sleep(wait_time)
             else:
                 logger.error(
@@ -207,4 +209,3 @@ def retry_sync(
     if last_exception:
         raise last_exception
     raise RuntimeError("Retry failed without exception")
-

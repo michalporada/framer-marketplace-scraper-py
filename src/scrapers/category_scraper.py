@@ -71,4 +71,3 @@ class CategoryScraper:
             HTML content or None if failed
         """
         return await self.scrape_category(category_url)
-

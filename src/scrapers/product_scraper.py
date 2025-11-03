@@ -142,4 +142,3 @@ class ProductScraper:
             "type": product_type,
             "id": product_id,
         }
-

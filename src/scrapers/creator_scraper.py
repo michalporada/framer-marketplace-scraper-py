@@ -70,7 +70,7 @@ class CreatorScraper:
         """
         # Convert HttpUrl to string if needed
         url_str = str(url)
-        
+
         if url_str.startswith("http"):
             return url_str.rstrip("/")
         elif url_str.startswith("/@"):
@@ -101,7 +101,9 @@ class CreatorScraper:
                 logger.debug("fetching_profile", url=normalized_url)
                 response = await self.client.get(normalized_url)
                 response.raise_for_status()
-                logger.debug("profile_fetched", url=normalized_url, status_code=response.status_code)
+                logger.debug(
+                    "profile_fetched", url=normalized_url, status_code=response.status_code
+                )
                 return response.text
 
             html_content = await retry_async(_fetch)
@@ -143,4 +145,3 @@ class CreatorScraper:
             "html": html,
             "username": username,
         }
-

@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     framer_base_url: str = "https://www.framer.com"
     marketplace_url: str = "https://www.framer.com/marketplace"
     sitemap_url: str = "https://www.framer.com/marketplace/sitemap.xml"
-    main_sitemap_url: str = "https://www.framer.com/sitemap.xml"  # Fallback if marketplace sitemap fails
+    main_sitemap_url: str = (
+        "https://www.framer.com/sitemap.xml"  # Fallback if marketplace sitemap fails
+    )
     robots_url: str = "https://www.framer.com/robots.txt"
 
     # Rate Limiting
@@ -113,4 +115,3 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
-

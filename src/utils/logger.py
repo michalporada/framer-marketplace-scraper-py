@@ -35,9 +35,11 @@ def configure_logging() -> None:
     if settings.log_format.lower() == "json":
         processors.append(structlog.processors.JSONRenderer())
     else:
-        processors.extend([
-            structlog.dev.ConsoleRenderer(),
-        ])
+        processors.extend(
+            [
+                structlog.dev.ConsoleRenderer(),
+            ]
+        )
 
     structlog.configure(
         processors=processors,
@@ -67,4 +69,3 @@ configure_logging()
 
 # Default logger
 logger = get_logger("scraper")
-

@@ -208,7 +208,7 @@ class CreatorParser:
 
         # Find all product cards on the profile page
         # Use the same selectors as product list
-        product_cards = soup.select('div.card-module-scss-module__P62yvW__card')
+        product_cards = soup.select("div.card-module-scss-module__P62yvW__card")
         if not product_cards:
             # Try alternative selectors
             product_cards = soup.select('a[href^="/marketplace/"]')
@@ -216,7 +216,9 @@ class CreatorParser:
         # Count products by type
         for card in product_cards:
             # Try to find link to product
-            link = card.find("a", href=re.compile(r"/marketplace/(templates|components|vectors|plugins)/"))
+            link = card.find(
+                "a", href=re.compile(r"/marketplace/(templates|components|vectors|plugins)/")
+            )
             if link:
                 href = link.get("href", "")
                 # Determine product type from URL
@@ -257,4 +259,3 @@ class CreatorParser:
                     pass
 
         return CreatorStats(**stats_dict)
-

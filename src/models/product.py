@@ -20,8 +20,12 @@ class NormalizedDate(BaseModel):
 class NormalizedStatistic(BaseModel):
     """Normalized statistic format (Option B - raw + normalized)."""
 
-    raw: str = Field(..., description="Raw statistic format from HTML (e.g., '19.8K Views', '1,200 Vectors')")
-    normalized: Optional[int] = Field(None, description="Normalized integer value (e.g., 19800, 1200)")
+    raw: str = Field(
+        ..., description="Raw statistic format from HTML (e.g., '19.8K Views', '1,200 Vectors')"
+    )
+    normalized: Optional[int] = Field(
+        None, description="Normalized integer value (e.g., 19800, 1200)"
+    )
 
 
 class ProductStats(BaseModel):
@@ -35,7 +39,9 @@ class ProductStats(BaseModel):
     pages: Optional[NormalizedStatistic] = Field(None, description="Pages (templates only)")
     users: Optional[NormalizedStatistic] = Field(None, description="Users (plugins, vectors)")
     installs: Optional[NormalizedStatistic] = Field(None, description="Installs (components only)")
-    vectors: Optional[NormalizedStatistic] = Field(None, description="Number of vectors (vectors only)")
+    vectors: Optional[NormalizedStatistic] = Field(
+        None, description="Number of vectors (vectors only)"
+    )
     remixes: Optional[NormalizedStatistic] = Field(None, description="Remixes (if available)")
     previews: Optional[NormalizedStatistic] = Field(None, description="Previews (if available)")
     sales: Optional[int] = Field(None, ge=0, description="Number of sales if available")
@@ -68,7 +74,10 @@ class ProductFeatures(BaseModel):
     has_animations: bool = Field(default=False, description="Whether product has animations")
     cms_integration: bool = Field(default=False, description="CMS integration support")
     pages_count: Optional[int] = Field(None, ge=0, description="Number of pages (for templates)")
-    pages_list: List[str] = Field(default_factory=list, description="List of page names (e.g., ['Home', 'Contact', '404', 'Case studies'])")
+    pages_list: List[str] = Field(
+        default_factory=list,
+        description="List of page names (e.g., ['Home', 'Contact', '404', 'Case studies'])",
+    )
     components_count: Optional[int] = Field(None, ge=0, description="Number of components")
     requirements: List[str] = Field(default_factory=list, description="Technical requirements")
 
@@ -82,7 +91,9 @@ class ProductReviews(BaseModel):
         default_factory=dict,
         description="Rating distribution (5: count, 4: count, etc.)",
     )
-    reviews: List[dict] = Field(default_factory=list, description="List of reviews (dictionaries for JSON compatibility)")
+    reviews: List[dict] = Field(
+        default_factory=list, description="List of reviews (dictionaries for JSON compatibility)"
+    )
 
 
 class Product(BaseModel):
@@ -91,19 +102,30 @@ class Product(BaseModel):
     id: str = Field(..., description="Unique product identifier")
     name: str = Field(..., description="Product name")
     type: str = Field(..., description="Product type: template, component, vector, plugin")
-    category: Optional[str] = Field(None, description="Main product category (first from categories list, for backward compatibility)")
-    categories: List[str] = Field(default_factory=list, description="List of all product categories/tags")
+    category: Optional[str] = Field(
+        None,
+        description="Main product category (first from categories list, for backward compatibility)",
+    )
+    categories: List[str] = Field(
+        default_factory=list, description="List of all product categories/tags"
+    )
     url: HttpUrl = Field(..., description="Product URL")
     price: Optional[float] = Field(None, ge=0, description="Product price")
     currency: str = Field(default="USD", description="Currency code")
-    promotional_price: Optional[float] = Field(None, ge=0, description="Promotional price if available")
+    promotional_price: Optional[float] = Field(
+        None, ge=0, description="Promotional price if available"
+    )
     is_free: bool = Field(default=False, description="Whether product is free")
     description: Optional[str] = Field(None, description="Full product description")
     short_description: Optional[str] = Field(None, description="Short preview/teaser")
     creator: Optional[Creator] = Field(None, description="Creator information")
     stats: ProductStats = Field(default_factory=ProductStats, description="Product statistics")
-    metadata: ProductMetadata = Field(default_factory=ProductMetadata, description="Product metadata")
-    features: ProductFeatures = Field(default_factory=ProductFeatures, description="Product features")
+    metadata: ProductMetadata = Field(
+        default_factory=ProductMetadata, description="Product metadata"
+    )
+    features: ProductFeatures = Field(
+        default_factory=ProductFeatures, description="Product features"
+    )
     media: ProductMedia = Field(default_factory=ProductMedia, description="Product media")
     # reviews removed - not available on Framer Marketplace
     scraped_at: datetime = Field(default_factory=datetime.utcnow, description="Scraping timestamp")
@@ -129,26 +151,25 @@ class Product(BaseModel):
                 "stats": {
                     "views": {"raw": "19.8K Views", "normalized": 19800},
                     "pages": {"raw": "8 Pages", "normalized": 8},
-                    "remixes": {"raw": "456", "normalized": 456            },
+                    "remixes": {"raw": "456", "normalized": 456},
+                },
+            },
+            "metadata": {
+                "published_date": {"raw": "5 months ago", "normalized": "2024-10-15T00:00:00Z"},
+                "last_updated": {"raw": "3mo ago", "normalized": "2024-12-15T00:00:00Z"},
+                "version": None,
+                "status": "active",
+            },
+            "features": {
+                "features": ["Responsive", "Animations", "CMS Ready"],
+                "is_responsive": True,
+                "has_animations": True,
+                "cms_integration": True,
+            },
+            "media": {
+                "thumbnail": "https://...",
+                "screenshots": ["https://...", "https://..."],
+            },
+            "scraped_at": "2024-03-25T10:30:00Z",
         }
-    },
-                "metadata": {
-                    "published_date": {"raw": "5 months ago", "normalized": "2024-10-15T00:00:00Z"},
-                    "last_updated": {"raw": "3mo ago", "normalized": "2024-12-15T00:00:00Z"},
-                    "version": None,
-                    "status": "active",
-                },
-                "features": {
-                    "features": ["Responsive", "Animations", "CMS Ready"],
-                    "is_responsive": True,
-                    "has_animations": True,
-                    "cms_integration": True,
-                },
-                "media": {
-                    "thumbnail": "https://...",
-                    "screenshots": ["https://...", "https://..."],
-                },
-                "scraped_at": "2024-03-25T10:30:00Z",
-            }
-        }
-
+    }

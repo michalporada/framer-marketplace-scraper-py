@@ -5,6 +5,7 @@ from typing import Optional
 
 try:
     from fake_useragent import UserAgent
+
     FAKE_USERAGENT_AVAILABLE = True
 except ImportError:
     FAKE_USERAGENT_AVAILABLE = False
@@ -110,7 +111,9 @@ class UserAgentRotator:
                 pass
 
         # Return Safari from defaults
-        safari_agents = [ua for ua in self.default_user_agents if "Safari" in ua and "Chrome" not in ua]
+        safari_agents = [
+            ua for ua in self.default_user_agents if "Safari" in ua and "Chrome" not in ua
+        ]
         if safari_agents:
             return safari_agents[0]
 
@@ -140,4 +143,3 @@ def get_random_user_agent() -> str:
         User-Agent string
     """
     return get_user_agent_rotator().get_random()
-

@@ -150,11 +150,16 @@ class ProductParser:
             price = None
             is_free = False
             # Try button text (more reliable for product pages)
-            price_button = soup.find("button", string=re.compile(r"(Purchase|Preview|Open|Copy)", re.I))
+            price_button = soup.find(
+                "button", string=re.compile(r"(Purchase|Preview|Open|Copy)", re.I)
+            )
             if price_button:
                 button_text = price_button.get_text().strip()
                 # Check for free indicators
-                if any(free in button_text.lower() for free in ["preview", "open in framer", "copy component", "copy vectors"]):
+                if any(
+                    free in button_text.lower()
+                    for free in ["preview", "open in framer", "copy component", "copy vectors"]
+                ):
                     is_free = True
                     price = None
                 else:
@@ -248,7 +253,9 @@ class ProductParser:
 
             # Extract categories (all of them)
             categories = self._extract_categories(soup)
-            category = categories[0] if categories else None  # Main category for backward compatibility
+            category = (
+                categories[0] if categories else None
+            )  # Main category for backward compatibility
 
             # Extract statistics based on product type
             stats = self._extract_statistics(soup, product_type)
@@ -400,7 +407,9 @@ class ProductParser:
             metadata_dict["published_date"] = NormalizedDate(**date_data)
 
         # Extract "Updated" date if available
-        updated_match = re.search(r"Updated.*?(\d+\s*months?\s*ago|\d+mo\s*ago|\d+w\s*ago)", text_content, re.IGNORECASE)
+        updated_match = re.search(
+            r"Updated.*?(\d+\s*months?\s*ago|\d+mo\s*ago|\d+w\s*ago)", text_content, re.IGNORECASE
+        )
         if updated_match:
             updated_raw = updated_match.group(1)
             date_data = parse_relative_date(updated_raw)
@@ -439,19 +448,19 @@ class ProductParser:
                 if heading.get_text().strip().lower() == "features":
                     features_section = heading
                     break
-            
+
             # If not found, try finding by text
             if not features_section:
                 features_section = soup.find(string=re.compile(r"^Features$", re.I))
                 if features_section:
                     features_section = features_section.find_parent()
-            
+
             if features_section:
                 # Find parent container (usually a section or div after heading)
                 features_parent = features_section.find_next_sibling()
                 if not features_parent:
                     features_parent = features_section.find_parent()
-                
+
                 if features_parent:
                     # Find all feature links/spans - they're usually in links with class "contentSidebarItem"
                     # or spans with text-label class
@@ -461,7 +470,17 @@ class ProductParser:
                         # Filter: feature tags are usually short, not empty, and not "Features"
                         if text and len(text) < 100 and text.lower() != "features":
                             # Skip if it's a navigation link or section header
-                            if not any(skip in text.lower() for skip in ["see all", "more from", "related", "categories", "pages", "support"]):
+                            if not any(
+                                skip in text.lower()
+                                for skip in [
+                                    "see all",
+                                    "more from",
+                                    "related",
+                                    "categories",
+                                    "pages",
+                                    "support",
+                                ]
+                            ):
                                 if text not in features_list:
                                     features_list.append(text)
 
@@ -478,21 +497,28 @@ class ProductParser:
                 if heading_text.lower() == "pages":
                     pages_heading = heading
                     break
-            
+
             if pages_heading:
                 # Find parent section that contains the heading
                 section = pages_heading.find_parent(["section", "div"])
                 if section:
                     # Find all links/spans/divs in the section (pages are usually in links or spans)
-                    page_elements = section.find_all(["a", "span", "div"], class_=re.compile(r"text-label|contentSidebarItem"))
+                    page_elements = section.find_all(
+                        ["a", "span", "div"], class_=re.compile(r"text-label|contentSidebarItem")
+                    )
                     for elem in page_elements:
                         page_text = elem.get_text().strip()
                         if page_text and len(page_text) < 100:
                             # Skip if it's just "Pages" label or navigation
-                            if page_text.lower() not in ["pages", "see all", "more from", "related"]:
+                            if page_text.lower() not in [
+                                "pages",
+                                "see all",
+                                "more from",
+                                "related",
+                            ]:
                                 if page_text not in pages_list:
                                     pages_list.append(page_text)
-            
+
             # Method 2: Fallback - find by text "Pages" and get siblings
             if not pages_list:
                 pages_section = soup.find(string=re.compile(r"^Pages$", re.I))
@@ -504,7 +530,12 @@ class ProductParser:
                             page_text = item.get_text().strip()
                             if page_text and len(page_text) < 100:
                                 # Skip if it's just "Pages" label or navigation
-                                if page_text.lower() not in ["pages", "see all", "more from", "related"]:
+                                if page_text.lower() not in [
+                                    "pages",
+                                    "see all",
+                                    "more from",
+                                    "related",
+                                ]:
                                     if page_text not in pages_list:
                                         pages_list.append(page_text)
 
@@ -548,35 +579,35 @@ class ProductParser:
 
     def _parse_title_components(self, title: Optional[str]) -> tuple[Optional[str], Optional[str]]:
         """Parse title tag to extract product name and creator name.
-        
+
         Format: "{ProductName}: {Subtitle} by {CreatorName} — Framer Marketplace"
         Example: "1936Redcliff: Responsive Real Estate Website Template by NutsDev — Framer Marketplace"
-        
+
         Args:
             title: Full title text from <title> tag
-            
+
         Returns:
             Tuple of (product_name, creator_name) or (None, None) if parsing fails
         """
         if not title:
             return None, None
-        
+
         product_name = None
         creator_name = None
-        
+
         # Remove common suffix
         title_clean = re.sub(r"\s*[-|—]\s*Framer.*$", "", title, flags=re.IGNORECASE).strip()
-        
+
         # Extract product name (before first colon)
         if ":" in title_clean:
             product_name = title_clean.split(":")[0].strip()
-        
+
         # Extract creator name (between "by" and end or "—")
         # Pattern: "... by CreatorName —" or "... by CreatorName"
         by_match = re.search(r"\s+by\s+([^—]+?)(?:\s*—|$)", title_clean, re.IGNORECASE)
         if by_match:
             creator_name = by_match.group(1).strip()
-        
+
         # If no colon, try to extract product name from beginning
         if not product_name:
             # If there's "by", take everything before it
@@ -587,23 +618,23 @@ class ProductParser:
             else:
                 # No creator found, use first part
                 product_name = title_clean.split()[0] if title_clean else None
-        
+
         return product_name, creator_name
 
     def _extract_categories(self, soup: BeautifulSoup) -> List[str]:
         """Extract all categories from product page.
-        
+
         Categories are typically found in a "Categories" section.
         Example from Omicorn: "SaaS", "Agency", "Landing Page", "Modern", "Animated", "Minimal", "Gradient", "Professional"
-        
+
         Args:
             soup: BeautifulSoup object
-            
+
         Returns:
             List of all category names
         """
         categories = []
-        
+
         # Method 1: Look for "Categories" heading (h6, h2, h3, etc.) and find sibling elements
         categories_heading = None
         for heading in soup.find_all(["h6", "h2", "h3", "h4"]):
@@ -611,27 +642,31 @@ class ProductParser:
             if heading_text.lower() == "categories":
                 categories_heading = heading
                 break
-        
+
         if categories_heading:
             # Find parent section that contains the heading
             section = categories_heading.find_parent(["section", "div"])
             if section:
                 # Find all links in the section (categories are usually links)
-                category_links = section.find_all("a", href=re.compile(r"/category/|/marketplace/category/"))
+                category_links = section.find_all(
+                    "a", href=re.compile(r"/category/|/marketplace/category/")
+                )
                 for link in category_links:
                     category_text = link.get_text().strip()
                     if category_text and category_text.lower() != "categories":
                         categories.append(category_text)
-                
+
                 # Also check spans/divs with text-label class (common pattern)
                 if not categories:
-                    category_elements = section.find_all(["span", "div"], class_=re.compile(r"text-label|contentSidebarItem"))
+                    category_elements = section.find_all(
+                        ["span", "div"], class_=re.compile(r"text-label|contentSidebarItem")
+                    )
                     for elem in category_elements:
                         category_text = elem.get_text().strip()
                         if category_text and len(category_text) < 100:
                             if category_text.lower() not in ["categories", "see all"]:
                                 categories.append(category_text)
-        
+
         # Method 2: Fallback - find by text "Categories" and get siblings
         if not categories:
             categories_section = soup.find(string=re.compile(r"^Categories$", re.I))
@@ -645,9 +680,14 @@ class ProductParser:
                         # Filter out non-category text
                         if category_text and len(category_text) < 100:
                             # Skip if it's just "Categories" label or navigation
-                            if category_text.lower() not in ["categories", "see all", "more from", "related"]:
+                            if category_text.lower() not in [
+                                "categories",
+                                "see all",
+                                "more from",
+                                "related",
+                            ]:
                                 categories.append(category_text)
-        
+
         # Method 3: Find all category links on the page (href contains /category/)
         category_links = soup.find_all("a", href=re.compile(r"/category/|/marketplace/category/"))
         for link in category_links:
@@ -656,7 +696,7 @@ class ProductParser:
                 # Additional check - make sure it's not a navigation link
                 if category_text.lower() not in ["see all", "categories"]:
                     categories.append(category_text)
-        
+
         # Remove duplicates while preserving order
         seen = set()
         unique_categories = []
@@ -665,6 +705,5 @@ class ProductParser:
             if cat_lower and cat_lower not in seen and len(cat) > 0:
                 seen.add(cat_lower)
                 unique_categories.append(cat)
-        
-        return unique_categories
 
+        return unique_categories

@@ -94,4 +94,3 @@ class TestExtractStatisticLabel:
         """Test extracting 'Users' label."""
         label = extract_statistic_label("1.2K Users")
         assert label == "Users"  # Function returns original case
-

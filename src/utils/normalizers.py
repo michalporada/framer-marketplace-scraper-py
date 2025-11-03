@@ -146,4 +146,3 @@ def extract_statistic_label(stat_str: str) -> Optional[str]:
         if label in stat_str:
             return label
     return None
-

@@ -26,17 +26,17 @@ async def check_robots_txt() -> bool:
                 # Check if marketplace is disallowed
                 # Note: robots.txt might disallow specific paths, but not the main marketplace
                 # Check for explicit disallow of /marketplace (not just /marketplace/search)
-                lines = robots_content.split('\n')
+                lines = robots_content.split("\n")
                 for line in lines:
                     line = line.strip()
-                    if line.startswith('disallow:'):
-                        path = line.replace('disallow:', '').strip()
+                    if line.startswith("disallow:"):
+                        path = line.replace("disallow:", "").strip()
                         # Check if /marketplace is explicitly disallowed (not just search)
-                        if path == '/marketplace' or path == '/marketplace/':
+                        if path == "/marketplace" or path == "/marketplace/":
                             logger.warning("robots_txt_disallows_marketplace")
                             return False
                         # Allow /marketplace/search to be disallowed (it's in documentation)
-                
+
                 logger.info("robots_txt_check_passed")
                 return True
     except Exception as e:
@@ -75,9 +75,10 @@ async def main():
                 creators_scraped=stats["creators_scraped"],
                 creators_failed=stats["creators_failed"],
             )
-            
+
             # Log final metrics summary
             from src.utils.metrics import get_metrics
+
             metrics = get_metrics()
             metrics.log_summary()
 
@@ -104,4 +105,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

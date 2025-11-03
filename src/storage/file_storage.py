@@ -274,10 +274,11 @@ class FileStorage:
 
             # Save CSV
             df.to_csv(output_file, index=False, encoding="utf-8")
-            logger.info("creators_exported", count=len(flattened_creators), filepath=str(output_file))
+            logger.info(
+                "creators_exported", count=len(flattened_creators), filepath=str(output_file)
+            )
             return True
 
         except Exception as e:
             logger.error("csv_export_error", error=str(e), error_type=type(e).__name__)
             return False
-

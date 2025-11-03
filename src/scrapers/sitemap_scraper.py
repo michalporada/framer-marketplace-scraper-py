@@ -126,8 +126,10 @@ class SitemapScraper:
                     continue
 
                 # Profile użytkowników (wszystko zaczynające się od @)
-                if "/@" in url or url.startswith("https://www.framer.com/@") or url.startswith(
-                    "http://www.framer.com/@"
+                if (
+                    "/@" in url
+                    or url.startswith("https://www.framer.com/@")
+                    or url.startswith("http://www.framer.com/@")
                 ):
                     result["profiles"].append(url)
                     continue
@@ -157,20 +159,12 @@ class SitemapScraper:
                     continue
 
                 # Vectors
-                if (
-                    "/marketplace/vectors/" in url
-                    and url.endswith("/")
-                    and "/category/" not in url
-                ):
+                if "/marketplace/vectors/" in url and url.endswith("/") and "/category/" not in url:
                     result["products"]["vectors"].append(url)
                     continue
 
                 # Plugins (nowy typ)
-                if (
-                    "/marketplace/plugins/" in url
-                    and url.endswith("/")
-                    and "/category/" not in url
-                ):
+                if "/marketplace/plugins/" in url and url.endswith("/") and "/category/" not in url:
                     result["products"]["plugins"].append(url)
                     continue
 
@@ -219,7 +213,7 @@ class SitemapScraper:
 
         urls = []
         products = parsed_sitemap.get("products", {})
-        
+
         # Handle both dict and defaultdict formats
         if isinstance(products, dict):
             for product_type in product_types:
@@ -231,7 +225,7 @@ class SitemapScraper:
                     "plugin": "plugins",
                 }
                 type_key = type_key_map.get(product_type, product_type)
-                
+
                 if type_key in products:
                     type_urls = products[type_key]
                     if isinstance(type_urls, list):
@@ -269,4 +263,3 @@ class SitemapScraper:
         """
         parsed = await self.scrape()
         return self.filter_urls_by_type(parsed, product_types)
-

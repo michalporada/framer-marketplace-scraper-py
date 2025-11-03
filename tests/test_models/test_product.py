@@ -152,7 +152,9 @@ class TestProduct:
             type="template",
             url="https://www.framer.com/marketplace/templates/test/",
             metadata=ProductMetadata(
-                published_date=NormalizedDate(raw="5 months ago", normalized="2024-10-15T00:00:00Z"),
+                published_date=NormalizedDate(
+                    raw="5 months ago", normalized="2024-10-15T00:00:00Z"
+                ),
             ),
         )
         assert product.metadata.published_date.raw == "5 months ago"
@@ -168,4 +170,3 @@ class TestProduct:
         json_data = product.model_dump_json()
         assert "test-product" in json_data
         assert "Test Product" in json_data
-

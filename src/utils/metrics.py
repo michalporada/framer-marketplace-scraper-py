@@ -16,7 +16,7 @@ class ScraperMetrics:
         """Initialize metrics tracker."""
         self.start_time: Optional[float] = None
         self.end_time: Optional[float] = None
-        
+
         # Counters
         self.products_scraped: int = 0
         self.products_failed: int = 0
@@ -24,12 +24,12 @@ class ScraperMetrics:
         self.creators_failed: int = 0
         self.categories_scraped: int = 0
         self.categories_failed: int = 0
-        
+
         # Timing
         self.total_requests: int = 0
         self.total_wait_time: float = 0.0
         self.total_retries: int = 0
-        
+
         # Errors
         self.errors_by_type: Dict[str, int] = {}
         self.errors_by_url: Dict[str, int] = {}
@@ -48,7 +48,9 @@ class ScraperMetrics:
         """Record successful product scrape."""
         self.products_scraped += 1
 
-    def record_product_failed(self, error_type: Optional[str] = None, url: Optional[str] = None) -> None:
+    def record_product_failed(
+        self, error_type: Optional[str] = None, url: Optional[str] = None
+    ) -> None:
         """Record failed product scrape.
 
         Args:
@@ -65,7 +67,9 @@ class ScraperMetrics:
         """Record successful creator scrape."""
         self.creators_scraped += 1
 
-    def record_creator_failed(self, error_type: Optional[str] = None, url: Optional[str] = None) -> None:
+    def record_creator_failed(
+        self, error_type: Optional[str] = None, url: Optional[str] = None
+    ) -> None:
         """Record failed creator scrape.
 
         Args:
@@ -82,7 +86,9 @@ class ScraperMetrics:
         """Record successful category scrape."""
         self.categories_scraped += 1
 
-    def record_category_failed(self, error_type: Optional[str] = None, url: Optional[str] = None) -> None:
+    def record_category_failed(
+        self, error_type: Optional[str] = None, url: Optional[str] = None
+    ) -> None:
         """Record failed category scrape.
 
         Args:
@@ -165,8 +171,12 @@ class ScraperMetrics:
         return {
             "duration_seconds": duration,
             "duration_formatted": self._format_duration(duration),
-            "start_time": datetime.fromtimestamp(self.start_time).isoformat() if self.start_time else None,
-            "end_time": datetime.fromtimestamp(self.end_time).isoformat() if self.end_time else None,
+            "start_time": datetime.fromtimestamp(self.start_time).isoformat()
+            if self.start_time
+            else None,
+            "end_time": datetime.fromtimestamp(self.end_time).isoformat()
+            if self.end_time
+            else None,
             "products": {
                 "scraped": self.products_scraped,
                 "failed": self.products_failed,
@@ -237,4 +247,3 @@ def get_metrics() -> ScraperMetrics:
     if _metrics is None:
         _metrics = ScraperMetrics()
     return _metrics
-

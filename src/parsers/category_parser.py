@@ -102,7 +102,7 @@ class CategoryParser:
 
             # Count products from product cards if not found in text
             if product_count is None:
-                product_cards = soup.select('div.card-module-scss-module__P62yvW__card')
+                product_cards = soup.select("div.card-module-scss-module__P62yvW__card")
                 if product_cards:
                     product_count = len(product_cards)
 
@@ -121,7 +121,9 @@ class CategoryParser:
 
             # If no types found, try to infer from product cards
             if not product_types:
-                product_links = soup.find_all("a", href=re.compile(r"/marketplace/(templates|components|vectors|plugins)/"))
+                product_links = soup.find_all(
+                    "a", href=re.compile(r"/marketplace/(templates|components|vectors|plugins)/")
+                )
                 found_types = set()
                 for link in product_links:
                     href = link.get("href", "")
@@ -155,7 +157,9 @@ class CategoryParser:
                     # Last link before current is parent
                     parent_link = links[-2] if len(links) >= 2 else None
                     if parent_link:
-                        parent_slug = self.extract_category_slug_from_url(parent_link.get("href", ""))
+                        parent_slug = self.extract_category_slug_from_url(
+                            parent_link.get("href", "")
+                        )
                         if parent_slug:
                             parent_category = parent_slug
 
@@ -182,4 +186,3 @@ class CategoryParser:
                 error_type=type(e).__name__,
             )
             return None
-

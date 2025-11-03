@@ -93,7 +93,9 @@ class CheckpointManager:
                 json.dump(checkpoint_data, f, indent=2, ensure_ascii=False)
 
             temp_file.replace(self.checkpoint_file)
-            logger.debug("checkpoint_saved", file=str(self.checkpoint_file), count=len(processed_urls))
+            logger.debug(
+                "checkpoint_saved", file=str(self.checkpoint_file), count=len(processed_urls)
+            )
 
         except Exception as e:
             logger.error("checkpoint_save_error", file=str(self.checkpoint_file), error=str(e))
@@ -127,7 +129,7 @@ class CheckpointManager:
             processed = set(processed) if processed else set()
         processed.add(url)
         checkpoint["processed_urls"] = processed
-        
+
         self.save_checkpoint(
             checkpoint["processed_urls"],
             checkpoint["failed_urls"],
@@ -147,7 +149,7 @@ class CheckpointManager:
             failed = set(failed) if failed else set()
         failed.add(url)
         checkpoint["failed_urls"] = failed
-        
+
         self.save_checkpoint(
             checkpoint["processed_urls"],
             checkpoint["failed_urls"],
@@ -173,4 +175,3 @@ class CheckpointManager:
             "failed_count": len(checkpoint["failed_urls"]),
             "timestamp": checkpoint["timestamp"],
         }
-

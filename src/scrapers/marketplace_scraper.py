@@ -189,7 +189,7 @@ class MarketplaceScraper:
         results = await tqdm.gather(*tasks, desc="Scraping products")
 
         success_count = sum(1 for r in results if r)
-        
+
         # Save final checkpoint with stats
         if settings.checkpoint_enabled:
             checkpoint = self.checkpoint_manager.load_checkpoint()
@@ -250,24 +250,25 @@ class MarketplaceScraper:
             logger.info("applying_limit", limit=limit, remaining=len(product_urls))
 
         # Scrape products
-        await self.scrape_products_batch(product_urls, settings.max_concurrent_requests, skip_processed=resume)
+        await self.scrape_products_batch(
+            product_urls, settings.max_concurrent_requests, skip_processed=resume
+        )
 
         # Stop metrics tracking
         self.metrics.stop()
-        
+
         # Update stats from metrics
         self.stats["products_scraped"] = self.metrics.products_scraped
         self.stats["products_failed"] = self.metrics.products_failed
         self.stats["creators_scraped"] = self.metrics.creators_scraped
         self.stats["creators_failed"] = self.metrics.creators_failed
-        
+
         # Log metrics summary
         self.metrics.log_summary()
-        
+
         logger.info(
             "marketplace_scraping_completed",
             stats=self.stats,
         )
 
         return self.stats
-
