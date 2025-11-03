@@ -68,6 +68,8 @@ class CreatorParser:
             h1 = soup.find("h1")
             if h1:
                 name = h1.get_text().strip()
+                # Remove "Creator" suffix if present
+                name = re.sub(r"\s+Creator\s*$", "", name, flags=re.IGNORECASE)
 
             if not name:
                 # Try meta og:title
@@ -76,6 +78,8 @@ class CreatorParser:
                     name = og_title.get("content", "").strip()
                     # Remove common suffixes
                     name = re.sub(r"\s*[-|]\s*Framer.*$", "", name, flags=re.IGNORECASE)
+                    # Remove "Creator" suffix if present
+                    name = re.sub(r"\s+Creator\s*$", "", name, flags=re.IGNORECASE)
 
             # Extract avatar
             avatar_url = None

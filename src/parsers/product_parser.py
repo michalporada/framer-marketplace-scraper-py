@@ -250,6 +250,8 @@ class ProductParser:
                 creator_link_text = creator_link.get_text().strip()
                 if creator_link_text:
                     creator_name = creator_link_text
+                    # Remove "Creator" suffix if present
+                    creator_name = re.sub(r"\s+Creator\s*$", "", creator_name, flags=re.IGNORECASE)
 
             # Extract categories (all of them)
             categories = self._extract_categories(soup)
@@ -607,6 +609,8 @@ class ProductParser:
         by_match = re.search(r"\s+by\s+([^—]+?)(?:\s*—|$)", title_clean, re.IGNORECASE)
         if by_match:
             creator_name = by_match.group(1).strip()
+            # Remove "Creator" suffix if present
+            creator_name = re.sub(r"\s+Creator\s*$", "", creator_name, flags=re.IGNORECASE)
 
         # If no colon, try to extract product name from beginning
         if not product_name:
