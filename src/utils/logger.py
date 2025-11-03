@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from pathlib import Path
 from typing import Optional
 
 import structlog
@@ -14,10 +15,29 @@ def configure_logging() -> None:
     """Configure structured logging for the application."""
     log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
 
-    # Configure standard library logging
+    # Create logs directory if it doesn't exist
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
+
+    # Configure handlers: both stdout and file
+    handlers = [logging.StreamHandler(sys.stdout)]
+
+    # Add file handler if log file path is configured
+    log_file = getattr(settings, "log_file", None)
+    if log_file:
+        log_path = logs_dir / log_file
+        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        handlers.append(file_handler)
+    else:
+        # Default log file: scraper.log
+        default_log_file = logs_dir / "scraper.log"
+        file_handler = logging.FileHandler(default_log_file, encoding="utf-8")
+        handlers.append(file_handler)
+
+    # Configure logging with handlers
     logging.basicConfig(
         format="%(message)s",
-        stream=sys.stdout,
+        handlers=handlers,
         level=log_level,
     )
 

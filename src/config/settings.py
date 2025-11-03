@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"  # json or text
+    log_file: str = "scraper.log"  # Log file name (saved in logs/ directory)
 
     # Output Settings
     output_format: str = "json"  # json, csv, both
