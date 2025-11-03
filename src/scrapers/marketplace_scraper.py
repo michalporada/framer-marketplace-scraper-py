@@ -168,14 +168,11 @@ class MarketplaceScraper:
                     remaining=len(urls),
                 )
 
-        if limit:
-            urls = urls[:limit] if limit else urls
-
         if not urls:
             logger.info("no_urls_to_scrape", reason="all_processed_or_limit_reached")
             return
 
-        logger.info("starting_batch_scrape", total=len(urls), limit=limit)
+        logger.info("starting_batch_scrape", total=len(urls), concurrency_limit=limit)
 
         # Create semaphore for concurrency control
         semaphore = asyncio.Semaphore(limit)
