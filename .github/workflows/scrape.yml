@@ -42,7 +42,6 @@ jobs:
           path: |
             data/
             logs/
-            data/checkpoint.json
           retention-days: 7
       
       - name: Upload logs
