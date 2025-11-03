@@ -33,7 +33,7 @@ jobs:
           LOG_LEVEL: ${{ secrets.LOG_LEVEL || 'INFO' }}
           CHECKPOINT_ENABLED: ${{ secrets.CHECKPOINT_ENABLED || 'true' }}
         run: |
-          python src/main.py
+          python -m src.main
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
