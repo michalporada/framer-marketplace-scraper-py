@@ -177,12 +177,28 @@ class MarketplaceScraper:
         # Create semaphore for concurrency control
         semaphore = asyncio.Semaphore(limit)
 
-        async def scrape_with_semaphore(url: str):
+        async def scrape_with_semaphore(url: str, index: int, total: int):
             async with semaphore:
+                # Log progress every 50 products or at milestones (10%, 25%, 50%, 75%, 90%)
+                if index % 50 == 0 or index in [
+                    int(total * 0.1),
+                    int(total * 0.25),
+                    int(total * 0.5),
+                    int(total * 0.75),
+                    int(total * 0.9),
+                ]:
+                    logger.info(
+                        "scraping_progress",
+                        current=index + 1,
+                        total=total,
+                        percentage=round((index + 1) / total * 100, 2),
+                    )
                 return await self.scrape_product(url, skip_if_processed=skip_processed)
 
         # Scrape with progress bar
-        tasks = [scrape_with_semaphore(url) for url in urls]
+        tasks = [
+            scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)
+        ]
         results = await tqdm.gather(*tasks, desc="Scraping products")
 
         success_count = sum(1 for r in results if r)
