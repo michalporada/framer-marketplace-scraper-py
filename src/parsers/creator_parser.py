@@ -83,7 +83,7 @@ class CreatorParser:
 
             # Extract avatar
             avatar_url = None
-            # Try og:image
+            # Try og:image first (most reliable)
             og_image = soup.find("meta", property="og:image")
             if og_image:
                 avatar_url = og_image.get("content", "")
@@ -93,12 +93,36 @@ class CreatorParser:
 
             if not avatar_url:
                 # Try img with alt containing username or "avatar"
-                img = soup.find("img", alt=re.compile(r"avatar|profile", re.I))
+                img = soup.find("img", alt=re.compile(r"avatar|profile|%s" % username, re.I))
                 if img:
                     avatar_url = img.get("src") or img.get("data-src")
                     if avatar_url:
                         # Decode Next.js Image URL if needed
                         avatar_url = self._product_parser.decode_nextjs_image_url(avatar_url)
+
+            if not avatar_url:
+                # Try to find avatar in header/profile section
+                # Look for common profile image containers
+                profile_sections = soup.find_all(["header", "div"], class_=re.compile(r"profile|avatar|user", re.I))
+                for section in profile_sections:
+                    img = section.find("img")
+                    if img:
+                        avatar_src = img.get("src") or img.get("data-src")
+                        if avatar_src and "avatar" in avatar_src.lower():
+                            avatar_url = self._product_parser.decode_nextjs_image_url(avatar_src)
+                            break
+
+            if not avatar_url:
+                # Try to find first img near the username/name
+                if h1:
+                    # Look for img near h1
+                    parent = h1.parent
+                    if parent:
+                        img = parent.find("img")
+                        if img:
+                            avatar_src = img.get("src") or img.get("data-src")
+                            if avatar_src:
+                                avatar_url = self._product_parser.decode_nextjs_image_url(avatar_src)
 
             # Extract bio
             bio = None
