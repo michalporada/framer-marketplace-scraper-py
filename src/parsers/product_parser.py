@@ -239,6 +239,7 @@ class ProductParser:
             creator_username = None
             creator_url = None
             creator_name = creator_name_from_title  # Use name from title as fallback
+            creator_avatar_url = None
             creator_link = soup.select_one('a[href^="/@"]')
             if creator_link:
                 creator_url = creator_link.get("href", "")
@@ -252,6 +253,37 @@ class ProductParser:
                     creator_name = creator_link_text
                     # Remove "Creator" suffix if present
                     creator_name = re.sub(r"\s+Creator\s*$", "", creator_name, flags=re.IGNORECASE)
+                
+                # Extract creator avatar from link or nearby
+                # Try img inside the link
+                creator_img = creator_link.find("img")
+                if creator_img:
+                    avatar_src = creator_img.get("src") or creator_img.get("data-src")
+                    if avatar_src:
+                        creator_avatar_url = self.decode_nextjs_image_url(avatar_src)
+                
+                # If no avatar in link, try to find avatar nearby (parent or sibling)
+                if not creator_avatar_url:
+                    # Look for img with alt containing username or near the link
+                    parent = creator_link.parent
+                    if parent:
+                        nearby_img = parent.find("img")
+                        if nearby_img:
+                            avatar_src = nearby_img.get("src") or nearby_img.get("data-src")
+                            if avatar_src:
+                                creator_avatar_url = self.decode_nextjs_image_url(avatar_src)
+                
+                # Try to find avatar by looking for images with creator-related attributes
+                if not creator_avatar_url:
+                    # Look for images with alt/aria-label containing username
+                    if creator_username:
+                        avatar_imgs = soup.find_all("img", alt=re.compile(creator_username, re.I))
+                        if not avatar_imgs:
+                            avatar_imgs = soup.find_all("img", attrs={"aria-label": re.compile(creator_username, re.I)})
+                        if avatar_imgs:
+                            avatar_src = avatar_imgs[0].get("src") or avatar_imgs[0].get("data-src")
+                            if avatar_src:
+                                creator_avatar_url = self.decode_nextjs_image_url(avatar_src)
 
             # Extract categories (all of them)
             categories = self._extract_categories(soup)
@@ -298,6 +330,7 @@ class ProductParser:
                     username=creator_username,
                     name=creator_name,  # Use name from title or link text
                     profile_url=creator_url,
+                    avatar_url=creator_avatar_url,  # Avatar from product page
                 )
 
             logger.info("product_parsed", product_id=product_id, name=name, type=product_type)
