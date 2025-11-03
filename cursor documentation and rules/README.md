@@ -53,10 +53,16 @@ cp .env.example .env
 ### 3. Uruchomienie
 
 ```bash
-# Lokalne uruchomienie
-python src/main.py
+# Podstawowe uruchomienie (scrapuje wszystkie produkty)
+python -m src.main
 
-# Lub przez GitHub Actions (scheduled)
+# Ograniczenie liczby produktów (np. 10 dla testów)
+python -m src.main 10
+
+# Export danych do CSV
+python scripts/export_data.py
+
+# Lub przez GitHub Actions (scheduled lub manual)
 # Zobacz .github/workflows/scrape.yml
 ```
 
@@ -81,18 +87,22 @@ python src/main.py
 
 ## 📋 Funkcjonalności
 
-### ✅ Planowane
+### ✅ Zaimplementowane
 
-- [ ] Scrapowanie produktów z sitemap.xml (templates/components/vectors/**plugins**)
-- [ ] Scrapowanie danych twórców (profile z `@username`)
-- [ ] Scrapowanie kategorii (opcjonalnie)
-- [ ] Zbieranie recenzji
-- [ ] Rate limiting i error handling
-- [ ] Zapis do JSON/CSV (organizacja według typu produktu)
-- [ ] Automatyzacja przez GitHub Actions
-- [ ] Resume capability (wznowienie po przerwie)
-- [ ] Walidacja danych (Pydantic)
-- [ ] Monitoring i logowanie
+- [x] Scrapowanie produktów z sitemap.xml (templates/components/vectors/**plugins**)
+- [x] Scrapowanie danych twórców (profile z `@username`)
+- [x] Scrapowanie kategorii (opcjonalnie)
+- [x] Parsowanie recenzji produktów
+- [x] Rate limiting i error handling
+- [x] Zapis do JSON/CSV (organizacja według typu produktu)
+- [x] Automatyzacja przez GitHub Actions (scheduled + manual)
+- [x] Resume capability (wznowienie po przerwie) - checkpoint system
+- [x] Walidacja danych (Pydantic v2)
+- [x] Monitoring i logowanie (structlog)
+- [x] Normalizacja danych (Opcja B - raw + normalized)
+- [x] Obsługa różnych typów produktów (różne statystyki i pola)
+- [x] CI/CD workflow (tests, linting, formatting)
+- [x] Metrics tracking (success rate, errors, timing)
 
 ### 🔮 Opcjonalne (Faza 2+)
 
@@ -106,12 +116,28 @@ python src/main.py
 
 ```
 scraper-v2/
-├── src/                    # Kod źródłowy
-├── data/                   # Zapisane dane
-├── tests/                  # Testy
-├── .github/workflows/      # GitHub Actions
-├── docs/                   # Dokumentacja
-└── scripts/                # Skrypty pomocnicze
+├── src/
+│   ├── scrapers/          # Scrapery (sitemap, product, creator, category)
+│   ├── parsers/           # Parsery HTML (product, creator, review, category)
+│   ├── models/            # Modele Pydantic (Product, Creator, Review, Category)
+│   ├── storage/           # Zapis danych (file_storage)
+│   ├── utils/             # Narzędzia (logger, rate_limiter, retry, normalizers, checkpoint, metrics)
+│   ├── config/            # Konfiguracja (settings)
+│   └── main.py            # Entry point
+├── data/
+│   ├── products/          # Zapisane produkty (templates/, components/, vectors/, plugins/)
+│   ├── creators/          # Dane twórców
+│   ├── categories/        # Dane kategorii
+│   ├── exports/           # Eksporty CSV
+│   └── checkpoint.json    # Checkpoint dla resume capability
+├── tests/                 # Testy jednostkowe
+├── scripts/               # Skrypty pomocnicze
+│   ├── export_data.py     # Export do CSV
+│   └── setup_db.py        # Setup bazy danych
+├── .github/workflows/     # GitHub Actions
+│   ├── scrape.yml         # Scheduled scraping + manual
+│   └── ci.yml             # CI/CD (tests, linting, formatting)
+└── logs/                  # Logi scrapera
 ```
 
 Szczegółowa struktura: [PROPOZYCJA_ARCHITEKTURY.md](./PROPOZYCJA_ARCHITEKTURY.md)
@@ -145,5 +171,5 @@ Projekt jest w fazie rozwoju. Wszelkie sugestie i PR-y są mile widziane!
 
 ---
 
-*Ostatnia aktualizacja: 2024-12-19*
+*Ostatnia aktualizacja: 2025-11-03*
 
