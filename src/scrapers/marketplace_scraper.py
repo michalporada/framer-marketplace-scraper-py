@@ -7,6 +7,7 @@ import httpx
 from tqdm.asyncio import tqdm
 
 from src.config.settings import settings
+from src.parsers.creator_parser import CreatorParser
 from src.parsers.product_parser import ProductParser
 from src.scrapers.creator_scraper import CreatorScraper
 from src.scrapers.product_scraper import ProductScraper
@@ -28,6 +29,7 @@ class MarketplaceScraper:
         self.product_scraper: Optional[ProductScraper] = None
         self.creator_scraper: Optional[CreatorScraper] = None
         self.product_parser = ProductParser()
+        self.creator_parser = CreatorParser()
         self.storage = FileStorage()
         self.checkpoint_manager = CheckpointManager()
         self.metrics = get_metrics()
@@ -100,12 +102,24 @@ class MarketplaceScraper:
 
             # Scrape creator if available
             if product.creator and product.creator.profile_url:
-                await self.creator_scraper.scrape(product.creator.profile_url)
-                # TODO: Parse creator data when creator_parser is implemented
-                # creator_data = await self.creator_scraper.scrape(product.creator.profile_url)
-                # if creator_data:
-                #     creator = self.creator_parser.parse(...)
-                #     product.creator = creator
+                creator_data = await self.creator_scraper.scrape(product.creator.profile_url)
+                if creator_data:
+                    # Parse creator HTML to get full creator data (including avatar)
+                    creator = self.creator_parser.parse(creator_data["html"], creator_data["url"])
+                    if creator:
+                        # Update product.creator with full data (merge to preserve avatar from product page if available)
+                        if not product.creator.avatar_url:
+                            product.creator.avatar_url = creator.avatar_url
+                        if not product.creator.name:
+                            product.creator.name = creator.name
+                        if not product.creator.bio:
+                            product.creator.bio = creator.bio
+                        if not product.creator.website:
+                            product.creator.website = creator.website
+                        if creator.social_media:
+                            product.creator.social_media = creator.social_media
+                        if creator.stats:
+                            product.creator.stats = creator.stats
 
             # Save product
             success = await self.storage.save_product_json(product)
