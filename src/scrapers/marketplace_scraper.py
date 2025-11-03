@@ -100,8 +100,9 @@ class MarketplaceScraper:
 
             # Scrape creator if available
             if product.creator and product.creator.profile_url:
-                creator_data = await self.creator_scraper.scrape(product.creator.profile_url)
+                await self.creator_scraper.scrape(product.creator.profile_url)
                 # TODO: Parse creator data when creator_parser is implemented
+                # creator_data = await self.creator_scraper.scrape(product.creator.profile_url)
                 # if creator_data:
                 #     creator = self.creator_parser.parse(...)
                 #     product.creator = creator

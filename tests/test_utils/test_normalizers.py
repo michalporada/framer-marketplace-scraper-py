@@ -1,7 +1,6 @@
 """Tests for normalizers."""
 
-import pytest
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from src.utils.normalizers import parse_relative_date, parse_statistic, extract_statistic_label
 

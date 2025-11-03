@@ -15,7 +15,7 @@ from src.models.product import (
     NormalizedStatistic,
 )
 from src.utils.logger import get_logger
-from src.utils.normalizers import parse_relative_date, parse_statistic, extract_statistic_label
+from src.utils.normalizers import parse_relative_date, parse_statistic
 
 logger = get_logger(__name__)
 
@@ -333,8 +333,7 @@ class ProductParser:
 
         # Plugins: Version + Users
         elif product_type == "plugin":
-            version_match = re.search(r"Version\s+(\d+)", text_content, re.IGNORECASE)
-            # Version is stored in metadata, not stats
+            # Version is stored in metadata, not stats (extracted in _extract_metadata)
 
             users_match = re.search(r"([\d.,]+[Kk]?)\s*Users", text_content, re.IGNORECASE)
             if users_match:

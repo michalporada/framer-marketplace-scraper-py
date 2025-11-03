@@ -1,16 +1,11 @@
 """Tests for Product model."""
 
-import pytest
-from datetime import datetime
-
 from src.models.product import (
     Product,
     ProductStats,
     ProductMetadata,
     NormalizedDate,
     NormalizedStatistic,
-    ProductFeatures,
-    ProductMedia,
 )
 
 

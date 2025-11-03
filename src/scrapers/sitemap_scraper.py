@@ -3,13 +3,11 @@
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from typing import Dict, List, Optional
-from urllib.parse import urlparse
 
 import httpx
 
 from src.config.settings import settings
 from src.utils.logger import get_logger
-from src.utils.retry import retry_async
 from src.utils.user_agents import get_random_user_agent
 
 logger = get_logger(__name__)

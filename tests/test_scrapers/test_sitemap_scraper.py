@@ -1,8 +1,5 @@
 """Tests for SitemapScraper."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
-
 from src.scrapers.sitemap_scraper import SitemapScraper
 
 

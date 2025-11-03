@@ -1,8 +1,5 @@
 """Tests for ProductParser."""
 
-import pytest
-from bs4 import BeautifulSoup
-
 from src.parsers.product_parser import ProductParser
 
 
