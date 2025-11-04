@@ -218,6 +218,7 @@ Na podstawie analizy strony `https://www.framer.com/marketplace`:
     - 3D Transforms, A11y Optimized, Animations & Effects, Automated SEO, Built-in Analytics, CMS, Components, Custom Cursors, Forms, Layout Templates, Light & Dark Theme, Localization, Overlays & Modals, P3 Colors, Project Styles, Rich Media, Site Search, Slideshows/Tickers, Sticky Scrolling, Variable Fonts, Vector Sets, Visual Breakpoints
   - ⚠️ **Uwaga**: Nie wszystkie szablony mają wszystkie features - lista różni się w zależności od szablonu
 - ✅ Kategorie/tagi produktu
+- ✅ **Pozycja w kategorii** - pozycja szablonu w każdej kategorii (od lewej do prawej, od góry do dołu, 1-indexed)
 - ✅ Lista stron - sekcja "Pages" (np. `["Home", "Contact", "404", "Case studies"]`)
   - Przykład z Omicorn: Home, Contact, 404, Case studies
 - ✅ "What's Included" - lista wliczonych elementów
@@ -406,7 +407,7 @@ def extract_categories(soup: BeautifulSoup) -> List[str]:
 **Inne statystyki (wszystkie typy):**
 - ⚠️ **Liczba remiksów** - może nie być dostępne w HTML
 - ⚠️ **Liczba sprzedaży** - prawdopodobnie nie dostępne publicznie
-- ⚠️ **Popularność** - może wymagać analizy pozycji w liście
+- ✅ **Pozycja w kategorii** - pozycja szablonu w danej kategorii (od lewej do prawej, od góry do dołu, 1-indexed). Tylko dla szablonów (templates).
 
 #### Metadane produktu:
 - **Data publikacji** - kiedy produkt został opublikowany
@@ -487,16 +488,12 @@ def parse_statistic(stat_str: str) -> int:
 4. **Query**: Możliwość wykonywania zapytań SQL na datach i liczbach
 
 **Decyzja do podjęcia:**
-- **Opcja A**: Normalizować wszystkie daty i statystyki do standardowych formatów (ISO 8601, liczby całkowite)
-- **✅ Opcja B (WYBRANA)**: Zapisować zarówno format surowy (z HTML) jak i znormalizowany
-- **Opcja C**: Zapisować tylko format surowy i normalizować w czasie analizy
-
-**✅ Wybrano: Opcja B** - zapis obu formatów zapewnia:
+Zapisujemy zarówno format surowy (z HTML) jak i znormalizowany. Zapis obu formatów zapewnia:
 - Możliwość weryfikacji danych źródłowych
 - Elastyczność w analizie
 - Debugowanie w przypadku problemów z parsowaniem
 
-**Struktura danych dla Opcji B:**
+**Struktura danych:**
 ```python
 {
     "published_date": {
@@ -640,14 +637,14 @@ scraper/
 │   ├── utils/
 │   │   ├── rate_limiter.py             # Ograniczenie częstotliwości requestów
 │   │   ├── user_agents.py              # Rotacja User-Agent
-│   │   ├── normalizers.py              # Normalizacja dat i statystyk (Opcja B)
+│   │   ├── normalizers.py              # Normalizacja dat i statystyk
 │   │   └── logger.py                   # Logowanie
 │   └── config/
 │       └── settings.py                 # Konfiguracja
 ├── data/
 │   ├── products/                       # Zapisane dane produktów
 │   ├── creators/                       # Zapisane dane twórców
-│   └── images/                         # Pobrane obrazy (opcjonalnie)
+│   └── images/                         # Pobrane obrazy
 ├── logs/                               # Logi scrapera
 └── requirements.txt                    # Zależności
 ```
@@ -658,7 +655,6 @@ scraper/
 - **requests** lub **httpx** - do wykonywania requestów HTTP
 - **BeautifulSoup4** lub **lxml** - do parsowania HTML
 - **Selenium** lub **Playwright** - do scrapowania JavaScript-heavy stron (jeśli potrzebne)
-- **scrapy** - framework do scrapowania (opcjonalnie, jeśli potrzebne zaawansowane funkcje)
 
 #### Obsługa danych:
 - **pandas** - manipulacja i analiza danych
@@ -711,6 +707,12 @@ scraper/
     "type": "template",
     "category": "portfolio",  // główna kategoria (pierwsza z listy)
     "categories": ["portfolio", "agency", "landing-page", "modern"],  // wszystkie kategorie
+    "category_positions": {  // Pozycja w każdej kategorii (tylko dla szablonów)
+      "portfolio": 5,
+      "agency": 12,
+      "landing-page": 8,
+      "modern": 17
+    },
     "price": 29.99,
     "currency": "USD",
     "description": "Full description...",
@@ -773,13 +775,13 @@ scraper/
 ```
 Products (tabela produktów)
 ├── creator_username (FK) → Creators.username
-└── category (string) → Categories.slug (opcjonalnie, może być też bezpośrednio w Products)
+└── category (string) → Categories.slug
 
 Creators (tabela twórców)
 └── username (PK) ← Products.creator_username
 
 Categories (tabela kategorii)
-└── slug (PK) ← Products.category (opcjonalnie)
+└── slug (PK) ← Products.category
 ```
 
 **Jak dane są połączone:**
@@ -808,11 +810,7 @@ Categories (tabela kategorii)
    - `creator.stats = null` → Dostępne tylko na profilu twórcy (liczba produktów, sprzedaży)
 
 **Rekomendacja dla pełnych danych:**
-- **Opcja A**: Scrapować produkty + profile twórców + kategorie osobno, a następnie połączyć przez JOIN w bazie danych
-- **Opcja B**: Scrapować produkty z podstawowymi danymi twórcy (username, name z tytułu), a później uzupełnić profile twórców
-- **Opcja C**: Scrapować wszystko w jednym przebiegu (produkty → twórcy → kategorie)
-
-**✅ Wybrano: Opcja B** - najpierw produkty z podstawowymi danymi, potem uzupełnienie profili twórców
+Scrapujemy produkty z podstawowymi danymi twórcy (username, name z tytułu), a następnie uzupełniamy profile twórców.
 
 ### 5. **Proces scrapowania - Flow (zaktualizowany)**
 
@@ -822,7 +820,7 @@ Categories (tabela kategorii)
    ├── Wczytanie konfiguracji
    └── Przygotowanie sesji
 
-2. Pobranie listy produktów (OPCJA A - Sitemap) ⭐ REKOMENDOWANE
+2. Pobranie listy produktów (Sitemap)
    ├── Pobranie sitemap.xml z /marketplace/sitemap.xml lub /sitemap.xml
    ├── Parsowanie XML i wyodrębnienie wszystkich URL-i:
    │   ├── Produkty: 
@@ -834,13 +832,6 @@ Categories (tabela kategorii)
    │   ├── Profile: `/@{username}/` (wszystko zaczynające się od @)
    │   └── Strony pomocowe: `/help/articles/...marketplace...`
    └── Filtrowanie według typu (templates/components/vectors/plugins)
-
-2. Pobranie listy produktów (OPCJA B - Scraping listy)
-   ├── Pobranie strony głównej /marketplace
-   ├── Parsowanie kart produktów (`.card-module-scss-module__P62yvW__card`)
-   ├── Wyodrębnienie URL-i z `<a href="/marketplace/...">`
-   ├── Obsługa paginacji (jeśli dostępna)
-   └── Filtrowanie według typu/kategorii
 
 3. Scrapowanie produktów (równolegle z limitem)
    ├── Dla każdego produktu:
@@ -856,7 +847,7 @@ Categories (tabela kategorii)
    │   └── Walidacja i zapis danych
    └── Rate limiting między requestami (1-2 req/s)
 
-3b. Scrapowanie kategorii (opcjonalnie)
+3b. Scrapowanie kategorii
    ├── Dla każdej kategorii z sitemap:
    │   ├── Pobranie strony kategorii (/marketplace/category/{nazwa}/)
    │   ├── Parsowanie:
@@ -866,7 +857,7 @@ Categories (tabela kategorii)
    │   │   └── Liczba produktów
    │   └── Zapis danych kategorii
 
-3c. Scrapowanie profili użytkowników (opcjonalnie)
+3c. Scrapowanie profili użytkowników
    ├── Dla każdego profilu z sitemap (zaczynającego się od /@):
    │   ├── Pobranie profilu (np. /@ev-studio/ lub /@-790ivi/)
    │   ├── Parsowanie:

@@ -16,28 +16,24 @@ scraper-v2/
 │   │   ├── marketplace_scraper.py  # Główny scraper marketplace
 │   │   ├── product_scraper.py       # Scraper pojedynczego produktu
 │   │   ├── creator_scraper.py       # Scraper profilu twórcy
-│   │   ├── category_scraper.py      # Scraper kategorii (opcjonalnie)
+│   │   ├── category_scraper.py      # Scraper kategorii
 │   │   └── sitemap_scraper.py       # Scraper sitemap.xml
 │   │
 │   ├── parsers/
 │   │   ├── __init__.py
 │   │   ├── product_parser.py       # Parsowanie danych produktu
 │   │   ├── creator_parser.py       # Parsowanie danych twórcy
-│   │   ├── category_parser.py       # Parsowanie danych kategorii (opcjonalnie)
-│   │   └── review_parser.py        # Parsowanie recenzji
+│   │   └── category_parser.py       # Parsowanie danych kategorii
 │   │
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── product.py              # Model Pydantic produktu
 │   │   ├── creator.py              # Model Pydantic twórcy
-│   │   ├── category.py             # Model Pydantic kategorii (opcjonalnie)
-│   │   └── review.py               # Model Pydantic recenzji
+│   │   └── category.py             # Model Pydantic kategorii
 │   │
 │   ├── storage/
 │   │   ├── __init__.py
-│   │   ├── database.py             # Połączenie z bazą danych
-│   │   ├── file_storage.py         # Zapis do plików (JSON, CSV)
-│   │   └── backup.py               # Backup danych
+│   │   └── file_storage.py         # Zapis do plików (JSON, CSV)
 │   │
 │   ├── utils/
 │   │   ├── __init__.py
@@ -45,33 +41,15 @@ scraper-v2/
 │   │   ├── user_agents.py          # Rotacja User-Agent
 │   │   ├── logger.py               # Konfiguracja logowania
 │   │   ├── retry.py                # Retry logic
-│   │   ├── validators.py           # Walidacja danych
-│   │   └── normalizers.py          # Normalizacja dat i statystyk (Opcja B) ⭐
+│   │   ├── normalizers.py          # Normalizacja dat i statystyk (Opcja B) ⭐
+│   │   ├── checkpoint.py           # Checkpoint system (resume capability)
+│   │   └── metrics.py              # Tracking metryk scrapowania
 │   │
 │   ├── config/
 │   │   ├── __init__.py
 │   │   └── settings.py             # Konfiguracja (pydantic-settings)
 │   │
 │   └── main.py                     # Entry point aplikacji
-│
-├── api/                            # (Opcjonalnie) API endpoints
-│   ├── __init__.py
-│   ├── main.py                     # FastAPI app
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── products.py
-│   │   ├── creators.py
-│   │   └── reviews.py
-│   └── dependencies.py
-│
-├── frontend/                       # (Opcjonalnie) Dashboard
-│   ├── package.json
-│   ├── next.config.js
-│   ├── src/
-│   │   ├── app/
-│   │   ├── components/
-│   │   └── lib/
-│   └── public/
 │
 ├── data/
 │   ├── products/                   # Zapisane dane produktów (JSON)
@@ -80,35 +58,45 @@ scraper-v2/
 │   │   ├── vectors/                # Wektory ({product_id}.json)
 │   │   └── plugins/                 # Wtyczki ({product_id}.json) ⭐
 │   ├── creators/                   # Profile twórców jako osobne pliki JSON ({username}.json)
-│   ├── categories/                 # Zapisane dane kategorii (JSON) (opcjonalnie)
+│   ├── categories/                 # Zapisane dane kategorii (JSON)
 │   ├── exports/                    # Eksporty CSV
-│   └── images/                     # Pobrane obrazy (opcjonalnie)
+│   └── images/                     # Pobrane obrazy
 │
 ├── logs/                           # Logi scrapera
 │
 ├── tests/
 │   ├── __init__.py
 │   ├── test_scrapers/
+│   │   ├── __init__.py
+│   │   └── test_sitemap_scraper.py
 │   ├── test_parsers/
+│   │   ├── __init__.py
+│   │   └── test_product_parser.py
 │   ├── test_models/
+│   │   ├── __init__.py
+│   │   └── test_product.py
+│   ├── test_utils/
+│   │   ├── __init__.py
+│   │   └── test_normalizers.py
 │   └── fixtures/
 │
 ├── scripts/
-│   ├── setup_db.py                 # Setup bazy danych
+│   ├── setup_db.py                 # Setup bazy danych (PostgreSQL/MongoDB)
 │   └── export_data.py              # Export danych do CSV
 │   # clean_data.py - nie zaimplementowane (opcjonalne)
 │
-│   # docs/ - folder nie istnieje (dokumentacja w głównym katalogu i README.md)
+│   # docs/ - folder nie istnieje (dokumentacja w głównym katalogu)
 │
 ├── .env.example                    # Przykładowe zmienne środowiskowe
 ├── .gitignore
-├── .pre-commit-config.yaml          # Pre-commit hooks
 ├── pyproject.toml                   # Python project config (poetry/pip)
 ├── requirements.txt                 # Zależności Python
 ├── requirements-dev.txt             # Zależności dev
-├── README.md
-├── STACK_TECHNICZNY.md              # Dokument o stacku
-└── PROPOZYCJA_ARCHITEKTURY.md      # Ten dokument
+├── pytest.ini                       # Konfiguracja pytest
+├── cursor documentation and rules/  # Dokumentacja techniczna
+│   ├── REKOMENDACJE_SCRAPERA_FRAMER.md
+│   ├── PROPOZYCJA_ARCHITEKTURY.md
+│   └── STACK_TECHNICZNY.md
 ```
 
 ## 🔧 Komponenty Systemu
@@ -153,10 +141,16 @@ scraper-v2/
 #### `product_parser.py`
 - Parsuje HTML strony produktu
 - Obsługuje wszystkie typy produktów (templates/components/vectors/**plugins**)
-- Ekstrahuje: nazwa, cena, opis, funkcje, obrazy, recenzje, typ produktu
+- Ekstrahuje: nazwa, cena, opis, funkcje, obrazy, typ produktu, kategorie
 - Używa selektorów CSS z dokumentacji
 - Identyfikuje typ produktu z URL lub HTML
 - **Components Installs**: Wyciągane z JSON danych Next.js (priorytet) lub z HTML tekstu. Może być niedostępne dla niektórych komponentów.
+- Dekodowanie URL-i obrazów Next.js do oryginalnych URL-i
+
+#### `category_parser.py`
+- Parsuje stronę kategorii
+- Ekstrahuje: nazwa kategorii, opis, liczbę produktów, typy produktów, subkategorie
+- **find_product_position()**: Znajduje pozycję produktu w kategorii (od lewej do prawej, od góry do dołu, 1-indexed). Tylko dla szablonów.
 
 #### `creator_parser.py`
 - Parsuje profil twórcy
@@ -165,15 +159,12 @@ scraper-v2/
 - **Avatar**: Wyciągany z JSON danych Next.js (priorytet), pomijane placeholdery API
 - **Social Media**: Wyciągane z JSON danych Next.js, automatycznie filtrowane linki Framer. Obsługiwane: Twitter/X, LinkedIn, Instagram, GitHub, Dribbble, Behance, YouTube
 
-#### `review_parser.py`
-- Parsuje recenzje produktu
-- Ekstrahuje: ocena, treść, autor, data
 
 ### 3. Models (`src/models/`)
 
 #### Pydantic Models
 
-**Product Model (Opcja B - Normalizacja):**
+**Product Model (Normalizacja):**
 - **NormalizedDate:** Format daty z surowym i znormalizowanym formatem
   - `raw`: Format surowy z HTML (np. "5 months ago", "3mo ago")
   - `normalized`: ISO 8601 (np. "2024-10-15T00:00:00Z")
@@ -181,7 +172,7 @@ scraper-v2/
   - `raw`: Format surowy z HTML (np. "19.8K Views", "1,200 Vectors")
   - `normalized`: Liczba całkowita (np. 19800, 1200)
 - **ProductStats:** Statystyki produktu (różne dla różnych typów)
-  - `views`, `pages`, `users`, `installs`, `vectors` (opcjonalnie)
+  - `views`, `pages`, `users`, `installs`, `vectors`
   - Wszystkie jako `NormalizedStatistic`
 - **ProductMetadata:** Metadane produktu
   - `published_date`, `last_updated` jako `NormalizedDate`
@@ -189,40 +180,31 @@ scraper-v2/
 - **Product:** Główny model produktu
   - Typ produktu: `template`, `component`, `vector`, **`plugin`** ⭐
   - Obsługa wszystkich pól z dokumentacji
-  - Wszystkie daty i statystyki w formacie Opcji B
+  - Wszystkie daty i statystyki w formacie znormalizowanym
+  - **category_positions**: Pozycja produktu w każdej kategorii (Dict[str, int]) - tylko dla szablonów
 
 **Creator Model:**
 - **Creator:** Walidacja danych twórcy
   - Username może zawierać znaki specjalne (np. `/@-790ivi/`)
   - Lista produktów (templates/components/vectors/plugins)
 
-**Category Model (opcjonalnie):**
+**Category Model:**
 - **Category:** Walidacja danych kategorii
   - Nazwa, URL, opis, lista produktów
 
-**Review Model:**
-- **Review:** Walidacja recenzji
-  - Ocena, treść, autor, data
-
 **Automatyczna serializacja:** Wszystkie modele automatycznie serializują do JSON
+
+**UWAGA:** Recenzje nie są dostępne na Framer Marketplace, więc nie są zbierane.
 
 ### 4. Storage (`src/storage/`)
 
 #### `file_storage.py`
 - Zapis produktów do JSON (jeden plik per produkt: `products/{type}/{product_id}.json`)
 - Zapis kreatorów do JSON (jeden plik per kreator: `creators/{username}.json`)
+- Zapis kategorii do JSON (jeden plik per kategoria: `categories/{slug}.json`)
 - Eksport produktów do CSV (`export_products_to_csv()`)
 - Eksport kreatorów do CSV (`export_creators_to_csv()`)
 - Incremental saves (zapis przyrostowy)
-
-#### `database.py`
-- Połączenie z PostgreSQL/MongoDB
-- Zapis danych przez SQLAlchemy/ORM
-- Migracje schematu
-
-#### `backup.py`
-- Backup danych do GitHub Releases
-- Backup do cloud storage (S3, etc.)
 
 ### 5. Utils (`src/utils/`)
 
@@ -242,15 +224,26 @@ scraper-v2/
 - Rotacja logów
 
 #### `normalizers.py` ⭐
-- **Normalizacja dat** (Opcja B):
+- **Normalizacja dat**:
   - `parse_relative_date()`: Konwertuje "X months ago" → ISO 8601
   - Obsługuje formaty: "X months ago", "Xmo ago", "Xw ago", "X days ago"
   - Zwraca: `{"raw": "...", "normalized": "ISO 8601"}`
-- **Normalizacja statystyk** (Opcja B):
+- **Normalizacja statystyk**:
   - `parse_statistic()`: Konwertuje "19.8K Views" → 19800
   - Obsługuje formaty: "X.XK", "XK", "X,XXX", "XXX"
   - Zwraca: `{"raw": "...", "normalized": int}`
 - **Użycie:** Parser wywołuje normalizatory przed zapisem do modelu
+
+#### `checkpoint.py`
+- System checkpoint do zapisywania postępu scrapowania
+- Zapisuje przetworzone URL-e i nieudane URL-e
+- Umożliwia wznowienie scrapowania po przerwie
+- Zapis do `data/checkpoint.json`
+
+#### `metrics.py`
+- Tracking metryk scrapowania
+- Śledzi: liczbę produktów, kreatorów, kategorii, czas wykonania, success rate
+- Logowanie podsumowania po zakończeniu scrapowania
 
 ## 🔄 Flow Scrapowania
 
@@ -266,24 +259,19 @@ scraper-v2/
    └─▶ Przygotuj sesję HTTP
    │
 3. GET PRODUCT LIST
-   ├─▶ OPCJA A: Sitemap (REKOMENDOWANE) ⭐
-   │   ├─▶ sitemap_scraper.py → pobierz sitemap.xml
-   │   │   ├─▶ Spróbuj: `/marketplace/sitemap.xml`
-   │   │   └─▶ Fallback: `/sitemap.xml` (jeśli marketplace nie działa)
-   │   ├─▶ Wyodrębnij wszystkie URL-e:
-   │   │   ├─▶ Produkty:
-   │   │   │   ├─▶ Templates: `/marketplace/templates/{nazwa}/`
-   │   │   │   ├─▶ Components: `/marketplace/components/{nazwa}/`
-   │   │   │   ├─▶ Vectors: `/marketplace/vectors/{nazwa}/`
-   │   │   │   └─▶ Plugins: `/marketplace/plugins/{nazwa}/` ⭐
-   │   │   ├─▶ Kategorie: `/marketplace/category/{nazwa}/`
-   │   │   ├─▶ Profile: `/@{username}/` (wszystko z `@`)
-   │   │   └─▶ Strony pomocowe: `/help/articles/...marketplace...`
-   │   └─▶ Filtruj według typu (templates/components/vectors/plugins)
-   │
-   └─▶ OPCJA B: Scraping listy
-       ├─▶ marketplace_scraper.py → pobierz /marketplace
-       └─▶ Parsuj karty produktów
+   ├─▶ sitemap_scraper.py → pobierz sitemap.xml
+   │   ├─▶ Spróbuj: `/marketplace/sitemap.xml`
+   │   └─▶ Fallback: `/sitemap.xml` (jeśli marketplace nie działa)
+   ├─▶ Wyodrębnij wszystkie URL-e:
+   │   ├─▶ Produkty:
+   │   │   ├─▶ Templates: `/marketplace/templates/{nazwa}/`
+   │   │   ├─▶ Components: `/marketplace/components/{nazwa}/`
+   │   │   ├─▶ Vectors: `/marketplace/vectors/{nazwa}/`
+   │   │   └─▶ Plugins: `/marketplace/plugins/{nazwa}/` ⭐
+   │   ├─▶ Kategorie: `/marketplace/category/{nazwa}/`
+   │   ├─▶ Profile: `/@{username}/` (wszystko z `@`)
+   │   └─▶ Strony pomocowe: `/help/articles/...marketplace...`
+   └─▶ Filtruj według typu (templates/components/vectors/plugins)
    │
 4. SCRAPE PRODUCTS
    ├─▶ Dla każdego produktu (równolegle z limitem):
@@ -295,13 +283,17 @@ scraper-v2/
    │   │   └─▶ Obsługuje username z znakami specjalnymi
    │   ├─▶ creator_parser.py → ekstrahuj dane twórcy
    │   ├─▶ save_creator_json() → zapisz profil twórcy jako osobny plik (data/creators/{username}.json)
-   │   ├─▶ review_parser.py → ekstrahuj recenzje
+   │   ├─▶ (Tylko dla szablonów) Dla każdej kategorii produktu:
+   │   │   ├─▶ category_scraper.py → pobierz stronę kategorii
+   │   │   ├─▶ category_parser.find_product_position() → znajdź pozycję produktu
+   │   │   └─▶ Zapisz pozycję w product.category_positions[category]
    │   ├─▶ Walidacja danych (Pydantic)
-   │   └─▶ Zapis danych (file_storage.py lub database.py)
-   │       ├─▶ Zapis produktu: products/{type}/{product_id}.json
-   │       └─▶ Zapis kreatora: creators/{username}.json (osobny plik)
+   │   ├─▶ Zapis danych (file_storage.py)
+   │   │   ├─▶ Zapis produktu: products/{type}/{product_id}.json
+   │   │   └─▶ Zapis kreatora: creators/{username}.json (osobny plik)
+   │   └─▶ Aktualizacja checkpoint (checkpoint.py)
    │
-4b. SCRAPE CATEGORIES (opcjonalnie)
+4b. SCRAPE CATEGORIES
    ├─▶ Dla każdej kategorii z sitemap:
    │   ├─▶ category_scraper.py → pobierz `/marketplace/category/{nazwa}/`
    │   ├─▶ category_parser.py → ekstrahuj:
@@ -311,7 +303,7 @@ scraper-v2/
    │   │   └─▶ Liczba produktów
    │   └─▶ Zapis danych kategorii
    │
-4c. SCRAPE PROFILES (opcjonalnie)
+4c. SCRAPE PROFILES
    ├─▶ Dla każdego profilu z sitemap (`/@username/`):
    │   ├─▶ creator_scraper.py → pobierz profil
    │   │   └─▶ Obsługuje username z znakami specjalnymi (np. `/@-790ivi/`)
@@ -335,8 +327,9 @@ scraper-v2/
    └─▶ Generowanie raportów
    │
 6. SAVE & BACKUP
-   ├─▶ Zapis do JSON/CSV
-   ├─▶ Zapis do bazy danych (opcjonalnie)
+   ├─▶ Zapis do JSON/CSV (file_storage.py)
+   ├─▶ Zapis checkpoint (checkpoint.py)
+   ├─▶ Logowanie metryk (metrics.py)
    └─▶ Backup (GitHub Actions artifacts)
    │
 7. END
@@ -393,33 +386,6 @@ jobs:
         run: mypy src/
 ```
 
-### Vercel Deployment (Opcjonalnie)
-
-#### Struktura dla API:
-```
-api/
-├── main.py              # FastAPI app
-├── vercel.json          # Vercel config
-└── routes/
-```
-
-#### `vercel.json`:
-```json
-{
-  "builds": [
-    {
-      "src": "api/main.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "api/main.py"
-    }
-  ]
-}
-```
 
 ## 📊 Monitoring & Logging
 
@@ -440,7 +406,6 @@ logger.error("scraping_failed", error="timeout", retry_count=2)
 
 ### Notifications
 - GitHub Actions: email/Slack o statusie
-- Error tracking: Sentry (opcjonalnie)
 
 ## 🔐 Security & Best Practices
 
@@ -454,13 +419,6 @@ MAIN_SITEMAP_URL=https://www.framer.com/sitemap.xml  # Fallback
 RATE_LIMIT=1.0
 MAX_RETRIES=3
 LOG_LEVEL=INFO
-# Opcjonalne - typy produktów do scrapowania
-SCRAPE_TEMPLATES=true
-SCRAPE_COMPONENTS=true
-SCRAPE_VECTORS=true
-SCRAPE_PLUGINS=true  # ⭐
-SCRAPE_CATEGORIES=false  # Opcjonalnie
-SCRAPE_PROFILES=false  # Opcjonalnie
 ```
 
 ### Rate Limiting
@@ -479,7 +437,7 @@ SCRAPE_PROFILES=false  # Opcjonalnie
 - Walidacja przed zapisem
 - Sprawdzanie wymaganych pól
 
-### Data Normalization (Opcja B) ⭐
+### Data Normalization ⭐
 - **Normalizacja dat**: Relatywne daty ("X months ago") → ISO 8601
   - Format: `{"raw": "5 months ago", "normalized": "2024-10-15T00:00:00Z"}`
   - Funkcja: `utils/normalizers.py::parse_relative_date()`
@@ -496,24 +454,17 @@ SCRAPE_PROFILES=false  # Opcjonalnie
 2. ✅ Setup Python environment (poetry/pip)
 3. ✅ Implementuj podstawowy scraper (sitemap → products)
 4. ✅ Implementuj rate limiting i error handling
-5. ✅ Implementuj normalizację danych (Opcja B) ⭐
+5. ✅ Implementuj normalizację danych ⭐
    - `utils/normalizers.py` z funkcjami parse_relative_date() i parse_statistic()
    - Modele Pydantic z NormalizedDate i NormalizedStatistic
 6. ✅ Test na małej próbce (10-20 produktów)
 
 ### Faza 2: Rozszerzenie
-1. ⬜ Dodaj scraping wszystkich typów produktów (templates/components/vectors/**plugins**)
-2. ⬜ Dodaj scraping twórców i recenzji
-3. ⬜ Dodaj scraping kategorii (opcjonalnie)
-4. ⬜ Implementuj storage (database)
-5. ⬜ Setup GitHub Actions
-6. ⬜ Dodaj monitoring i notyfikacje
-
-### Faza 3: Production
-1. ⬜ API endpoints (FastAPI/Vercel)
-2. ⬜ Dashboard (Next.js/Vercel)
-3. ⬜ Production database
-4. ⬜ Error tracking (Sentry)
+1. ✅ Dodaj scraping wszystkich typów produktów (templates/components/vectors/**plugins**)
+2. ✅ Dodaj scraping twórców
+3. ✅ Dodaj scraping kategorii
+4. ✅ Setup GitHub Actions
+5. ✅ Monitoring i metryki
 
 ---
 

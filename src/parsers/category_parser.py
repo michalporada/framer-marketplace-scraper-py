@@ -22,11 +22,16 @@ class CategoryParser:
         """Extract category slug from URL.
 
         Args:
-            url: Category URL (e.g., /marketplace/category/templates/)
+            url: Category URL (e.g., /marketplace/category/templates/ or /marketplace/templates/category/non-profit/)
 
         Returns:
             Category slug or None
         """
+        # Try format: /marketplace/templates/category/{slug}/
+        match = re.search(r"/marketplace/(?:templates|components|vectors|plugins)/category/([^/]+)/?", url)
+        if match:
+            return match.group(1)
+        # Try format: /marketplace/category/{slug}/
         match = re.search(r"/marketplace/category/([^/]+)/?", url)
         if match:
             return match.group(1)
@@ -182,6 +187,118 @@ class CategoryParser:
             logger.error(
                 "category_parse_error",
                 url=url,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return None
+
+    def find_product_position(self, html: str, product_url: str) -> Optional[int]:
+        """Find product position in category page listing.
+        
+        Products are ordered left-to-right, top-to-bottom (grid layout).
+        Position is 1-indexed (first product = 1).
+        
+        Note: Currently only used for templates.
+        
+        Args:
+            html: HTML content of category page
+            product_url: Product URL to find (e.g., /marketplace/templates/healing/)
+            
+        Returns:
+            Position (1-indexed) or None if not found
+        """
+        try:
+            soup = BeautifulSoup(html, "lxml")
+            
+            # Extract product ID from URL for matching
+            # Format: /marketplace/{type}/{product_id}/
+            product_id_match = re.search(r"/marketplace/(?:templates|components|vectors|plugins)/([^/]+)/?", product_url)
+            if not product_id_match:
+                logger.warning("product_id_not_found_in_url", url=product_url)
+                return None
+            
+            product_id = product_id_match.group(1)
+            
+            # Find all product cards/links in order (left-to-right, top-to-bottom)
+            # Try multiple selectors for product cards
+            product_links = []
+            seen_product_ids = set()
+            
+            # Method 1: Find product cards by CSS selector (most reliable for grid layout)
+            product_cards = soup.select("div.card-module-scss-module__P62yvW__card")
+            
+            # Process cards in document order (preserves left-to-right, top-to-bottom)
+            for card in product_cards:
+                # Find link within card - try multiple approaches
+                link = card.find("a", href=re.compile(r"/marketplace/(?:templates|components|vectors|plugins)/"))
+                
+                # If no direct link, try to find any link in the card
+                if not link:
+                    all_links = card.find_all("a")
+                    for a_link in all_links:
+                        href = a_link.get("href", "")
+                        if re.search(r"/marketplace/(?:templates|components|vectors|plugins)/", href):
+                            link = a_link
+                            break
+                
+                if link:
+                    href = link.get("href", "")
+                    # Extract product ID from href
+                    link_match = re.search(r"/marketplace/(?:templates|components|vectors|plugins)/([^/]+)/?", href)
+                    if link_match:
+                        link_product_id = link_match.group(1)
+                        # Skip navigation links
+                        if link_product_id not in ["category", "templates", "components", "vectors", "plugins"]:
+                            # Only add if not already in list (avoid duplicates)
+                            if link_product_id not in seen_product_ids:
+                                seen_product_ids.add(link_product_id)
+                                product_links.append({
+                                    "id": link_product_id,
+                                    "url": href,
+                                    "element": card
+                                })
+            
+            # Method 2: If no cards found, try to find all product links in document order
+            if not product_links:
+                all_links = soup.find_all("a", href=re.compile(r"/marketplace/(?:templates|components|vectors|plugins)/[^/]+/"))
+                for link in all_links:
+                    href = link.get("href", "")
+                    link_match = re.search(r"/marketplace/(?:templates|components|vectors|plugins)/([^/]+)/?", href)
+                    if link_match:
+                        link_product_id = link_match.group(1)
+                        # Skip navigation links
+                        if link_product_id not in ["category", "templates", "components", "vectors", "plugins"]:
+                            if link_product_id not in seen_product_ids:
+                                seen_product_ids.add(link_product_id)
+                                product_links.append({
+                                    "id": link_product_id,
+                                    "url": href,
+                                    "element": link
+                                })
+            
+            # Find position of our product
+            for idx, product_link in enumerate(product_links, start=1):
+                if product_link["id"] == product_id:
+                    logger.debug(
+                        "product_position_found",
+                        product_id=product_id,
+                        category_url=html[:100] if len(html) > 100 else html,
+                        position=idx,
+                        total_products=len(product_links)
+                    )
+                    return idx
+            
+            logger.warning(
+                "product_not_found_in_category",
+                product_id=product_id,
+                total_products_found=len(product_links)
+            )
+            return None
+            
+        except Exception as e:
+            logger.error(
+                "find_product_position_error",
+                product_url=product_url,
                 error=str(e),
                 error_type=type(e).__name__,
             )

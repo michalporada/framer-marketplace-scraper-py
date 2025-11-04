@@ -1,7 +1,7 @@
 """Pydantic model for product data."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -113,6 +113,10 @@ class Product(BaseModel):
         default_factory=ProductFeatures, description="Product features"
     )
     media: ProductMedia = Field(default_factory=ProductMedia, description="Product media")
+    category_positions: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Product position in each category (category name -> position, 1-indexed, left-to-right, top-to-bottom). Only for templates.",
+    )
     # reviews removed - not available on Framer Marketplace
     scraped_at: datetime = Field(default_factory=datetime.utcnow, description="Scraping timestamp")
 

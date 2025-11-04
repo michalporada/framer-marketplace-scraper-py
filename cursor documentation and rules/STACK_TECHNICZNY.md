@@ -7,10 +7,8 @@ Projekt to zaawansowany scraper do zbierania danych z Framer Marketplace, który
 - **Produktach**: Szablony (templates), Komponenty (components), Wektory (vectors), **Wtyczki (plugins)** ⭐
 - **Twórcach/Użytkownikach**: Profile z username (może zawierać znaki specjalne)
 - **Kategoriach**: Kategorie produktów w marketplace
-- **Recenzjach**: Opinie i oceny produktów
-- **Stronach pomocowych**: Artykuły związane z marketplace
 
-**Kluczowa funkcjonalność:** Normalizacja danych (Opcja B) - zapis zarówno formatów surowych z HTML jak i znormalizowanych (ISO 8601 dla dat, liczby całkowite dla statystyk) dla elastyczności analizy i weryfikacji danych.
+**Kluczowa funkcjonalność:** Normalizacja danych - zapis zarówno formatów surowych z HTML jak i znormalizowanych (ISO 8601 dla dat, liczby całkowite dla statystyk) dla elastyczności analizy i weryfikacji danych.
 
 ## 🛠️ Stack Techniczny
 
@@ -34,16 +32,15 @@ Projekt to zaawansowany scraper do zbierania danych z Framer Marketplace, który
   - Parsowanie HTML
   - Łatwe wyszukiwanie selektorów CSS
   
-- **lxml** (opcjonalnie)
+- **lxml**
   - Szybsze parsowanie XML/HTML dla sitemap
-  - Alternatywa dla BeautifulSoup
 
 **Dane & Modele:**
 - **pydantic v2**
   - Walidacja danych z modelem
   - Type safety
   - Automatyczna serializacja do JSON
-  - Modele z normalizacją (Opcja B):
+  - Modele z normalizacją:
     - `NormalizedDate` - daty z formatem surowym i znormalizowanym
     - `NormalizedStatistic` - statystyki z formatem surowym i znormalizowanym
   
@@ -76,9 +73,9 @@ Projekt to zaawansowany scraper do zbierania danych z Framer Marketplace, który
   - Strukturalne logowanie
   - Łatwa integracja z systemami monitoringu
 
-### Baza Danych (Opcjonalnie)
+### Baza Danych
 
-#### Opcja 1: PostgreSQL (Rekomendowana)
+#### PostgreSQL (Rekomendowana)
 - **Dlaczego:** Najlepsze dla relacyjnych danych (produkty ↔ twórcy ↔ recenzje)
 - **ORM:** SQLAlchemy
 - **Hosting:** 
@@ -92,12 +89,12 @@ Projekt to zaawansowany scraper do zbierania danych z Framer Marketplace, który
 - **ORM:** SQLAlchemy
 - **Limitations:** Nie nadaje się dla dużych danych
 
-#### Opcja 3: MongoDB (Dla dokumentów)
+#### MongoDB (Dla dokumentów)
 - **Dlaczego:** Elastyczny schemat, łatwe przechowywanie JSON
 - **Driver:** pymongo lub motor (async)
 - **Hosting:** MongoDB Atlas (darmowy tier)
 
-#### Opcja 4: Tylko Pliki (JSON/CSV)
+#### Tylko Pliki (JSON/CSV)
 - **Dlaczego:** Najprostsze, brak infrastruktury
 - **Formaty:** JSON, CSV, Parquet (dla analiz)
 
@@ -185,7 +182,6 @@ GitHub Actions (scheduled)
 - ✅ Automatyzacja out-of-the-box
 - ✅ Integracja z GitHub
 
-#### Opcja 2: Hybrid - GitHub Actions + Vercel
 ```
 GitHub Actions (scraping)
   ↓

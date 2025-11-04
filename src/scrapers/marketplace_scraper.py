@@ -132,6 +132,42 @@ class MarketplaceScraper:
                         if creator.stats:
                             product.creator.stats = creator.stats
 
+            # Get category positions for each category (only for templates)
+            if product.type == "template" and product.categories:
+                for category in product.categories:
+                    # Convert category name to URL slug (lowercase, replace spaces with hyphens, etc.)
+                    # Category names from product page might be "Non-profit" but URL needs "non-profit"
+                    category_slug = category.lower().replace(" ", "-").replace("&", "").strip()
+                    
+                    # Build category URL - try both formats (redirects to /marketplace/templates/category/{category}/)
+                    category_urls = [
+                        f"/marketplace/category/{category_slug}/",
+                        f"/marketplace/templates/category/{category_slug}/",
+                    ]
+                    category_html = None
+                    for category_url in category_urls:
+                        category_html = await self.category_scraper.scrape_category(category_url)
+                        if category_html:
+                            break
+                    
+                    if category_html:
+                        # Find product position in category
+                        position = self.category_parser.find_product_position(category_html, str(product.url))
+                        if position:
+                            product.category_positions[category] = position
+                            logger.info(
+                                "category_position_found",
+                                product_id=product.id,
+                                category=category,
+                                position=position,
+                            )
+                        else:
+                            logger.debug(
+                                "category_position_not_found",
+                                product_id=product.id,
+                                category=category,
+                            )
+
             # Save product
             success = await self.storage.save_product_json(product)
             if success:
