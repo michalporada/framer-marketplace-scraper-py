@@ -236,6 +236,9 @@ Na podstawie analizy strony `https://www.framer.com/marketplace`:
 **Components (Komponenty):**
 - ✅ Cena/Status (przycisk "Copy Component" lub "Purchase")
 - ✅ Statystyki: "X Installs" (format np. "7.4K Installs")
+  - ⚠️ Może być niedostępne dla niektórych komponentów (nie wyświetlane publicznie)
+  - ✅ Wyciągane z JSON danych Next.js (priorytet) lub z HTML tekstu
+  - ⚠️ Niektóre komponenty mogą mieć tylko "Views" zamiast "Installs"
 - ✅ "About this Component" - opis komponentu
 - ✅ Badge "Make it with Workshop" (może być dostępne)
 - ✅ More Components - podobne komponenty

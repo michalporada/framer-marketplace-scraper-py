@@ -14,7 +14,6 @@ class CreatorStats(BaseModel):
     vectors_count: int = Field(default=0, ge=0, description="Number of vectors")
     plugins_count: int = Field(default=0, ge=0, description="Number of plugins")
     total_sales: Optional[int] = Field(None, ge=0, description="Total sales count if available")
-    average_rating: Optional[float] = Field(None, ge=0, le=5, description="Average product rating")
 
 
 class Creator(BaseModel):
@@ -54,7 +53,6 @@ class Creator(BaseModel):
                     "vectors_count": 2,
                     "plugins_count": 1,
                     "total_sales": 150,
-                    "average_rating": 4.5,
                 },
             }
         }

@@ -65,8 +65,6 @@ def setup_postgresql():
             pages_count INTEGER,
             thumbnail_url TEXT,
             screenshots_count INTEGER,
-            average_rating DECIMAL(3, 2),
-            total_reviews INTEGER,
             scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -87,23 +85,9 @@ def setup_postgresql():
             vectors_count INTEGER DEFAULT 0,
             plugins_count INTEGER DEFAULT 0,
             total_sales INTEGER,
-            average_rating DECIMAL(3, 2),
             scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-
-        -- Reviews table
-        CREATE TABLE IF NOT EXISTS reviews (
-            id SERIAL PRIMARY KEY,
-            product_id VARCHAR(255) REFERENCES products(id) ON DELETE CASCADE,
-            author VARCHAR(255) NOT NULL,
-            author_url TEXT,
-            rating DECIMAL(3, 2) NOT NULL,
-            content TEXT NOT NULL,
-            date TIMESTAMP,
-            attachments JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         -- Categories table
@@ -126,7 +110,6 @@ def setup_postgresql():
         CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
         CREATE INDEX IF NOT EXISTS idx_products_creator ON products(creator_username);
         CREATE INDEX IF NOT EXISTS idx_products_scraped_at ON products(scraped_at);
-        CREATE INDEX IF NOT EXISTS idx_reviews_product ON reviews(product_id);
         CREATE INDEX IF NOT EXISTS idx_creators_scraped_at ON creators(scraped_at);
         """
         with engine.connect() as conn:
@@ -175,9 +158,6 @@ def setup_mongodb():
 
         db.creators.create_index("username", unique=True)
         db.creators.create_index("scraped_at")
-
-        db.reviews.create_index("product_id")
-        db.reviews.create_index("author")
 
         db.categories.create_index("slug", unique=True)
         db.categories.create_index("name")

@@ -5,7 +5,6 @@ Zaawansowany scraper do zbierania danych z Framer Marketplace, umożliwiający a
 - **Produktach**: Szablony (templates), Komponenty (components), Wektory (vectors), **Wtyczki (plugins)** ⭐
 - **Twórcach/Użytkownikach**: Profile z username (może zawierać znaki specjalne)
 - **Kategoriach**: Kategorie produktów w marketplace
-- **Recenzjach**: Opinie i oceny produktów
 
 ## 📚 Dokumentacja
 
@@ -70,10 +69,26 @@ Główne zmienne środowiskowe:
 
 ```bash
 # Podstawowe uruchomienie (scrapuje wszystkie produkty)
-python src/main.py
+python3 -m src.main
 
 # Ograniczenie liczby produktów (np. 10 dla testów)
-python src/main.py 10
+python3 -m src.main 10
+
+# Scrapowanie tylko określonych typów produktów
+python3 -m src.main --templates-only 10    # Tylko szablony
+python3 -m src.main --components-only 10   # Tylko komponenty
+python3 -m src.main --vectors-only 10      # Tylko wektory
+python3 -m src.main --plugins-only 10      # Tylko wtyczki
+
+# Scrapowanie tylko kreatorów
+python3 -m src.main --creators-only        # Wszyscy kreatorzy
+python3 -m src.main --creators-only 10     # Z limitem
+python3 -m src.main -c 10                  # Krótka wersja
+
+# Scrapowanie tylko kategorii
+python3 -m src.main --categories-only       # Wszystkie kategorie
+python3 -m src.main --categories-only 10   # Z limitem
+python3 -m src.main -cat 10                # Krótka wersja
 
 # Export danych do CSV
 python scripts/export_data.py
@@ -126,10 +141,11 @@ Dane są automatycznie zapisywane jako artifacts w GitHub Actions.
 
 - [x] Scrapowanie produktów z sitemap.xml (templates/components/vectors/**plugins**)
 - [x] Scrapowanie danych twórców (profile z `@username`)
+- [x] Zapisywanie profilów twórców jako osobne pliki JSON (`data/creators/{username}.json`)
 - [x] Scrapowanie kategorii (opcjonalnie)
-- [x] Parsowanie recenzji produktów
 - [x] Rate limiting i error handling
 - [x] Zapis do JSON/CSV (organizacja według typu produktu)
+- [x] Eksport kreatorów do CSV (`export_creators_to_csv()`)
 - [x] Automatyzacja przez GitHub Actions
 - [x] Resume capability (wznowienie po przerwie) - checkpoint system
 - [x] Walidacja danych (Pydantic)
@@ -151,18 +167,18 @@ Dane są automatycznie zapisywane jako artifacts w GitHub Actions.
 scraper-v2/
 ├── src/
 │   ├── scrapers/          # Scrapery (sitemap, product, creator, category)
-│   ├── parsers/           # Parsery HTML (product, creator, review, category)
-│   ├── models/            # Modele Pydantic (Product, Creator, Review, Category)
+│   ├── parsers/           # Parsery HTML (product, creator, category)
+│   ├── models/            # Modele Pydantic (Product, Creator, Category)
 │   ├── storage/           # Zapis danych (file_storage, database)
 │   ├── utils/             # Narzędzia (logger, rate_limiter, retry, normalizers, checkpoint)
 │   ├── config/            # Konfiguracja (settings)
 │   └── main.py            # Entry point
 ├── data/
 │   ├── products/          # Zapisane produkty (templates/, components/, vectors/, plugins/)
-│   ├── creators/          # Dane twórców
-│   ├── categories/        # Dane kategorii
-│   ├── exports/           # Eksporty CSV
-│   └── checkpoint.json    # Checkpoint dla resume capability
+│   ├── creators/           # Profile twórców jako osobne pliki JSON ({username}.json)
+│   ├── categories/         # Dane kategorii
+│   ├── exports/            # Eksporty CSV
+│   └── checkpoint.json     # Checkpoint dla resume capability
 ├── tests/                 # Testy jednostkowe
 ├── scripts/               # Skrypty pomocnicze
 │   ├── export_data.py     # Export do CSV
@@ -190,19 +206,67 @@ Scraper automatycznie zapisuje postęp scrapowania, umożliwiając wznowienie po
 - Śledzenie nieudanych URL-i do ponownego przetworzenia
 - Zapisywanie statystyk w checkpointie
 
+### Zapisywanie Profili Kreatorów
+Profile kreatorów są zapisywane jako osobne pliki JSON:
+- Lokalizacja: `data/creators/{username}.json`
+- Każdy kreator ma jeden plik, nawet jeśli ma wiele produktów
+- Zawiera pełne dane: bio, avatar, stats, social media
+- Można eksportować do CSV używając `export_creators_to_csv()`
+
+**Techniczne szczegóły parsowania:**
+- **Avatar**: Wyciągany z JSON danych Next.js (priorytet), pomijane placeholdery API (`api/og/creator`)
+- **Social Media**: Wyciągane z JSON danych Next.js, automatycznie filtrowane linki Framer. Obsługiwane platformy: Twitter/X, LinkedIn, Instagram, GitHub, Dribbble, Behance, YouTube
+
 ### Obsługa Różnych Typów Produktów
 Każdy typ produktu ma unikalne pola i statystyki:
 - **Templates**: Pages + Views
 - **Plugins**: Version + Users + Changelog
-- **Components**: Installs
+- **Components**: Installs (wyciągane z JSON danych Next.js lub HTML tekstu)
 - **Vectors**: Users + Views + Vectors (count)
 
 ## 📊 Przykładowe Komendy
 
-```bash
-# Scrapowanie z limitem (test)
-python src/main.py 10
+### Scrapowanie produktów
 
+```bash
+# Scrapowanie wszystkich typów produktów
+python3 -m src.main
+
+# Scrapowanie z limitem (test)
+python3 -m src.main 10
+
+# Scrapowanie tylko określonych typów
+python3 -m src.main --templates-only 10    # Tylko szablony
+python3 -m src.main --components-only 10   # Tylko komponenty
+python3 -m src.main --vectors-only 10      # Tylko wektory
+python3 -m src.main --plugins-only 10      # Tylko wtyczki
+```
+
+### Scrapowanie kreatorów
+
+```bash
+# Wszyscy kreatorzy
+python3 -m src.main --creators-only
+
+# Z limitem
+python3 -m src.main --creators-only 10
+python3 -m src.main -c 10  # Krótka wersja
+```
+
+### Scrapowanie kategorii
+
+```bash
+# Wszystkie kategorie
+python3 -m src.main --categories-only
+
+# Z limitem
+python3 -m src.main --categories-only 10
+python3 -m src.main -cat 10  # Krótka wersja
+```
+
+### Export danych
+
+```bash
 # Export wszystkich produktów do CSV
 python scripts/export_data.py -o data/exports/all_products.csv
 
@@ -212,12 +276,19 @@ python scripts/export_data.py --type template -o data/exports/templates.csv
 # Export z limitem
 python scripts/export_data.py --limit 100 -o data/exports/sample.csv
 
+# Export kreatorów do CSV
+python -c "from src.storage.file_storage import FileStorage; storage = FileStorage(); storage.export_creators_to_csv()"
+```
+
+### Inne
+
+```bash
 # Setup PostgreSQL database
 python scripts/setup_db.py --db-type postgresql
 
 # Wymuś nowe scrapowanie (wyczyść checkpoint)
 rm data/checkpoint.json
-python src/main.py
+python3 -m src.main
 ```
 
 ## 🔐 Uwagi Prawne

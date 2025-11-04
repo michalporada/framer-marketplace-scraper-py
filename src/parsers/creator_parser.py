@@ -1,7 +1,9 @@
 """Creator parser for extracting data from creator profile HTML pages."""
 
+import json
 import re
 from typing import Optional
+from urllib.parse import unquote
 
 from bs4 import BeautifulSoup
 
@@ -81,52 +83,76 @@ class CreatorParser:
                     # Remove "Creator" suffix if present
                     name = re.sub(r"\s+Creator\s*$", "", name, flags=re.IGNORECASE)
 
-            # Extract avatar
+            # Extract avatar - prioritize JSON data, then HTML images
             avatar_url = None
-            # Try og:image first (most reliable)
-            og_image = soup.find("meta", property="og:image")
-            if og_image:
-                avatar_url = og_image.get("content", "")
-                if avatar_url:
-                    # Decode Next.js Image URL if needed
-                    avatar_url = self._product_parser.decode_nextjs_image_url(avatar_url)
+            
+            # First, try to extract from JSON data in script tags (Next.js data)
+            script_tags = soup.find_all("script")
+            for script in script_tags:
+                script_content = script.string
+                if not script_content:
+                    continue
+                
+                # Look for creator data in Next.js JSON structure
+                # Pattern: "creator":{...} with avatar field
+                if '"creator"' in script_content and '"avatar"' in script_content:
+                    try:
+                        # Try to find the avatar URL in the creator object
+                        # Look for "avatar":"https://..." pattern
+                        avatar_match = re.search(
+                            r'"avatar"\s*:\s*"(https?://[^"]+)"', 
+                            script_content
+                        )
+                        if avatar_match:
+                            potential_url = avatar_match.group(1)
+                            # Check if it's not a placeholder API URL
+                            if "api/og/creator" not in potential_url:
+                                avatar_url = potential_url
+                                break
+                    except Exception:
+                        pass
 
+            # If not found in JSON, try to find avatar image in sidebar
             if not avatar_url:
-                # Try img with alt containing username or "avatar"
+                # Look for avatar in sidebar (most reliable location)
+                sidebar = soup.find("div", class_=re.compile(r"sidebar", re.I))
+                if sidebar:
+                    avatar_container = sidebar.find("div", class_=re.compile(r"avatar", re.I))
+                    if avatar_container:
+                        img = avatar_container.find("img")
+                        if img:
+                            # Try srcSet first (Next.js optimized images)
+                            srcset = img.get("srcSet") or img.get("srcset")
+                            if srcset:
+                                # Extract first URL from srcSet
+                                srcset_urls = re.findall(r'url=([^&\s]+)', srcset)
+                                if srcset_urls:
+                                    avatar_url = self._product_parser.decode_nextjs_image_url(
+                                        unquote(srcset_urls[0])
+                                    )
+                            if not avatar_url:
+                                avatar_src = img.get("src") or img.get("data-src")
+                                if avatar_src:
+                                    avatar_url = self._product_parser.decode_nextjs_image_url(
+                                        avatar_src
+                                    )
+
+            # Fallback: try og:image but only if it's not a placeholder
+            if not avatar_url:
+                og_image = soup.find("meta", property="og:image")
+                if og_image:
+                    og_url = og_image.get("content", "")
+                    # Skip placeholder API URLs
+                    if og_url and "api/og/creator" not in og_url:
+                        avatar_url = self._product_parser.decode_nextjs_image_url(og_url)
+
+            # Final fallback: look for any img with alt containing username
+            if not avatar_url:
                 img = soup.find("img", alt=re.compile(r"avatar|profile|%s" % username, re.I))
                 if img:
-                    avatar_url = img.get("src") or img.get("data-src")
-                    if avatar_url:
-                        # Decode Next.js Image URL if needed
-                        avatar_url = self._product_parser.decode_nextjs_image_url(avatar_url)
-
-            if not avatar_url:
-                # Try to find avatar in header/profile section
-                # Look for common profile image containers
-                profile_sections = soup.find_all(
-                    ["header", "div"], class_=re.compile(r"profile|avatar|user", re.I)
-                )
-                for section in profile_sections:
-                    img = section.find("img")
-                    if img:
-                        avatar_src = img.get("src") or img.get("data-src")
-                        if avatar_src and "avatar" in avatar_src.lower():
-                            avatar_url = self._product_parser.decode_nextjs_image_url(avatar_src)
-                            break
-
-            if not avatar_url:
-                # Try to find first img near the username/name
-                if h1:
-                    # Look for img near h1
-                    parent = h1.parent
-                    if parent:
-                        img = parent.find("img")
-                        if img:
-                            avatar_src = img.get("src") or img.get("data-src")
-                            if avatar_src:
-                                avatar_url = self._product_parser.decode_nextjs_image_url(
-                                    avatar_src
-                                )
+                    avatar_src = img.get("src") or img.get("data-src")
+                    if avatar_src:
+                        avatar_url = self._product_parser.decode_nextjs_image_url(avatar_src)
 
             # Extract bio
             bio = None
@@ -168,30 +194,101 @@ class CreatorParser:
                         website = href
                         break
 
-            # Extract social media links
+            # Extract social media links - prioritize JSON data, then HTML links
             social_media = {}
-            for link in links:
-                href = link.get("href", "")
-                text = link.get_text().strip().lower()
+            
+            # First, try to extract from JSON data in script tags (Next.js data)
+            script_tags = soup.find_all("script")
+            for script in script_tags:
+                script_content = script.string
+                if not script_content:
+                    continue
+                
+                # Look for creator data with socials array
+                # Pattern: "creator":{...,"socials":[...]} or "socials":[...]
+                if '"socials"' in script_content:
+                    try:
+                        # Try to find socials array in creator object
+                        # Pattern: "socials":["url1","url2",...]
+                        socials_match = re.search(
+                            r'"socials"\s*:\s*\[(.*?)\]', 
+                            script_content, 
+                            re.DOTALL
+                        )
+                        if socials_match:
+                            socials_content = socials_match.group(1)
+                            # Extract URLs from the array (handle both string and object formats)
+                            urls = re.findall(r'"(https?://[^"]+)"', socials_content)
+                            for url in urls:
+                                url_lower = url.lower()
+                                # Skip if it's Framer's own social links
+                                if "/framer" in url_lower or "/company/framer" in url_lower:
+                                    continue
+                                    
+                                if "twitter.com" in url_lower or "x.com" in url_lower:
+                                    if "twitter" not in social_media:
+                                        social_media["twitter"] = url
+                                elif "linkedin.com" in url_lower:
+                                    if "linkedin" not in social_media:
+                                        social_media["linkedin"] = url
+                                elif "instagram.com" in url_lower:
+                                    if "instagram" not in social_media:
+                                        social_media["instagram"] = url
+                                elif "github.com" in url_lower:
+                                    if "github" not in social_media:
+                                        social_media["github"] = url
+                                elif "dribbble.com" in url_lower:
+                                    if "dribbble" not in social_media:
+                                        social_media["dribbble"] = url
+                                elif "behance.net" in url_lower:
+                                    if "behance" not in social_media:
+                                        social_media["behance"] = url
+                                elif "youtube.com" in url_lower:
+                                    if "youtube" not in social_media:
+                                        social_media["youtube"] = url
+                            if social_media:
+                                break  # Found socials, no need to continue
+                    except Exception:
+                        pass
 
-                # Twitter/X
-                if "twitter.com" in href.lower() or "x.com" in href.lower():
-                    social_media["twitter"] = href
-                # LinkedIn
-                elif "linkedin.com" in href.lower():
-                    social_media["linkedin"] = href
-                # Instagram
-                elif "instagram.com" in href.lower():
-                    social_media["instagram"] = href
-                # GitHub
-                elif "github.com" in href.lower():
-                    social_media["github"] = href
-                # Dribbble
-                elif "dribbble.com" in href.lower():
-                    social_media["dribbble"] = href
-                # Behance
-                elif "behance.net" in href.lower():
-                    social_media["behance"] = href
+            # Fallback: try to find social media links in HTML (only if not already found)
+            if not social_media:
+                # Look for links in sidebar section (not in footer)
+                sidebar = soup.find("div", class_=re.compile(r"sidebar", re.I))
+                sidebar_links = sidebar.find_all("a", href=True) if sidebar else []
+                
+                # Only check links that are NOT in footer (to avoid Framer's own social links)
+                for link in sidebar_links if sidebar_links else links:
+                    href = link.get("href", "")
+                    if not href:
+                        continue
+                    
+                    # Skip links that are clearly Framer's own links
+                    href_lower = href.lower()
+                    if "framer.com" in href_lower and "/company/" in href_lower:
+                        continue
+                    
+                    # Check if it's a social media link
+                    if "twitter.com" in href_lower or "x.com" in href_lower:
+                        # Only add if it's not Framer's own account
+                        if "/framer" not in href_lower and "/framer/" not in href_lower:
+                            social_media["twitter"] = href
+                    elif "linkedin.com" in href_lower:
+                        # Only add if it's not Framer's company page
+                        if "/company/framer" not in href_lower:
+                            social_media["linkedin"] = href
+                    elif "instagram.com" in href_lower:
+                        # Only add if it's not Framer's own account
+                        if "/framer" not in href_lower and "/framer/" not in href_lower:
+                            social_media["instagram"] = href
+                    elif "github.com" in href_lower:
+                        social_media["github"] = href
+                    elif "dribbble.com" in href_lower:
+                        social_media["dribbble"] = href
+                    elif "behance.net" in href_lower:
+                        social_media["behance"] = href
+                    elif "youtube.com" in href_lower:
+                        social_media["youtube"] = href
 
             # Extract statistics
             stats = self._extract_statistics(soup, username)
@@ -277,17 +374,5 @@ class CreatorParser:
             # If "See All" exists, there might be more products than visible
             # We can't determine exact count, but we know there are at least the visible ones
             pass
-
-        # Extract average rating if available
-        # Look for rating text or stars
-        rating_text = soup.find(string=re.compile(r"rating|stars?", re.I))
-        if rating_text:
-            # Try to extract numeric rating
-            rating_match = re.search(r"([\d.]+)\s*(?:stars?|rating)", rating_text, re.IGNORECASE)
-            if rating_match:
-                try:
-                    stats_dict["average_rating"] = float(rating_match.group(1))
-                except ValueError:
-                    pass
 
         return CreatorStats(**stats_dict)
