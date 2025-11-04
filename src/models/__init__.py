@@ -8,7 +8,6 @@ from src.models.product import (
     NormalizedStatistic,
 )
 from src.models.creator import Creator, CreatorStats
-from src.models.review import Review
 from src.models.category import Category
 
 __all__ = [
@@ -19,6 +18,5 @@ __all__ = [
     "NormalizedStatistic",
     "Creator",
     "CreatorStats",
-    "Review",
     "Category",
 ]

@@ -75,11 +75,11 @@ scraper-v2/
 │
 ├── data/
 │   ├── products/                   # Zapisane dane produktów (JSON)
-│   │   ├── templates/              # Szablony
-│   │   ├── components/             # Komponenty
-│   │   ├── vectors/                # Wektory
-│   │   └── plugins/                 # Wtyczki ⭐
-│   ├── creators/                   # Zapisane dane twórców (JSON)
+│   │   ├── templates/              # Szablony ({product_id}.json)
+│   │   ├── components/             # Komponenty ({product_id}.json)
+│   │   ├── vectors/                # Wektory ({product_id}.json)
+│   │   └── plugins/                 # Wtyczki ({product_id}.json) ⭐
+│   ├── creators/                   # Profile twórców jako osobne pliki JSON ({username}.json)
 │   ├── categories/                 # Zapisane dane kategorii (JSON) (opcjonalnie)
 │   ├── exports/                    # Eksporty CSV
 │   └── images/                     # Pobrane obrazy (opcjonalnie)
@@ -156,10 +156,14 @@ scraper-v2/
 - Ekstrahuje: nazwa, cena, opis, funkcje, obrazy, recenzje, typ produktu
 - Używa selektorów CSS z dokumentacji
 - Identyfikuje typ produktu z URL lub HTML
+- **Components Installs**: Wyciągane z JSON danych Next.js (priorytet) lub z HTML tekstu. Może być niedostępne dla niektórych komponentów.
 
 #### `creator_parser.py`
 - Parsuje profil twórcy
-- Ekstrahuje: statystyki, produkty, bio, social media
+- Ekstrahuje: statystyki, produkty, bio, social media, avatar
+- Profil jest zapisywany jako osobny plik JSON: `data/creators/{username}.json`
+- **Avatar**: Wyciągany z JSON danych Next.js (priorytet), pomijane placeholdery API
+- **Social Media**: Wyciągane z JSON danych Next.js, automatycznie filtrowane linki Framer. Obsługiwane: Twitter/X, LinkedIn, Instagram, GitHub, Dribbble, Behance, YouTube
 
 #### `review_parser.py`
 - Parsuje recenzje produktu
@@ -205,8 +209,10 @@ scraper-v2/
 ### 4. Storage (`src/storage/`)
 
 #### `file_storage.py`
-- Zapis do JSON (jeden plik per produkt)
-- Zapis do CSV (dla analiz)
+- Zapis produktów do JSON (jeden plik per produkt: `products/{type}/{product_id}.json`)
+- Zapis kreatorów do JSON (jeden plik per kreator: `creators/{username}.json`)
+- Eksport produktów do CSV (`export_products_to_csv()`)
+- Eksport kreatorów do CSV (`export_creators_to_csv()`)
 - Incremental saves (zapis przyrostowy)
 
 #### `database.py`
@@ -288,10 +294,12 @@ scraper-v2/
    │   ├─▶ creator_scraper.py → pobierz profil twórcy (`/@username/`)
    │   │   └─▶ Obsługuje username z znakami specjalnymi
    │   ├─▶ creator_parser.py → ekstrahuj dane twórcy
+   │   ├─▶ save_creator_json() → zapisz profil twórcy jako osobny plik (data/creators/{username}.json)
    │   ├─▶ review_parser.py → ekstrahuj recenzje
    │   ├─▶ Walidacja danych (Pydantic)
    │   └─▶ Zapis danych (file_storage.py lub database.py)
-   │       └─▶ Organizuj według typu: products/templates/, products/components/, etc.
+   │       ├─▶ Zapis produktu: products/{type}/{product_id}.json
+   │       └─▶ Zapis kreatora: creators/{username}.json (osobny plik)
    │
 4b. SCRAPE CATEGORIES (opcjonalnie)
    ├─▶ Dla każdej kategorii z sitemap:

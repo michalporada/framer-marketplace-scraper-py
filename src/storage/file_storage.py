@@ -11,6 +11,7 @@ import pandas as pd
 from src.config.settings import settings
 from src.models.product import Product
 from src.models.creator import Creator
+from src.models.category import Category
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -116,6 +117,38 @@ class FileStorage:
             )
             return False
 
+    async def save_category_json(self, category: Category) -> bool:
+        """Save category to JSON file.
+
+        Args:
+            category: Category model
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            filename = f"{category.slug}.json"
+            filepath = self.data_dir / "categories" / filename
+
+            # Convert to dict
+            category_dict = category.model_dump(mode="json")
+
+            # Save asynchronously
+            async with aiofiles.open(filepath, "w", encoding="utf-8") as f:
+                await f.write(json.dumps(category_dict, indent=2, ensure_ascii=False, default=str))
+
+            logger.debug("category_saved", slug=category.slug, filepath=str(filepath))
+            return True
+
+        except Exception as e:
+            logger.error(
+                "category_save_error",
+                slug=category.slug if category else "unknown",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return False
+
     def export_products_to_csv(
         self, product_type: Optional[str] = None, output_file: Optional[str] = None
     ) -> bool:
@@ -182,9 +215,6 @@ class FileStorage:
                     "creator_username": product.get("creator", {}).get("username"),
                     "creator_name": product.get("creator", {}).get("name"),
                     "creator_url": product.get("creator", {}).get("profile_url"),
-                    # Reviews
-                    "average_rating": product.get("reviews", {}).get("average_rating"),
-                    "total_reviews": product.get("reviews", {}).get("total_reviews", 0),
                     # Metadata
                     "published_date": product.get("metadata", {}).get("published_date"),
                     "last_updated": product.get("metadata", {}).get("last_updated"),
@@ -260,7 +290,6 @@ class FileStorage:
                     "vectors_count": creator.get("stats", {}).get("vectors_count", 0),
                     "plugins_count": creator.get("stats", {}).get("plugins_count", 0),
                     "total_sales": creator.get("stats", {}).get("total_sales"),
-                    "average_rating": creator.get("stats", {}).get("average_rating"),
                 }
                 flattened_creators.append(flattened)
 

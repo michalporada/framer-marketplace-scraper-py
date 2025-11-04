@@ -82,20 +82,6 @@ class ProductFeatures(BaseModel):
     requirements: List[str] = Field(default_factory=list, description="Technical requirements")
 
 
-class ProductReviews(BaseModel):
-    """Reviews and ratings for a product."""
-
-    average_rating: Optional[float] = Field(None, ge=0, le=5, description="Average rating")
-    total_reviews: int = Field(default=0, ge=0, description="Total number of reviews")
-    rating_distribution: dict[int, int] = Field(
-        default_factory=dict,
-        description="Rating distribution (5: count, 4: count, etc.)",
-    )
-    reviews: List[dict] = Field(
-        default_factory=list, description="List of reviews (dictionaries for JSON compatibility)"
-    )
-
-
 class Product(BaseModel):
     """Model for a product from Framer Marketplace."""
 

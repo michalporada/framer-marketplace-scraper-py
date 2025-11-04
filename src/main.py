@@ -56,25 +56,81 @@ async def main():
 
     # Parse command line arguments
     limit = None
+    creators_only = False
+    categories_only = False
+    product_types = None  # List of product types to scrape
+
     if len(sys.argv) > 1:
-        try:
-            limit = int(sys.argv[1])
-            logger.info("limit_set", limit=limit)
-        except ValueError:
-            logger.warning("invalid_limit_argument", arg=sys.argv[1])
+        # Check for --creators-only flag
+        if "--creators-only" in sys.argv or "-c" in sys.argv:
+            creators_only = True
+            sys.argv = [arg for arg in sys.argv if arg not in ["--creators-only", "-c"]]
+
+        # Check for --categories-only flag
+        if "--categories-only" in sys.argv or "-cat" in sys.argv:
+            categories_only = True
+            sys.argv = [arg for arg in sys.argv if arg not in ["--categories-only", "-cat"]]
+
+        # Check for product type flags
+        if "--templates-only" in sys.argv or "--template-only" in sys.argv:
+            product_types = ["template"]
+            sys.argv = [
+                arg for arg in sys.argv if arg not in ["--templates-only", "--template-only"]
+            ]
+        elif "--components-only" in sys.argv or "--component-only" in sys.argv:
+            product_types = ["component"]
+            sys.argv = [
+                arg for arg in sys.argv if arg not in ["--components-only", "--component-only"]
+            ]
+        elif "--vectors-only" in sys.argv or "--vector-only" in sys.argv:
+            product_types = ["vector"]
+            sys.argv = [arg for arg in sys.argv if arg not in ["--vectors-only", "--vector-only"]]
+        elif "--plugins-only" in sys.argv or "--plugin-only" in sys.argv:
+            product_types = ["plugin"]
+            sys.argv = [arg for arg in sys.argv if arg not in ["--plugins-only", "--plugin-only"]]
+
+        # Check for limit argument
+        if len(sys.argv) > 1:
+            try:
+                limit = int(sys.argv[1])
+                logger.info("limit_set", limit=limit)
+            except ValueError:
+                logger.warning("invalid_limit_argument", arg=sys.argv[1])
 
     # Run scraper
     try:
         async with MarketplaceScraper() as scraper:
-            stats = await scraper.scrape(limit=limit)
+            if creators_only:
+                logger.info("scraping_creators_only")
+                stats = await scraper.scrape_creators_only(limit=limit)
+            elif categories_only:
+                logger.info("scraping_categories_only")
+                stats = await scraper.scrape_categories_only(limit=limit)
+            else:
+                if product_types:
+                    logger.info("scraping_product_types", types=product_types)
+                stats = await scraper.scrape(limit=limit, product_types=product_types)
 
-            logger.info(
-                "scraping_completed",
-                products_scraped=stats["products_scraped"],
-                products_failed=stats["products_failed"],
-                creators_scraped=stats["creators_scraped"],
-                creators_failed=stats["creators_failed"],
-            )
+            if creators_only:
+                logger.info(
+                    "scraping_completed",
+                    creators_scraped=stats["creators_scraped"],
+                    creators_failed=stats["creators_failed"],
+                )
+            elif categories_only:
+                logger.info(
+                    "scraping_completed",
+                    categories_scraped=stats["categories_scraped"],
+                    categories_failed=stats["categories_failed"],
+                )
+            else:
+                logger.info(
+                    "scraping_completed",
+                    products_scraped=stats["products_scraped"],
+                    products_failed=stats["products_failed"],
+                    creators_scraped=stats["creators_scraped"],
+                    creators_failed=stats["creators_failed"],
+                )
 
             # Log final metrics summary
             from src.utils.metrics import get_metrics
