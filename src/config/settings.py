@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     robots_url: str = "https://www.framer.com/robots.txt"
 
     # Rate Limiting
-    rate_limit: float = 1.0  # requests per second
-    delay_between_requests: float = 1.0  # seconds
-    max_concurrent_requests: int = 5
+    rate_limit: float = 2.0  # requests per second (increased from 1.0 for faster scraping)
+    delay_between_requests: float = 0.5  # seconds (reduced from 1.0 for faster scraping)
+    max_concurrent_requests: int = 10  # increased from 5 for better performance
 
     # HTTP Settings
     timeout: int = 30  # seconds

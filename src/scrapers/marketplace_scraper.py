@@ -283,6 +283,7 @@ class MarketplaceScraper:
         limit: Optional[int] = None,
         resume: bool = True,
         product_types: Optional[List[str]] = None,
+        skip_processed: bool = True,
     ) -> dict:
         """Main scraping method.
 
@@ -330,8 +331,10 @@ class MarketplaceScraper:
             logger.info("applying_limit", limit=limit, remaining=len(product_urls))
 
         # Scrape products
+        # If limit is set, we still want to respect skip_processed to avoid re-scraping
+        # But if force_rescrape is used, skip_processed will be False
         await self.scrape_products_batch(
-            product_urls, settings.max_concurrent_requests, skip_processed=resume
+            product_urls, settings.max_concurrent_requests, skip_processed=skip_processed
         )
 
         # Stop metrics tracking
