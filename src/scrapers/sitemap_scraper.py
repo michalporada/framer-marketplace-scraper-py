@@ -344,6 +344,7 @@ class SitemapScraper:
 
             category_urls = []
             try:
+
                 async def _fetch():
                     response = await self.client.get(marketplace_url)
                     response.raise_for_status()
@@ -393,6 +394,7 @@ class SitemapScraper:
 
             page_urls = []
             try:
+
                 async def _fetch():
                     response = await self.client.get(category_url)
                     response.raise_for_status()
