@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     log_file: str = "scraper.log"  # Log file name (saved in logs/ directory)
 
     # Output Settings
-    output_format: str = "json"  # json, csv, both
+    output_format: str = "both"  # json, csv, both
     data_dir: str = "data"
 
     # Database (optional)
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     scrape_components: bool = True
     scrape_vectors: bool = True
     scrape_plugins: bool = True  # New product type
-    scrape_categories: bool = False  # Optional
+    scrape_categories: bool = True  # Optional
     scrape_profiles: bool = False  # Optional
 
     @property
