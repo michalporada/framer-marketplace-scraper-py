@@ -1,6 +1,5 @@
 """Creator parser for extracting data from creator profile HTML pages."""
 
-import json
 import re
 from typing import Optional
 from urllib.parse import unquote
@@ -85,14 +84,14 @@ class CreatorParser:
 
             # Extract avatar - prioritize JSON data, then HTML images
             avatar_url = None
-            
+
             # First, try to extract from JSON data in script tags (Next.js data)
             script_tags = soup.find_all("script")
             for script in script_tags:
                 script_content = script.string
                 if not script_content:
                     continue
-                
+
                 # Look for creator data in Next.js JSON structure
                 # Pattern: "creator":{...} with avatar field
                 if '"creator"' in script_content and '"avatar"' in script_content:
@@ -100,8 +99,7 @@ class CreatorParser:
                         # Try to find the avatar URL in the creator object
                         # Look for "avatar":"https://..." pattern
                         avatar_match = re.search(
-                            r'"avatar"\s*:\s*"(https?://[^"]+)"', 
-                            script_content
+                            r'"avatar"\s*:\s*"(https?://[^"]+)"', script_content
                         )
                         if avatar_match:
                             potential_url = avatar_match.group(1)
@@ -125,7 +123,7 @@ class CreatorParser:
                             srcset = img.get("srcSet") or img.get("srcset")
                             if srcset:
                                 # Extract first URL from srcSet
-                                srcset_urls = re.findall(r'url=([^&\s]+)', srcset)
+                                srcset_urls = re.findall(r"url=([^&\s]+)", srcset)
                                 if srcset_urls:
                                     avatar_url = self._product_parser.decode_nextjs_image_url(
                                         unquote(srcset_urls[0])
@@ -196,14 +194,14 @@ class CreatorParser:
 
             # Extract social media links - prioritize JSON data, then HTML links
             social_media = {}
-            
+
             # First, try to extract from JSON data in script tags (Next.js data)
             script_tags = soup.find_all("script")
             for script in script_tags:
                 script_content = script.string
                 if not script_content:
                     continue
-                
+
                 # Look for creator data with socials array
                 # Pattern: "creator":{...,"socials":[...]} or "socials":[...]
                 if '"socials"' in script_content:
@@ -211,9 +209,7 @@ class CreatorParser:
                         # Try to find socials array in creator object
                         # Pattern: "socials":["url1","url2",...]
                         socials_match = re.search(
-                            r'"socials"\s*:\s*\[(.*?)\]', 
-                            script_content, 
-                            re.DOTALL
+                            r'"socials"\s*:\s*\[(.*?)\]', script_content, re.DOTALL
                         )
                         if socials_match:
                             socials_content = socials_match.group(1)
@@ -224,7 +220,7 @@ class CreatorParser:
                                 # Skip if it's Framer's own social links
                                 if "/framer" in url_lower or "/company/framer" in url_lower:
                                     continue
-                                    
+
                                 if "twitter.com" in url_lower or "x.com" in url_lower:
                                     if "twitter" not in social_media:
                                         social_media["twitter"] = url
@@ -256,18 +252,18 @@ class CreatorParser:
                 # Look for links in sidebar section (not in footer)
                 sidebar = soup.find("div", class_=re.compile(r"sidebar", re.I))
                 sidebar_links = sidebar.find_all("a", href=True) if sidebar else []
-                
+
                 # Only check links that are NOT in footer (to avoid Framer's own social links)
                 for link in sidebar_links if sidebar_links else links:
                     href = link.get("href", "")
                     if not href:
                         continue
-                    
+
                     # Skip links that are clearly Framer's own links
                     href_lower = href.lower()
                     if "framer.com" in href_lower and "/company/" in href_lower:
                         continue
-                    
+
                     # Check if it's a social media link
                     if "twitter.com" in href_lower or "x.com" in href_lower:
                         # Only add if it's not Framer's own account
