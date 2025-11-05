@@ -1,0 +1,115 @@
+- name: "Git & PR Workflow"
+  description: "Standard workflow for clean Git history and structured Pull Requests."
+  appliesTo: ["*"]
+  steps:
+    - "Always update main branch before starting any work."
+    - "Create a new branch for each feature or fix."
+    - "Implement and locally test your changes."
+    - "Commit with a clear, descriptive message."
+    - "Push branch to GitHub."
+    - "Open a Pull Request (drafts are fine)."
+    - "Keep branch synced with main before merging."
+    - "Resolve all conflicts and pass checks."
+    - "Merge PR after review and approval."
+    - "Delete branch locally and remotely after merge."
+  conventions:
+    branch:
+      - "feature/<name> for new features"
+      - "fix/<name> for bug fixes"
+      - "refactor/<name> for refactoring or cleanup"
+    commit:
+      - "Use conventional commits format"
+      - "Example: feat: add loading state to swap button"
+      - "Example: fix: correct balance rounding issue"
+
+- name: "Branch & Commit Naming Rules"
+  description: "Ensure consistent naming convention for branches and commits."
+  appliesTo: ["*"]
+  rules:
+    branches:
+      pattern: "^(feature|fix|refactor|chore|docs|test)\/[a-z0-9._-]+$"
+      examples:
+        - "feature/swap-flow"
+        - "fix/missing-avatar"
+        - "refactor/component-structure"
+      message: "Branch name must follow pattern: type/name (e.g. feature/new-ui)"
+    commits:
+      pattern: "^(feat|fix|refactor|chore|docs|test): .+$"
+      examples:
+        - "feat: add login screen"
+        - "fix: handle network timeout"
+        - "refactor: simplify form validation"
+      message: "Commit message must follow Conventional Commits (e.g. feat: add login screen)"
+
+- name: "Release Management (SemVer + Changelog)"
+  description: "Release management based on Conventional Commits, SemVer, and automatic changelog (release-please)."
+  appliesTo: ["*"]
+  prerequisites:
+    - "We use Conventional Commits (feat/fix/refactor/chore/docs/test)."
+    - "Main branch is protected; green CI required before merge."
+    - "Required files in repo: release-please-config.json and .github/workflows/release-please.yml."
+  semver:
+    mapping:
+      - "MAJOR: commit with footer 'BREAKING CHANGE:' or '!': bumps x.0.0"
+      - "MINOR: 'feat:' → bumps 0.x.0"
+      - "PATCH: 'fix:' and others → bumps 0.0.x"
+    notes:
+      - "PR with breaking change must include section 'BREAKING CHANGE: <description of impact and migration>'."
+  steps:
+    - "Create small PRs with correct commit types (Conventional Commits)."
+    - "Before merging to main: ensure CI is green and PR description contains context of changes."
+    - "After merging to main: wait for auto-PR from 'release-please' (version bump + CHANGELOG)."
+    - "Review auto-PR, improve description if needed, merge it."
+    - "After merge: version tag and GitHub Release are created automatically; CHANGELOG.md updated."
+    - "Deployment (if exists) listens to tag/release and deploys to production."
+  conventions:
+    release_pr_title: "chore: release ${version}"
+    labels:
+      - "autorelease: pending (auto-PR from release-please)"
+      - "autorelease: tagged (after publication)"
+    changelog_sections:
+      - "Features"
+      - "Bug Fixes"
+      - "Refactors"
+      - "Docs"
+      - "Chore/CI"
+  guardrails:
+    - "Don't squash commits breaking convention — preserve prefixes (feat/fix/...)."
+    - "Don't tag manually — version is managed by release-please."
+    - "Breaking changes only after agreement and with migration plan in description."
+  rollback:
+    - "Hotfix: create branch 'fix/<name>', fix, merge to main; release-please will generate PATCH."
+    - "In case of incorrect release: delete release/tag, revert merge (revert PR), let release-please create new patch."
+  success_criteria:
+    - "Every merge to main → current CHANGELOG + correct tag."
+    - "No manual steps except reviewing auto-PR."
+    - "Version history clear and consistent with SemVer."
+
+- name: "Documentation Compliance"
+  description: "Always adhere to project documentation and update it when necessary, always with context and framework."
+  appliesTo: ["*"]
+  principles:
+    - "Documentation is the source of truth - always check existing documentation before implementing changes."
+    - "Follow architecture, conventions, and patterns described in documentation."
+    - "Use documentation as a reference framework for all technical decisions."
+  workflow:
+    - "Before starting work: automatically read and understand relevant documentation (README, docs/, ARCHITECTURE.md, etc.)."
+    - "During implementation: adhere to described patterns, conventions, and best practices."
+    - "When introducing changes requiring documentation updates: ALWAYS ask the user first whether and how to update documentation."
+    - "Don't update documentation automatically without consultation - always discuss necessary changes."
+  requirements:
+    - "Always have full context of documentation - don't require reminders to check documentation."
+    - "Treat documentation as the binding standard - don't propose solutions conflicting with documentation."
+    - "When documentation is unclear or information is missing: ask the user for clarification before acting."
+    - "Document changes according to existing conventions and project format."
+  documentation_sources:
+    - "README.md - main project documentation"
+    - "docs/ - technical documentation"
+    - "ARCHITECTURE.md, PROPOZYCJA_ARCHITEKTURY.md - system architecture"
+    - "STACK_TECHNICZNY.md - technology stack"
+    - "All .md files in repository containing specifications"
+  guardrails:
+    - "Don't ignore documentation even if it seems outdated - always ask about updating."
+    - "Don't make changes to documentation without explicit user consent."
+    - "Don't assume documentation is outdated - always check first if solution is compliant with documentation."
+
