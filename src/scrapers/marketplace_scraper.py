@@ -278,15 +278,14 @@ class MarketplaceScraper:
                 # Always update products (skip_if_processed=False) to get latest views, prices, etc.
                 return await self.scrape_product(url, skip_if_processed=False)
 
-        # Scrape with progress bar (only if stdout is a terminal)
+        # Scrape with progress bar
         tasks = [scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)]
         try:
-            # Use tqdm only if stdout is a terminal (not redirected)
-            if sys.stdout.isatty():
-                results = await tqdm.gather(*tasks, desc="Scraping products")
-            else:
-                # If output is redirected, use regular asyncio.gather
-                results = await asyncio.gather(*tasks)
+            # Try to use tqdm progress bar
+            # Use disable=True if stdout is not a terminal to avoid BrokenPipeError
+            results = await tqdm.gather(
+                *tasks, desc="Scraping products", disable=not sys.stdout.isatty()
+            )
         except (BrokenPipeError, OSError):
             # Fallback to regular gather if tqdm fails (e.g., broken pipe)
             logger.warning("tqdm_progress_bar_failed", note="Falling back to asyncio.gather")
@@ -342,17 +341,17 @@ class MarketplaceScraper:
                     timestamp=resume_info["timestamp"],
                 )
 
-        # Get product URLs from sitemap
+        # Get product URLs from sitemap (with fallback to marketplace pages)
         async with self.sitemap_scraper:
-            sitemap_data = await self.sitemap_scraper.scrape()
             # Use provided product types or fall back to settings
             types_to_scrape = (
                 product_types if product_types is not None else settings.get_product_types()
             )
-            product_urls = self.sitemap_scraper.filter_urls_by_type(sitemap_data, types_to_scrape)
+            # get_product_urls includes fallback to marketplace pages if sitemap has no products
+            product_urls = await self.sitemap_scraper.get_product_urls(types_to_scrape)
 
         if not product_urls:
-            logger.warning("no_products_found")
+            logger.error("no_products_found_after_all_attempts")
             return self.stats
 
         logger.info("product_urls_found", count=len(product_urls))
@@ -552,13 +551,13 @@ class MarketplaceScraper:
                     )
                 return await self.scrape_creator(url, skip_if_processed=skip_processed)
 
-        # Scrape with progress bar (only if stdout is a terminal)
+        # Scrape with progress bar
         tasks = [scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)]
         try:
-            if sys.stdout.isatty():
-                results = await tqdm.gather(*tasks, desc="Scraping creators")
-            else:
-                results = await asyncio.gather(*tasks)
+            # Use disable=True if stdout is not a terminal to avoid BrokenPipeError
+            results = await tqdm.gather(
+                *tasks, desc="Scraping creators", disable=not sys.stdout.isatty()
+            )
         except (BrokenPipeError, OSError):
             logger.warning("tqdm_progress_bar_failed", note="Falling back to asyncio.gather")
             results = await asyncio.gather(*tasks)
@@ -766,13 +765,13 @@ class MarketplaceScraper:
                     )
                 return await self.scrape_category(url, skip_if_processed=skip_processed)
 
-        # Scrape with progress bar (only if stdout is a terminal)
+        # Scrape with progress bar
         tasks = [scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)]
         try:
-            if sys.stdout.isatty():
-                results = await tqdm.gather(*tasks, desc="Scraping categories")
-            else:
-                results = await asyncio.gather(*tasks)
+            # Use disable=True if stdout is not a terminal to avoid BrokenPipeError
+            results = await tqdm.gather(
+                *tasks, desc="Scraping categories", disable=not sys.stdout.isatty()
+            )
         except (BrokenPipeError, OSError):
             logger.warning("tqdm_progress_bar_failed", note="Falling back to asyncio.gather")
             results = await asyncio.gather(*tasks)
