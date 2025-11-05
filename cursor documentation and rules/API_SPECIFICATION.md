@@ -16,11 +16,10 @@
 4. [Endpointy — ETAP 2 (Intelligence)](#endpointy--etap-2-intelligence)
 5. [Endpointy — ETAP 3 (Prediction)](#endpointy--etap-3-prediction)
 6. [Market Context Integration](#market-context-integration)
-7. [Affiliate Links Integration](#affiliate-links-integration)
-8. [Rate Limiting & Quotas](#rate-limiting--quotas)
-9. [Error Handling](#error-handling)
-10. [Response Formats](#response-formats)
-11. [Implementation Roadmap](#implementation-roadmap)
+7. [Rate Limiting & Quotas](#rate-limiting--quotas)
+8. [Error Handling](#error-handling)
+9. [Response Formats](#response-formats)
+10. [Implementation Roadmap](#implementation-roadmap)
 
 ---
 
@@ -28,10 +27,10 @@
 
 ### Stack Techniczny
 
-- **Framework:** FastAPI (Python) lub Next.js API Routes (TypeScript)
+- **Framework:** FastAPI (Python) lub Next.js API Routes (TypeScript) — [patrz wyjaśnienie](#api-structure-decision)
 - **Database:** PostgreSQL (Supabase) z time-series snapshots
-- **Authentication:** JWT (FastAPI) lub Supabase Auth
-- **Caching:** Redis (opcjonalne) dla często używanych endpointów
+- **Authentication:** Supabase Auth (JWT-based, gotowe rozwiązanie)
+- **Caching:** Redis (opcjonalne) lub in-memory cache — [patrz wyjaśnienie](#caching-strategy)
 - **Documentation:** Swagger/OpenAPI (automatyczna z FastAPI)
 
 ### Struktura Projektu
@@ -62,8 +61,7 @@ api/
 │   ├── insight_engine.py     # Insight generation logic
 │   ├── metrics_calculator.py # Derived metrics (Difficulty, Opportunity)
 │   ├── trend_detector.py     # Trend detection & analysis
-│   ├── market_context.py     # Market payout data integration
-│   └── affiliate_manager.py  # Affiliate link management
+│   └── market_context.py     # Market payout data integration
 │
 └── utils/
     ├── cache.py              # Caching utilities
@@ -77,29 +75,39 @@ api/
 ### Authentication Flow
 
 **ETAP 1 (Foundation):** Public API (read-only), bez authentication  
-**ETAP 2+ (Intelligence):** JWT-based authentication dla watchlist, alerts, personal insights
+**ETAP 2+ (Intelligence):** Supabase Auth (JWT-based) dla watchlist, alerts, personal insights
 
-#### JWT Authentication
+#### Supabase Authentication
+
+Supabase Auth zapewnia gotowe rozwiązanie dla:
+- Email/password authentication
+- OAuth (Google, GitHub) — opcjonalne
+- JWT token management
+- User session management
+
+**Przykład użycia w API:**
 
 ```python
-# POST /api/auth/login
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
+from supabase import create_client, Client
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer
 
-# Response
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer",
-  "expires_in": 3600,
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "subscription_tier": "free" // "free", "pro", "team", "studio"
-  }
-}
+security = HTTPBearer()
+
+async def get_current_user(token: str = Depends(security)) -> dict:
+    """Verify Supabase JWT token and return user."""
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    try:
+        user = supabase.auth.get_user(token.credentials)
+        return user
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
 ```
+
+**Endpoint logowania** (obsługiwany przez Supabase Auth):
+- Frontend używa Supabase client SDK do logowania
+- API otrzymuje JWT token w headerze `Authorization: Bearer {token}`
+- Token jest weryfikowany przy każdym requestcie wymagającym auth
 
 #### Subscription Tiers & Access
 
