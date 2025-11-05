@@ -630,3 +630,5 @@ Każdy katalog fixture'ów powinien zawierać `README.md` z:
 
 **Uwaga:** Ten dokument jest źródłem prawdy i powinien być aktualizowany przy każdej zmianie w strukturze testów lub fixture'ów. Wszystkie decyzje dotyczące testów powinny być tutaj dokumentowane.
 
+
+

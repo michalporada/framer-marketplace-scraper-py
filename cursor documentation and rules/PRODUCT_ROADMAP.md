@@ -1,6 +1,6 @@
 # Amonit — Product Roadmap & Strategy
 
-**Cel:** Stać się inteligentnym dashboardem dla twórców Framer Marketplace, który pokazuje trendy, przewiduje szanse i pomaga zwiększyć sprzedaż szablonów.
+**Cel:** Stać się inteligentnym dashboardem dla twórców Framer Marketplace, który pokazuje trendy, przewiduje szanse i pomaga zwiększyć sprzedaż szablonów i komponentów.
 
 **Filozofia:** Nie sprzedajemy danych — sprzedajemy przewagę informacyjną. Produktem nie jest wykres, tylko lepsze decyzje.
 
@@ -67,9 +67,7 @@
 - 💌 **Weekly Digest**
   - Raport mailowy z 3 kluczowymi zmianami
   - "Your templates performance summary"
-- 💼 **Marketplace Expansion**
-  - Webflow Templates, Notion Templates, Gumroad assets
-  - Wspólna struktura danych = efekt skali
+
 
 **Wartość:** "Amonit sam pokazuje mi, co będzie się sprzedawać w przyszłym miesiącu."
 
@@ -193,7 +191,6 @@
 | **Q4 2025** | Foundation MVP + Pro beta | 6–8 tyg | Ustabilizować scraper i dashboard |
 | **Q1 2026** | Trendy, watchlist, metryki | 8–10 tyg | Zebrać dane do modelu AI |
 | **Q2 2026** | Insight engine + raporty | 12 tyg | Wersja 2.0 z predykcjami |
-| **Q3 2026** | Webflow + API + płatne plany | 8–12 tyg | Skalowanie projektu |
 
 ---
 

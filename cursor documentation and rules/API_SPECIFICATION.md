@@ -1215,50 +1215,249 @@ WITH ranked AS (
 SELECT * FROM ranked WHERE rank_in_category != prev_rank;
 ```
 
+---
+
+## 🔧 API Structure Decision
+
+### FastAPI vs Next.js API Routes — Wyjaśnienie
+
+**Pytanie:** Czy API powinno być w **FastAPI (Python)** czy **Next.js API Routes (TypeScript)**?
+
+#### Opcja 1: FastAPI (Python) — Osobny Backend
+
+**Architektura:**
+```
+Frontend (Next.js) → API (FastAPI) → Database (Supabase)
+```
+
+**Zalety:**
+- ✅ **Separacja concerns** — frontend i backend są oddzielne
+- ✅ **Skalowalność** — możesz skalować API niezależnie od frontendu
+- ✅ **Język Python** — możesz użyć istniejącego scrapera (Python) bez przepisywania
+- ✅ **Automatyczna dokumentacja** — Swagger/OpenAPI out of the box
+- ✅ **Async performance** — FastAPI jest bardzo szybkie
+- ✅ **Elastyczność** — możesz hostować API gdziekolwiek (Railway, Render, AWS)
+
+**Wady:**
+- ❌ **Więcej infrastruktury** — dwa serwisy do zarządzania (frontend + API)
+- ❌ **CORS setup** — trzeba skonfigurować CORS dla cross-origin requests
+- ❌ **Więcej deployment** — dwa miejsca do deployowania
+
+**Kiedy użyć:**
+- Masz już scraper w Pythonie — łatwo zintegrować
+- Chcesz oddzielić frontend od backendu
+- Potrzebujesz skalować API niezależnie
+
+---
+
+#### Opcja 2: Next.js API Routes (TypeScript) — Wszystko w Jednym
+
+**Architektura:**
+```
+Frontend + API (Next.js) → Database (Supabase)
+```
+
+**Zalety:**
+- ✅ **Prostota** — jeden serwis do zarządzania
+- ✅ **Zero CORS** — frontend i API na tej samej domenie
+- ✅ **TypeScript everywhere** — jeden język dla frontu i API
+- ✅ **Deployment** — jeden deploy na Vercel
+- ✅ **Server Components** — Next.js 14+ pozwala na server-side rendering
+
+**Wady:**
+- ❌ **Mniej elastyczności** — API jest powiązane z frontendem
+- ❌ **Skalowanie razem** — frontend i API skalują się razem
+- ❌ **Przepisywanie kodu** — musisz przepisać scraper z Pythona na TypeScript (lub użyć subprocess)
+- ❌ **Mniej features** — Next.js API Routes są prostsze niż FastAPI
+
+**Kiedy użyć:**
+- Chcesz prosty setup — wszystko w jednym miejscu
+- Używasz TypeScript — jeden język dla wszystkiego
+- Deployujesz na Vercel — wszystko w jednym miejscu
+
+---
+
+#### Opcja 3: Hybrid — Next.js dla Frontend, FastAPI dla API
+
+**Architektura:**
+```
+Frontend (Next.js) → API (FastAPI) → Database (Supabase)
+```
+
+**Zalety:**
+- ✅ **Best of both** — używasz najlepszego narzędzia do każdej części
+- ✅ **Reuse scrapera** — scraper w Pythonie może być częścią API
+- ✅ **TypeScript frontend** — Next.js dla UI, Python dla logiki
+
+**Wady:**
+- ❌ **Największa złożoność** — dwa serwisy w różnych językach
+- ❌ **CORS setup** — trzeba skonfigurować
+
+---
+
+### Rekomendacja Finalna
+
+**ETAP 1 (Foundation):**
+- **FastAPI (Python)** — ponieważ:
+  - Masz już scraper w Pythonie → łatwa integracja
+  - Możesz użyć istniejących modeli Pydantic
+  - Separacja concerns → łatwiej skalować później
+
+**Alternatywa (jeśli wolisz prostotę):**
+- **Next.js API Routes** — jeśli:
+  - Chcesz wszystko w jednym miejscu
+  - Nie przeszkadza Ci przepisanie części kodu
+
+**Przykład struktury FastAPI:**
+```python
+# api/main.py
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://amonit.app"],  # Frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/api/categories")
+async def get_categories():
+    # Query database
+    return {"categories": [...]}
+```
+
 ### Caching Strategy
 
-- **Categories list:** Cache 1 hour (rarely changes)
-- **Template details:** Cache 15 minutes (changes daily)
-- **Insights:** Cache 30 minutes (regenerated daily)
-- **Trends:** Cache 1 hour (computed daily)
-- **Predictions:** Cache 6 hours (expensive computation)
+#### Co to jest caching?
 
-### Market Context Data
+**Caching** to przechowywanie wyników kosztownych operacji (np. zapytania do bazy, obliczenia) w pamięci, aby szybciej odpowiadać na kolejne requesty z tym samym zapytaniem.
 
-**Storage:**
-```json
-// data/market_context.json
-[
-  {
-    "month": "2025-02",
-    "total_payout_usd": 322348,
-    "source": "twitter:@framer"
-  },
-  {
-    "month": "2025-09",
-    "total_payout_usd": 737000,
-    "source": "twitter:@framer"
-  }
-]
-```
+**Przykład:**
+- Bez cache: Każde zapytanie `/api/categories` wykonuje query do bazy (200ms)
+- Z cache: Pierwsze zapytanie wykonuje query (200ms), kolejne zwracają z cache (5ms) ⚡
 
-**Helper function:**
+#### Opcje Caching
+
+##### Opcja 1: In-Memory Cache (Python dict / Node.js Map)
+
+**Zalety:**
+- ✅ **Zero setup** — działa od razu, bez dodatkowych serwisów
+- ✅ **Bardzo szybkie** — dostęp do pamięci RAM
+- ✅ **Proste** — łatwe do implementacji
+- ✅ **Zero cost** — brak dodatkowych kosztów
+
+**Wady:**
+- ❌ **Tracisz cache przy restart** — cache znika gdy restartujesz serwer
+- ❌ **Tylko jeden serwer** — jeśli masz wiele instancji API, każda ma własny cache
+- ❌ **Ograniczona pamięć** — może zużyć dużo RAM przy dużym cache
+
+**Rekomendacja:** ✅ **Dobra dla MVP/ETAP 1** — gdy masz jeden serwer, prosty setup
+
+**Przykład (Python):**
 ```python
-def get_latest_market_payout() -> float:
-    """Get latest Framer Marketplace payout from market_context.json."""
-    with open("data/market_context.json") as f:
-        context = json.load(f)
-    latest = max(context, key=lambda x: x["month"])
-    return latest["total_payout_usd"]
+from functools import lru_cache
+from datetime import datetime, timedelta
+
+cache = {}
+
+def get_cached(key: str, ttl_seconds: int = 3600):
+    """Get from cache if not expired."""
+    if key in cache:
+        value, expires_at = cache[key]
+        if datetime.now() < expires_at:
+            return value
+        del cache[key]
+    return None
+
+def set_cached(key: str, value: any, ttl_seconds: int = 3600):
+    """Set cache with TTL."""
+    expires_at = datetime.now() + timedelta(seconds=ttl_seconds)
+    cache[key] = (value, expires_at)
 ```
 
-**Revenue estimation:**
+---
+
+##### Opcja 2: Redis (External Cache Server)
+
+**Zalety:**
+- ✅ **Persistent** — cache przetrwa restart serwera
+- ✅ **Shared cache** — wiele serwerów może używać tego samego cache
+- ✅ **Zaawansowane features** — TTL, pub/sub, clustering
+- ✅ **Skalowalność** — może obsłużyć bardzo duży cache
+
+**Wady:**
+- ❌ **Wymaga setupu** — trzeba zainstalować i skonfigurować Redis
+- ❌ **Dodatkowy koszt** — jeśli używasz managed Redis (np. Upstash, Redis Cloud)
+- ❌ **Większa złożoność** — więcej rzeczy do zarządzania
+
+**Rekomendacja:** ✅ **Dobra dla ETAP 2+** — gdy masz wiele serwerów lub potrzebujesz persistent cache
+
+**Przykład (Python):**
 ```python
-def estimate_template_revenue(template_views: int, total_market_views: int) -> float:
-    """Estimate template revenue based on market payout."""
-    payout = get_latest_market_payout()
-    return (template_views / total_market_views) * payout if total_market_views > 0 else 0
+import redis
+
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
+
+def get_cached(key: str):
+    """Get from Redis cache."""
+    value = redis_client.get(key)
+    return json.loads(value) if value else None
+
+def set_cached(key: str, value: any, ttl_seconds: int = 3600):
+    """Set Redis cache with TTL."""
+    redis_client.setex(key, ttl_seconds, json.dumps(value))
 ```
+
+---
+
+#### TTL (Time To Live) — Czas życia cache
+
+**Strategia cache'owania dla różnych endpointów:**
+
+| Endpoint | TTL | Powód |
+|----------|-----|-------|
+| **Categories list** | 1 hour | Rzadko się zmienia (nowe kategorie pojawiają się rzadko) |
+| **Template details** | 15 minutes | Zmienia się codziennie (scraper działa raz dziennie) |
+| **Insights** | 30 minutes | Regenerowane codziennie przez scraper |
+| **Trends** | 1 hour | Obliczane codziennie, kosztowne query |
+| **Predictions** | 6 hours | Bardzo kosztowne obliczenia (AI/ML) |
+
+**Przykład użycia w FastAPI:**
+```python
+from fastapi import FastAPI
+from functools import lru_cache
+
+app = FastAPI()
+
+@lru_cache(maxsize=100)
+def get_categories_cached():
+    """Cache categories list (cleared on restart)."""
+    return db.query(Category).all()
+
+@app.get("/api/categories")
+async def get_categories():
+    categories = get_categories_cached()
+    return {"categories": categories}
+```
+
+---
+
+### Rekomendacja Finalna
+
+**ETAP 1 (Foundation):**
+- Użyj **in-memory cache** (Python dict lub `@lru_cache`)
+- Prosty, szybki, zero setup
+- Wystarczy dla jednego serwera
+
+**ETAP 2+ (Intelligence):**
+- Rozważ **Redis** jeśli:
+  - Masz wiele instancji API (load balancing)
+  - Chcesz persistent cache (przetrwa restart)
+  - Potrzebujesz bardzo dużego cache
 
 ---
 
