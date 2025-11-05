@@ -244,7 +244,7 @@ class MarketplaceScraper:
                     remaining=len(urls),
                 )
         else:
-            logger.debug(
+            logger.info(
                 "updating_all_products",
                 total=len(urls),
                 note="All products will be updated with latest data (views, prices, stats, etc.)",
@@ -314,7 +314,7 @@ class MarketplaceScraper:
         limit: Optional[int] = None,
         resume: bool = True,
         product_types: Optional[List[str]] = None,
-        skip_processed: bool = True,
+        skip_processed: bool = False,
     ) -> dict:
         """Main scraping method.
 
@@ -322,6 +322,7 @@ class MarketplaceScraper:
             limit: Limit number of products to scrape (None for all)
             resume: Resume from checkpoint if available
             product_types: List of product types to scrape (None uses settings)
+            skip_processed: Skip already processed URLs (default: False - always update all products)
 
         Returns:
             Dictionary with scraping statistics
@@ -621,9 +622,9 @@ class MarketplaceScraper:
             creator_urls = creator_urls[:limit]
             logger.info("applying_limit", limit=limit, remaining=len(creator_urls))
 
-        # Scrape creators
+        # Scrape creators - always update all to get latest stats
         await self.scrape_creators_batch(
-            creator_urls, settings.max_concurrent_requests, skip_processed=resume
+            creator_urls, settings.max_concurrent_requests, skip_processed=False
         )
 
         # Stop metrics tracking

@@ -42,7 +42,7 @@ class SitemapScraper:
             await self.client.aclose()
 
     async def fetch_sitemap(self, url: str) -> Optional[bytes]:
-        """Fetch sitemap XML content.
+        """Fetch sitemap XML content with retry.
 
         Args:
             url: URL to sitemap.xml
@@ -50,12 +50,18 @@ class SitemapScraper:
         Returns:
             Sitemap XML content or None if failed
         """
-        try:
+        from src.utils.retry import retry_async
+        
+        async def _fetch():
             logger.info("fetching_sitemap", url=url)
             response = await self.client.get(url)
             response.raise_for_status()
             logger.info("sitemap_fetched", url=url, status_code=response.status_code)
             return response.content
+        
+        try:
+            content = await retry_async(_fetch)
+            return content
         except httpx.HTTPStatusError as e:
             logger.warning("sitemap_fetch_failed", url=url, status_code=e.response.status_code)
             return None
@@ -176,12 +182,19 @@ class SitemapScraper:
             # Convert defaultdict to regular dict
             result["products"] = dict(result["products"])
 
+            total_products = (
+                len(result["products"].get("templates", []))
+                + len(result["products"].get("components", []))
+                + len(result["products"].get("vectors", []))
+                + len(result["products"].get("plugins", []))
+            )
             logger.info(
                 "sitemap_parsed",
                 templates=len(result["products"].get("templates", [])),
                 components=len(result["products"].get("components", [])),
                 vectors=len(result["products"].get("vectors", [])),
                 plugins=len(result["products"].get("plugins", [])),
+                total_products=total_products,
                 categories=len(result["categories"]),
                 profiles=len(result["profiles"]),
                 help_articles=len(result["help_articles"]),
@@ -274,10 +287,11 @@ class SitemapScraper:
     async def _scrape_product_urls_from_marketplace_pages(
         self, product_types: Optional[List[str]] = None
     ) -> List[str]:
-        """Fallback: Scrape product URLs from marketplace listing pages.
+        """Fallback: Scrape product URLs from marketplace via categories.
         
         This method is used when sitemap doesn't contain products (e.g., 502 error).
-        It scrapes the main marketplace pages for each product type.
+        It scrapes categories first, then extracts all products from each category.
+        This is more reliable than pagination since Framer uses infinite scroll.
         
         Args:
             product_types: List of product types to scrape
@@ -287,6 +301,7 @@ class SitemapScraper:
         """
         from bs4 import BeautifulSoup
         import re
+        from src.utils.retry import retry_async
         
         if product_types is None:
             from src.config.settings import settings
@@ -303,77 +318,142 @@ class SitemapScraper:
             "plugin": "https://www.framer.com/marketplace/plugins/",
         }
         
+        async def find_categories(marketplace_url: str, product_type: str) -> List[str]:
+            """Find all category URLs from marketplace page."""
+            category_urls = []
+            try:
+                async def _fetch():
+                    response = await self.client.get(marketplace_url)
+                    response.raise_for_status()
+                    return response.text
+                
+                html = await retry_async(_fetch)
+                soup = BeautifulSoup(html, "lxml")
+                
+                # Find category links - pattern: /marketplace/{type}s/category/{slug}/
+                category_pattern = rf"/marketplace/{product_type}s/category/[^/]+/"
+                category_links = soup.find_all("a", href=re.compile(category_pattern))
+                
+                for link in category_links:
+                    href = link.get("href", "")
+                    if href:
+                        if href.startswith("/"):
+                            full_url = f"https://www.framer.com{href}"
+                        else:
+                            full_url = href
+                        if full_url not in category_urls:
+                            category_urls.append(full_url)
+                
+                logger.info(
+                    "fallback_categories_found",
+                    type=product_type,
+                    count=len(category_urls),
+                )
+                
+            except Exception as e:
+                logger.warning(
+                    "fallback_category_discovery_failed",
+                    url=marketplace_url,
+                    type=product_type,
+                    error=str(e),
+                )
+            
+            return category_urls
+        
+        async def scrape_category_page(category_url: str, product_type: str) -> List[str]:
+            """Scrape all products from a category page."""
+            page_urls = []
+            try:
+                async def _fetch():
+                    response = await self.client.get(category_url)
+                    response.raise_for_status()
+                    return response.text
+                
+                html = await retry_async(_fetch)
+                soup = BeautifulSoup(html, "lxml")
+                
+                # Find all product links
+                product_cards = soup.select("div.card-module-scss-module__P62yvW__card")
+                for card in product_cards:
+                    link = card.find("a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"))
+                    if link:
+                        href = link.get("href", "")
+                        if href and href not in seen_urls:
+                            if href.startswith("/"):
+                                full_url = f"https://www.framer.com{href}"
+                            else:
+                                full_url = href
+                            
+                            if f"/marketplace/{product_type}s/" in full_url and "/category/" not in full_url:
+                                page_urls.append(full_url)
+                                seen_urls.add(full_url)
+                
+                # Strategy 2: Find all links matching product pattern
+                if not page_urls:
+                    all_links = soup.find_all("a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"))
+                    for link in all_links:
+                        href = link.get("href", "")
+                        if href and href not in seen_urls:
+                            if "/category/" in href:
+                                continue
+                            
+                            if href.startswith("/"):
+                                full_url = f"https://www.framer.com{href}"
+                            else:
+                                full_url = href
+                            
+                            match = re.search(rf"/marketplace/{product_type}s/([^/]+)/", full_url)
+                            if match:
+                                product_id = match.group(1)
+                                if product_id not in ["category", product_type + "s", "templates", "components", "vectors", "plugins"]:
+                                    page_urls.append(full_url)
+                                    seen_urls.add(full_url)
+                
+            except Exception as e:
+                logger.warning(
+                    "fallback_category_scraping_failed",
+                    url=category_url,
+                    type=product_type,
+                    error=str(e),
+                )
+            
+            return page_urls
+        
         for product_type in product_types:
             marketplace_url = type_to_url.get(product_type)
             if not marketplace_url:
                 continue
             
-            try:
-                logger.info("fallback_scraping_marketplace_page", url=marketplace_url, type=product_type)
-                response = await self.client.get(marketplace_url)
-                response.raise_for_status()
-                
-                soup = BeautifulSoup(response.text, "lxml")
-                
-                # Find all product links - use multiple strategies
-                # Strategy 1: Find product cards and extract links
-                product_cards = soup.select("div.card-module-scss-module__P62yvW__card")
-                for card in product_cards:
-                    # Find link within card
-                    link = card.find("a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"))
-                    if link:
-                        href = link.get("href", "")
-                        if href and href not in seen_urls:
-                            # Make full URL if relative
-                            if href.startswith("/"):
-                                full_url = f"https://www.framer.com{href}"
-                            else:
-                                full_url = href
-                            
-                            # Validate it's a product URL (not category)
-                            if f"/marketplace/{product_type}s/" in full_url and "/category/" not in full_url:
-                                product_urls.append(full_url)
-                                seen_urls.add(full_url)
-                
-                # Strategy 2: Find all links matching product pattern
-                if not product_urls:
-                    all_links = soup.find_all("a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"))
-                    for link in all_links:
-                        href = link.get("href", "")
-                        if href and href not in seen_urls:
-                            # Skip category links
-                            if "/category/" in href:
-                                continue
-                            
-                            # Make full URL if relative
-                            if href.startswith("/"):
-                                full_url = f"https://www.framer.com{href}"
-                            else:
-                                full_url = href
-                            
-                            # Extract product ID to validate
-                            match = re.search(rf"/marketplace/{product_type}s/([^/]+)/", full_url)
-                            if match:
-                                product_id = match.group(1)
-                                # Skip navigation links
-                                if product_id not in ["category", product_type + "s", "templates", "components", "vectors", "plugins"]:
-                                    product_urls.append(full_url)
-                                    seen_urls.add(full_url)
-                
-                logger.info(
-                    "fallback_products_found",
-                    type=product_type,
-                    count=len([url for url in product_urls if f"/{product_type}s/" in url]),
-                )
-                
-            except Exception as e:
-                logger.error(
-                    "fallback_scraping_failed",
-                    url=marketplace_url,
-                    type=product_type,
-                    error=str(e),
-                )
-                continue
+            logger.info("fallback_scraping_via_categories", url=marketplace_url, type=product_type)
+            
+            # Step 1: Find all categories
+            category_urls = await find_categories(marketplace_url, product_type)
+            
+            # Step 2: Scrape products from each category
+            if category_urls:
+                for category_url in category_urls:
+                    category_products = await scrape_category_page(category_url, product_type)
+                    if category_products:
+                        product_urls.extend(category_products)
+                        logger.debug(
+                            "fallback_category_scraped",
+                            type=product_type,
+                            category_url=category_url,
+                            products_found=len(category_products),
+                            total=len(product_urls),
+                        )
+            else:
+                # Fallback: If no categories found, scrape main page (limited products)
+                logger.warning("fallback_no_categories_found", type=product_type, note="Scraping main page only")
+                main_page_products = await scrape_category_page(marketplace_url, product_type)
+                product_urls.extend(main_page_products)
+            
+            logger.info(
+                "fallback_products_found",
+                type=product_type,
+                count=len([url for url in product_urls if f"/{product_type}s/" in url]),
+                categories_scraped=len(category_urls),
+            )
         
         logger.info("fallback_total_products_found", count=len(product_urls))
         return product_urls

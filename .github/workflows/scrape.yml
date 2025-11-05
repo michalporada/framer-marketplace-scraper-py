@@ -8,6 +8,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 godzin - maksymalny czas dla free tier
     
     steps:
       - name: Checkout repository
@@ -36,9 +37,14 @@ jobs:
           CHECKPOINT_ENABLED: ${{ secrets.CHECKPOINT_ENABLED || 'true' }}
           OUTPUT_FORMAT: ${{ secrets.OUTPUT_FORMAT || 'both' }}
         run: |
+          # Scrape all products first
           python -m src.main
+          
+          # Then scrape all creators from sitemap
+          python -m src.main --creators-only
       
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: scraped-data
@@ -46,6 +52,7 @@ jobs:
             data/
             logs/
           retention-days: 7
+          if-no-files-found: ignore
       
       - name: Upload logs
         if: always()
@@ -54,4 +61,5 @@ jobs:
           name: scraper-logs
           path: logs/
           retention-days: 7
+          if-no-files-found: ignore
 
