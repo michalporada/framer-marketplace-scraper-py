@@ -308,7 +308,7 @@ class MarketplaceScraper:
             success=success_count,
             failed=len(urls) - success_count,
         )
-        
+
         # Log failed URLs if any
         if settings.checkpoint_enabled:
             checkpoint = self.checkpoint_manager.load_checkpoint()
@@ -369,7 +369,7 @@ class MarketplaceScraper:
             return self.stats
 
         logger.info("product_urls_found", count=len(product_urls))
-        
+
         # Log product type breakdown
         type_counts = {}
         for url in product_urls:

@@ -60,7 +60,7 @@ class SitemapScraper:
             response.raise_for_status()
             logger.info("sitemap_fetched", url=url, status_code=response.status_code)
             return response.content
-        
+
         try:
             content = await retry_async(_fetch)
             return content
@@ -278,7 +278,7 @@ class SitemapScraper:
         """
         parsed = await self.scrape()
         urls = self.filter_urls_by_type(parsed, product_types)
-        
+
         # Fallback: If no products found in sitemap, try scraping from marketplace pages
         if not urls:
             logger.warning("no_products_in_sitemap_fallback_to_marketplace_pages")
@@ -297,7 +297,7 @@ class SitemapScraper:
                 if fallback_url not in sitemap_urls_set:
                     urls.append(fallback_url)
                     logger.debug("fallback_product_not_in_sitemap", url=fallback_url)
-            
+
             if len(fallback_urls) > 0:
                 logger.info(
                     "supplemented_with_fallback",
@@ -306,30 +306,30 @@ class SitemapScraper:
                     total_count=len(urls),
                     new_products_found=len(urls) - len(sitemap_urls_set),
                 )
-        
+
         return urls
-    
+
     async def _scrape_product_urls_from_marketplace_pages(
         self, product_types: Optional[List[str]] = None
     ) -> List[str]:
         """Fallback: Scrape product URLs from marketplace via categories.
-        
+
         This method is used when sitemap doesn't contain products (e.g., 502 error).
         It scrapes categories first, then extracts all products from each category.
         This is more reliable than pagination since Framer uses infinite scroll.
-        
+
         Args:
             product_types: List of product types to scrape
-            
+
         Returns:
             List of product URLs
         """
         if product_types is None:
             product_types = settings.get_product_types()
-        
+
         product_urls = []
         seen_urls = set()
-        
+
         # Map product types to marketplace URLs
         type_to_url = {
             "template": "https://www.framer.com/marketplace/templates/",
@@ -337,7 +337,7 @@ class SitemapScraper:
             "vector": "https://www.framer.com/marketplace/vectors/",
             "plugin": "https://www.framer.com/marketplace/plugins/",
         }
-        
+
         async def find_categories(marketplace_url: str, product_type: str) -> List[str]:
             """Find all category URLs from marketplace page."""
             category_urls = []
@@ -346,14 +346,14 @@ class SitemapScraper:
                     response = await self.client.get(marketplace_url)
                     response.raise_for_status()
                     return response.text
-                
+
                 html = await retry_async(_fetch)
                 soup = BeautifulSoup(html, "lxml")
-                
+
                 # Find category links - pattern: /marketplace/{type}s/category/{slug}/
                 category_pattern = rf"/marketplace/{product_type}s/category/[^/]+/"
                 category_links = soup.find_all("a", href=re.compile(category_pattern))
-                
+
                 for link in category_links:
                     href = link.get("href", "")
                     if href:
@@ -363,13 +363,13 @@ class SitemapScraper:
                             full_url = href
                         if full_url not in category_urls:
                             category_urls.append(full_url)
-                
+
                 logger.info(
                     "fallback_categories_found",
                     type=product_type,
                     count=len(category_urls),
                 )
-                
+
             except Exception as e:
                 logger.warning(
                     "fallback_category_discovery_failed",
@@ -377,12 +377,12 @@ class SitemapScraper:
                     type=product_type,
                     error=str(e),
                 )
-            
+
             return category_urls
-        
+
         async def scrape_category_page(category_url: str, product_type: str) -> List[str]:
             """Scrape all products from a category page.
-            
+
             Uses multiple strategies:
             1. Extract from __NEXT_DATA__ JSON (most complete - includes all products)
             2. Extract from HTML product cards (fallback)
@@ -394,9 +394,9 @@ class SitemapScraper:
                     response = await self.client.get(category_url)
                     response.raise_for_status()
                     return response.text
-                
+
                 html = await retry_async(_fetch)
-                
+
                 # Strategy 1: Try to extract from __NEXT_DATA__ JSON (Next.js embeds data here)
                 # This is more reliable and gets ALL products, not just first page
                 next_data_match = re.search(
@@ -433,7 +433,7 @@ class SitemapScraper:
                                 for item in data:
                                     found_urls.extend(extract_products_from_data(item, path))
                             return found_urls
-                        
+
                         json_urls = extract_products_from_data(next_data)
                         if json_urls:
                             page_urls.extend(json_urls)
@@ -449,7 +449,7 @@ class SitemapScraper:
                             url=category_url,
                             error=str(e),
                         )
-                
+
                 # Strategy 2: Extract from HTML product cards (fallback if JSON fails)
                 if not page_urls:
                     soup = BeautifulSoup(html, "lxml")
@@ -466,14 +466,14 @@ class SitemapScraper:
                                     full_url = f"https://www.framer.com{href}"
                                 else:
                                     full_url = href
-                                
+
                                 if (
                                     f"/marketplace/{product_type}s/" in full_url
                                     and "/category/" not in full_url
                                 ):
                                     page_urls.append(full_url)
                                     seen_urls.add(full_url)
-                
+
                 # Strategy 3: Find all links matching product pattern (last resort)
                 if not page_urls:
                     soup = BeautifulSoup(html, "lxml")
@@ -485,12 +485,12 @@ class SitemapScraper:
                         if href and href not in seen_urls:
                             if "/category/" in href:
                                 continue
-                            
+
                             if href.startswith("/"):
                                 full_url = f"https://www.framer.com{href}"
                             else:
                                 full_url = href
-                            
+
                             match = re.search(rf"/marketplace/{product_type}s/([^/]+)/", full_url)
                             if match:
                                 product_id = match.group(1)
@@ -504,7 +504,7 @@ class SitemapScraper:
                                 ]:
                                     page_urls.append(full_url)
                                     seen_urls.add(full_url)
-                
+
             except Exception as e:
                 logger.warning(
                     "fallback_category_scraping_failed",
@@ -512,19 +512,19 @@ class SitemapScraper:
                     type=product_type,
                     error=str(e),
                 )
-            
+
             return page_urls
-        
+
         for product_type in product_types:
             marketplace_url = type_to_url.get(product_type)
             if not marketplace_url:
                 continue
-            
+
             logger.info("fallback_scraping_via_categories", url=marketplace_url, type=product_type)
-            
+
             # Step 1: Find all categories
             category_urls = await find_categories(marketplace_url, product_type)
-            
+
             # Step 2: Scrape products from each category
             if category_urls:
                 for category_url in category_urls:
@@ -547,13 +547,13 @@ class SitemapScraper:
                 )
                 main_page_products = await scrape_category_page(marketplace_url, product_type)
                 product_urls.extend(main_page_products)
-            
+
             logger.info(
                 "fallback_products_found",
                 type=product_type,
                 count=len([url for url in product_urls if f"/{product_type}s/" in url]),
                 categories_scraped=len(category_urls),
             )
-        
+
         logger.info("fallback_total_products_found", count=len(product_urls))
         return product_urls
