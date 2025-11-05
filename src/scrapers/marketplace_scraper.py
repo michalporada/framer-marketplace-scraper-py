@@ -126,7 +126,8 @@ class MarketplaceScraper:
                         await self.storage.save_creator_json(creator)
                         self.stats["creators_scraped"] = self.stats.get("creators_scraped", 0) + 1
 
-                        # Update product.creator with full data (merge to preserve avatar from product page if available)
+                        # Update product.creator with full data
+                        # (merge to preserve avatar from product page if available)
                         if not product.creator.avatar_url:
                             product.creator.avatar_url = creator.avatar_url
                         if not product.creator.name:
@@ -143,11 +144,14 @@ class MarketplaceScraper:
             # Get category positions for each category (only for templates)
             if product.type == "template" and product.categories:
                 for category in product.categories:
-                    # Convert category name to URL slug (lowercase, replace spaces with hyphens, etc.)
-                    # Category names from product page might be "Non-profit" but URL needs "non-profit"
+                    # Convert category name to URL slug
+                    # (lowercase, replace spaces with hyphens, etc.)
+                    # Category names from product page might be "Non-profit"
+                    # but URL needs "non-profit"
                     category_slug = category.lower().replace(" ", "-").replace("&", "").strip()
 
-                    # Build category URL - try both formats (redirects to /marketplace/templates/category/{category}/)
+                    # Build category URL - try both formats
+                    # (redirects to /marketplace/templates/category/{category}/)
                     category_urls = [
                         f"/marketplace/category/{category_slug}/",
                         f"/marketplace/templates/category/{category_slug}/",
@@ -330,7 +334,8 @@ class MarketplaceScraper:
             limit: Limit number of products to scrape (None for all)
             resume: Resume from checkpoint if available
             product_types: List of product types to scrape (None uses settings)
-            skip_processed: Skip already processed URLs (default: False - always update all products)
+            skip_processed: Skip already processed URLs
+                (default: False - always update all products)
 
         Returns:
             Dictionary with scraping statistics

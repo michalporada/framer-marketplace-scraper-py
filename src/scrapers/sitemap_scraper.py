@@ -286,7 +286,10 @@ class SitemapScraper:
         else:
             # Supplement: Use fallback to find additional products not in sitemap
             # This helps catch products that might be missing from sitemap
-            logger.info("sitemap_products_found_supplementing_with_marketplace_pages", count=len(urls))
+            logger.info(
+                "sitemap_products_found_supplementing_with_marketplace_pages",
+                count=len(urls),
+            )
             fallback_urls = await self._scrape_product_urls_from_marketplace_pages(product_types)
             # Merge, keeping sitemap URLs as primary
             sitemap_urls_set = set(urls)
@@ -396,7 +399,11 @@ class SitemapScraper:
                 
                 # Strategy 1: Try to extract from __NEXT_DATA__ JSON (Next.js embeds data here)
                 # This is more reliable and gets ALL products, not just first page
-                next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html, re.DOTALL)
+                next_data_match = re.search(
+                    r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+                    html,
+                    re.DOTALL,
+                )
                 if next_data_match:
                     try:
                         next_data = json.loads(next_data_match.group(1))
@@ -408,7 +415,10 @@ class SitemapScraper:
                             if isinstance(data, dict):
                                 for key, value in data.items():
                                     # Look for product URLs in various keys
-                                    if isinstance(value, str) and f"/marketplace/{product_type}s/" in value:
+                                    if (
+                                        isinstance(value, str)
+                                        and f"/marketplace/{product_type}s/" in value
+                                    ):
                                         if "/category/" not in value and value not in seen_urls:
                                             if value.startswith("/"):
                                                 full_url = f"https://www.framer.com{value}"
@@ -445,7 +455,10 @@ class SitemapScraper:
                     soup = BeautifulSoup(html, "lxml")
                     product_cards = soup.select("div.card-module-scss-module__P62yvW__card")
                     for card in product_cards:
-                        link = card.find("a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"))
+                        link = card.find(
+                            "a",
+                            href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"),
+                        )
                         if link:
                             href = link.get("href", "")
                             if href and href not in seen_urls:
@@ -454,14 +467,19 @@ class SitemapScraper:
                                 else:
                                     full_url = href
                                 
-                                if f"/marketplace/{product_type}s/" in full_url and "/category/" not in full_url:
+                                if (
+                                    f"/marketplace/{product_type}s/" in full_url
+                                    and "/category/" not in full_url
+                                ):
                                     page_urls.append(full_url)
                                     seen_urls.add(full_url)
                 
                 # Strategy 3: Find all links matching product pattern (last resort)
                 if not page_urls:
                     soup = BeautifulSoup(html, "lxml")
-                    all_links = soup.find_all("a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"))
+                    all_links = soup.find_all(
+                        "a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/")
+                    )
                     for link in all_links:
                         href = link.get("href", "")
                         if href and href not in seen_urls:
@@ -476,7 +494,14 @@ class SitemapScraper:
                             match = re.search(rf"/marketplace/{product_type}s/([^/]+)/", full_url)
                             if match:
                                 product_id = match.group(1)
-                                if product_id not in ["category", product_type + "s", "templates", "components", "vectors", "plugins"]:
+                                if product_id not in [
+                                    "category",
+                                    product_type + "s",
+                                    "templates",
+                                    "components",
+                                    "vectors",
+                                    "plugins",
+                                ]:
                                     page_urls.append(full_url)
                                     seen_urls.add(full_url)
                 
@@ -515,7 +540,11 @@ class SitemapScraper:
                         )
             else:
                 # Fallback: If no categories found, scrape main page (limited products)
-                logger.warning("fallback_no_categories_found", type=product_type, note="Scraping main page only")
+                logger.warning(
+                    "fallback_no_categories_found",
+                    type=product_type,
+                    note="Scraping main page only",
+                )
                 main_page_products = await scrape_category_page(marketplace_url, product_type)
                 product_urls.extend(main_page_products)
             
