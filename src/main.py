@@ -59,7 +59,6 @@ async def main():
     creators_only = False
     categories_only = False
     product_types = None  # List of product types to scrape
-    force_rescrape = False  # Force scraping even if already processed
 
     if len(sys.argv) > 1:
         # Check for --creators-only flag
@@ -72,9 +71,8 @@ async def main():
             categories_only = True
             sys.argv = [arg for arg in sys.argv if arg not in ["--categories-only", "-cat"]]
 
-        # Check for --force-rescrape flag
+        # Check for --force-rescrape flag (not used anymore, we always update products)
         if "--force-rescrape" in sys.argv or "--force" in sys.argv:
-            force_rescrape = True
             sys.argv = [arg for arg in sys.argv if arg not in ["--force-rescrape", "--force"]]
 
         # Check for product type flags

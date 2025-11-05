@@ -1,6 +1,5 @@
 """Creator parser for extracting data from creator profile HTML pages."""
 
-import json
 import re
 from typing import Optional
 from urllib.parse import unquote
