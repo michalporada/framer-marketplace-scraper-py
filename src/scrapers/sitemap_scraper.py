@@ -54,6 +54,7 @@ class SitemapScraper:
         Returns:
             Sitemap XML content or None if failed
         """
+
         async def _fetch():
             logger.info("fetching_sitemap", url=url)
             response = await self.client.get(url)
@@ -340,6 +341,7 @@ class SitemapScraper:
 
         async def find_categories(marketplace_url: str, product_type: str) -> List[str]:
             """Find all category URLs from marketplace page."""
+
             category_urls = []
             try:
                 async def _fetch():
@@ -388,6 +390,7 @@ class SitemapScraper:
             2. Extract from HTML product cards (fallback)
             3. Extract from all links matching pattern (fallback)
             """
+
             page_urls = []
             try:
                 async def _fetch():
@@ -407,6 +410,7 @@ class SitemapScraper:
                 if next_data_match:
                     try:
                         next_data = json.loads(next_data_match.group(1))
+
                         # Navigate through Next.js data structure to find products
                         # Structure varies, so we try multiple paths
                         def extract_products_from_data(data, path=""):
@@ -428,7 +432,9 @@ class SitemapScraper:
                                                 found_urls.append(full_url)
                                                 seen_urls.add(full_url)
                                     elif isinstance(value, (dict, list)):
-                                        found_urls.extend(extract_products_from_data(value, f"{path}.{key}"))
+                                        found_urls.extend(
+                                            extract_products_from_data(value, f"{path}.{key}")
+                                        )
                             elif isinstance(data, list):
                                 for item in data:
                                     found_urls.extend(extract_products_from_data(item, path))

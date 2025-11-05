@@ -172,14 +172,10 @@ class ScraperMetrics:
             "duration_seconds": duration,
             "duration_formatted": self._format_duration(duration),
             "start_time": (
-                datetime.fromtimestamp(self.start_time).isoformat()
-                if self.start_time
-                else None
+                datetime.fromtimestamp(self.start_time).isoformat() if self.start_time else None
             ),
             "end_time": (
-                datetime.fromtimestamp(self.end_time).isoformat()
-                if self.end_time
-                else None
+                datetime.fromtimestamp(self.end_time).isoformat() if self.end_time else None
             ),
             "products": {
                 "scraped": self.products_scraped,
