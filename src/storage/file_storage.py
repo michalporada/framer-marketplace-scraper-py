@@ -240,7 +240,12 @@ class FileStorage:
             if output_file is None:
                 timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
                 type_suffix = f"_{product_type}" if product_type else ""
-                output_file = self.data_dir / "exports" / f"products{type_suffix}_{timestamp}.csv"
+                output_dir = self.data_dir / "exports"
+                output_dir.mkdir(parents=True, exist_ok=True)
+                output_file = output_dir / f"products{type_suffix}_{timestamp}.csv"
+            else:
+                output_file = Path(output_file)
+                output_file.parent.mkdir(parents=True, exist_ok=True)
 
             # Save CSV
             df.to_csv(output_file, index=False, encoding="utf-8")
