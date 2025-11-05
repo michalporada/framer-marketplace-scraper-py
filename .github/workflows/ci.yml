@@ -67,15 +67,16 @@ jobs:
           pytest tests/ -v --cov=src --cov-report=xml --cov-report=html --cov-report=term
       
       - name: Check coverage threshold
+        continue-on-error: true
         run: |
-          pytest tests/ -v --cov=src --cov-report=term --cov-fail-under=60 || (echo "::warning::Coverage is below 60%. Consider adding more tests." && exit 0)
+          coverage report --fail-under=60 || echo "::warning::Coverage is below 60%. Consider adding more tests."
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
+        if: always()
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
       
       - name: Upload coverage report
         uses: actions/upload-artifact@v3
