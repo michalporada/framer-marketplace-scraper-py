@@ -148,6 +148,31 @@ class CheckpointManager:
         if not isinstance(failed, set):
             failed = set(failed) if failed else set()
         failed.add(url)
+        # Remove from processed if it was there (in case of retry failure)
+        processed = checkpoint["processed_urls"]
+        if not isinstance(processed, set):
+            processed = set(processed) if processed else set()
+        processed.discard(url)  # Remove if exists
+        checkpoint["failed_urls"] = failed
+        checkpoint["processed_urls"] = processed
+
+        self.save_checkpoint(
+            checkpoint["processed_urls"],
+            checkpoint["failed_urls"],
+            checkpoint["stats"],
+        )
+    
+    def remove_failed(self, url: str) -> None:
+        """Remove URL from failed set (after successful retry).
+
+        Args:
+            url: URL that was successfully processed after retry
+        """
+        checkpoint = self.load_checkpoint()
+        failed = checkpoint["failed_urls"]
+        if not isinstance(failed, set):
+            failed = set(failed) if failed else set()
+        failed.discard(url)
         checkpoint["failed_urls"] = failed
 
         self.save_checkpoint(

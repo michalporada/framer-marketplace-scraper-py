@@ -66,19 +66,36 @@ scraper-v2/
 │
 ├── tests/
 │   ├── __init__.py
+│   ├── fixtures/                      # Pliki danych testowych (HTML, JSON, XML)
+│   │   ├── html/                      # HTML fixtures dla różnych typów stron
+│   │   │   ├── products/              # Strony produktów
+│   │   │   ├── creators/              # Profile twórców
+│   │   │   ├── categories/            # Strony kategorii
+│   │   │   └── sitemap/               # Pliki sitemap.xml
+│   │   ├── json/                      # JSON fixtures dla różnych scenariuszy
+│   │   │   ├── products/              # Dane produktów
+│   │   │   ├── creators/              # Dane twórców
+│   │   │   └── categories/            # Dane kategorii
+│   │   └── README.md                  # Dokumentacja fixture'ów
+│   ├── conftest.py                    # Główne fixture'y współdzielone
 │   ├── test_scrapers/
 │   │   ├── __init__.py
+│   │   ├── conftest.py                # Fixture'y specyficzne dla scrapers
 │   │   └── test_sitemap_scraper.py
 │   ├── test_parsers/
 │   │   ├── __init__.py
+│   │   ├── conftest.py                # Fixture'y specyficzne dla parsers
 │   │   └── test_product_parser.py
 │   ├── test_models/
 │   │   ├── __init__.py
+│   │   ├── conftest.py                # Fixture'y specyficzne dla models
 │   │   └── test_product.py
-│   ├── test_utils/
-│   │   ├── __init__.py
-│   │   └── test_normalizers.py
-│   └── fixtures/
+│   └── test_utils/
+│       ├── __init__.py
+│       ├── conftest.py                # Fixture'y specyficzne dla utils
+│       └── test_normalizers.py
+
+**📚 Dokumentacja testów:** Zobacz [`TESTING_AND_FIXTURES.md`](./TESTING_AND_FIXTURES.md) dla pełnej dokumentacji struktury testów, fixture'ów i best practices.
 │
 ├── scripts/
 │   ├── setup_db.py                 # Setup bazy danych (PostgreSQL/MongoDB)
@@ -204,7 +221,8 @@ scraper-v2/
 - Zapis kategorii do JSON (jeden plik per kategoria: `categories/{slug}.json`)
 - Eksport produktów do CSV (`export_products_to_csv()`)
 - Eksport kreatorów do CSV (`export_creators_to_csv()`)
-- Incremental saves (zapis przyrostowy)
+- **Zawsze nadpisuje pliki** - produkty są zawsze aktualizowane z najnowszymi danymi (views, ceny, stats)
+- Dodaje timestamp `scraped_at` do każdego produktu
 
 ### 5. Utils (`src/utils/`)
 
@@ -237,8 +255,9 @@ scraper-v2/
 #### `checkpoint.py`
 - System checkpoint do zapisywania postępu scrapowania
 - Zapisuje przetworzone URL-e i nieudane URL-e
-- Umożliwia wznowienie scrapowania po przerwie
+- **Automatyczny retry failed URLs** - na końcu scrapowania ponawia próbę dla nieudanych URL-i
 - Zapis do `data/checkpoint.json`
+- **Uwaga**: Checkpoint służy głównie do śledzenia błędów i retry, nie do pomijania już przetworzonych (produkty są zawsze aktualizowane)
 
 #### `metrics.py`
 - Tracking metryk scrapowania
@@ -289,9 +308,10 @@ scraper-v2/
    │   │   └─▶ Zapisz pozycję w product.category_positions[category]
    │   ├─▶ Walidacja danych (Pydantic)
    │   ├─▶ Zapis danych (file_storage.py)
-   │   │   ├─▶ Zapis produktu: products/{type}/{product_id}.json
+   │   │   ├─▶ Zapis produktu: products/{type}/{product_id}.json (zawsze nadpisuje - aktualizuje views, ceny, stats)
    │   │   └─▶ Zapis kreatora: creators/{username}.json (osobny plik)
-   │   └─▶ Aktualizacja checkpoint (checkpoint.py)
+   │   ├─▶ Aktualizacja checkpoint (checkpoint.py)
+   │   └─▶ Na końcu scrapowania: Retry failed URLs (ponowna próba dla nieudanych URL-i)
    │
 4b. SCRAPE CATEGORIES
    ├─▶ Dla każdej kategorii z sitemap:
@@ -328,7 +348,10 @@ scraper-v2/
    │
 6. SAVE & BACKUP
    ├─▶ Zapis do JSON/CSV (file_storage.py)
+   │   └─▶ Zawsze nadpisuje pliki - aktualizuje views, ceny, stats
    ├─▶ Zapis checkpoint (checkpoint.py)
+   ├─▶ Retry failed URLs (ponowna próba dla nieudanych URL-i)
+   │   └─▶ Z niższą współbieżnością (max 3 concurrent) aby nie przeciążać serwera
    ├─▶ Logowanie metryk (metrics.py)
    └─▶ Backup (GitHub Actions artifacts)
    │

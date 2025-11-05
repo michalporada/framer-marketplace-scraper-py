@@ -54,6 +54,8 @@ class FileStorage:
 
     async def save_product_json(self, product: Product) -> bool:
         """Save product to JSON file.
+        
+        Always overwrites existing file to ensure latest data (views, prices, stats, etc.).
 
         Args:
             product: Product model
@@ -66,14 +68,23 @@ class FileStorage:
             filename = f"{product.id}.json"
             filepath = product_dir / filename
 
+            # Check if file exists (for logging)
+            file_exists = filepath.exists()
+            
             # Convert to dict
             product_dict = product.model_dump(mode="json")
+            
+            # Add scraped_at timestamp
+            product_dict["scraped_at"] = datetime.now().isoformat()
 
-            # Save asynchronously
+            # Save asynchronously (always overwrites)
             async with aiofiles.open(filepath, "w", encoding="utf-8") as f:
                 await f.write(json.dumps(product_dict, indent=2, ensure_ascii=False, default=str))
 
-            logger.debug("product_saved", product_id=product.id, filepath=str(filepath))
+            if file_exists:
+                logger.debug("product_updated", product_id=product.id, filepath=str(filepath))
+            else:
+                logger.debug("product_saved", product_id=product.id, filepath=str(filepath))
             return True
 
         except Exception as e:

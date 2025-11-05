@@ -70,17 +70,23 @@ class MarketplaceScraper:
         if self.client:
             await self.client.aclose()
 
-    async def scrape_product(self, url: str, skip_if_processed: bool = True) -> bool:
+    async def scrape_product(self, url: str, skip_if_processed: bool = False) -> bool:
         """Scrape a single product.
 
         Args:
             url: Product URL
-            skip_if_processed: Skip if already processed (checkpoint)
+            skip_if_processed: Skip if already processed (default: False - always update)
 
         Returns:
             True if successful, False otherwise
+            
+        Note:
+            By default, we always scrape products to update views, prices, stats, etc.
+            Checkpoint is only used for tracking failures, not for skipping updates.
+            This ensures we always have the latest data (views, prices, positions, etc.).
         """
-        # Check checkpoint if enabled
+        # Always scrape products to update views, prices, stats, etc.
+        # Only skip if explicitly requested (for testing or partial updates)
         if skip_if_processed and settings.checkpoint_enabled:
             if self.checkpoint_manager.is_processed(url):
                 logger.debug("product_already_processed", url=url)
@@ -168,12 +174,13 @@ class MarketplaceScraper:
                                 category=category,
                             )
 
-            # Save product
+            # Save product (always overwrites to update views, prices, stats, etc.)
             success = await self.storage.save_product_json(product)
             if success:
                 self.stats["products_scraped"] += 1
                 self.metrics.record_product_scraped()
-                # Mark as processed in checkpoint
+                # Mark as processed in checkpoint (for tracking, not for skipping)
+                # We always update products to track changes in views, prices, etc.
                 if settings.checkpoint_enabled:
                     self.checkpoint_manager.add_processed(url)
                 logger.info(
@@ -205,19 +212,24 @@ class MarketplaceScraper:
             return False
 
     async def scrape_products_batch(
-        self, urls: List[str], limit: Optional[int] = None, skip_processed: bool = True
+        self, urls: List[str], limit: Optional[int] = None, skip_processed: bool = False
     ) -> None:
         """Scrape multiple products with concurrency limit.
 
         Args:
             urls: List of product URLs
             limit: Maximum number of concurrent requests (defaults to settings)
-            skip_processed: Skip URLs that are already processed (checkpoint)
+            skip_processed: Skip URLs that are already processed (default: False - always update)
+            
+        Note:
+            By default, we always scrape all products to update views, prices, stats, etc.
+            Set skip_processed=True only if you want to skip already processed URLs.
         """
         if limit is None:
             limit = settings.max_concurrent_requests
 
-        # Filter out already processed URLs if checkpoint enabled
+        # Always scrape all products to update views, prices, stats, etc.
+        # Only skip if explicitly requested (for testing or partial updates)
         if skip_processed and settings.checkpoint_enabled:
             checkpoint = self.checkpoint_manager.load_checkpoint()
             original_count = len(urls)
@@ -228,6 +240,12 @@ class MarketplaceScraper:
                     skipped=original_count - len(urls),
                     remaining=len(urls),
                 )
+        else:
+            logger.debug(
+                "updating_all_products",
+                total=len(urls),
+                note="All products will be updated with latest data (views, prices, stats, etc.)",
+            )
 
         if not urls:
             logger.info("no_urls_to_scrape", reason="all_processed_or_limit_reached")
@@ -254,7 +272,8 @@ class MarketplaceScraper:
                         total=total,
                         percentage=round((index + 1) / total * 100, 2),
                     )
-                return await self.scrape_product(url, skip_if_processed=skip_processed)
+                # Always update products (skip_if_processed=False) to get latest views, prices, etc.
+                return await self.scrape_product(url, skip_if_processed=False)
 
         # Scrape with progress bar
         tasks = [scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)]
@@ -330,12 +349,55 @@ class MarketplaceScraper:
             product_urls = product_urls[:limit]
             logger.info("applying_limit", limit=limit, remaining=len(product_urls))
 
-        # Scrape products
-        # If limit is set, we still want to respect skip_processed to avoid re-scraping
-        # But if force_rescrape is used, skip_processed will be False
+        # Scrape products - always update all to track changes in views, prices, stats, etc.
+        # skip_processed is only used for force_rescrape flag (which forces full rescrape)
+        # By default, we always update all products
         await self.scrape_products_batch(
-            product_urls, settings.max_concurrent_requests, skip_processed=skip_processed
+            product_urls, settings.max_concurrent_requests, skip_processed=False
         )
+
+        # Retry failed URLs at the end
+        if settings.checkpoint_enabled:
+            checkpoint = self.checkpoint_manager.load_checkpoint()
+            failed_urls = list(checkpoint.get("failed_urls", []))
+            if failed_urls:
+                logger.info(
+                    "retrying_failed_urls",
+                    count=len(failed_urls),
+                    note="Retrying previously failed URLs at the end of scraping",
+                )
+                # Retry failed URLs with lower concurrency to avoid overwhelming the server
+                retry_limit = min(settings.max_concurrent_requests, 3)  # Max 3 concurrent for retries
+                await self.scrape_products_batch(
+                    failed_urls, retry_limit, skip_processed=False
+                )
+                
+                # Check which URLs were successfully processed after retry
+                checkpoint_after_retry = self.checkpoint_manager.load_checkpoint()
+                processed_after_retry = checkpoint_after_retry.get("processed_urls", [])
+                if not isinstance(processed_after_retry, set):
+                    processed_after_retry = set(processed_after_retry)
+                
+                # Remove successfully retried URLs from failed list
+                successful_retries = []
+                for url in failed_urls:
+                    if url in processed_after_retry:
+                        successful_retries.append(url)
+                        self.checkpoint_manager.remove_failed(url)
+                
+                if successful_retries:
+                    logger.info(
+                        "retry_success",
+                        retried=len(failed_urls),
+                        successful=len(successful_retries),
+                        still_failed=len(failed_urls) - len(successful_retries),
+                    )
+                else:
+                    logger.warning(
+                        "retry_no_success",
+                        retried=len(failed_urls),
+                        note="All retries failed, URLs remain in failed list",
+                    )
 
         # Stop metrics tracking
         self.metrics.stop()

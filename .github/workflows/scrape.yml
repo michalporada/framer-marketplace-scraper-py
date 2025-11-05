@@ -28,7 +28,9 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           FRAMER_BASE_URL: ${{ secrets.FRAMER_BASE_URL || 'https://www.framer.com' }}
-          RATE_LIMIT: ${{ secrets.RATE_LIMIT || '1.0' }}
+          RATE_LIMIT: ${{ secrets.RATE_LIMIT || '2.0' }}
+          DELAY_BETWEEN_REQUESTS: ${{ secrets.DELAY_BETWEEN_REQUESTS || '0.5' }}
+          MAX_CONCURRENT_REQUESTS: ${{ secrets.MAX_CONCURRENT_REQUESTS || '10' }}
           MAX_RETRIES: ${{ secrets.MAX_RETRIES || '3' }}
           LOG_LEVEL: ${{ secrets.LOG_LEVEL || 'INFO' }}
           CHECKPOINT_ENABLED: ${{ secrets.CHECKPOINT_ENABLED || 'true' }}

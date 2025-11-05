@@ -28,6 +28,14 @@ Zaawansowany scraper do zbierania danych z Framer Marketplace, umożliwiający a
    - Zalecane dane do zbierania
    - Uwagi techniczne
 
+4. **[TESTING_AND_FIXTURES.md](./cursor%20documentation%20and%20rules/TESTING_AND_FIXTURES.md)** - Dokumentacja testów i fixture'ów:
+   - Struktura testów i fixture'ów
+   - Konwencje nazewnictwa
+   - Typy fixture'ów (HTML, JSON, HTTP mocks)
+   - Przykłady użycia
+   - Best practices
+   - **Źródło prawdy dla wszystkich decyzji testowych**
+
 ## 🚀 Quick Start
 
 ### 1. Instalacja
@@ -59,7 +67,7 @@ cp .env.example .env
 
 Główne zmienne środowiskowe:
 - `FRAMER_BASE_URL` - URL do Framer (domyślnie: https://www.framer.com)
-- `RATE_LIMIT` - Limit requestów na sekundę (domyślnie: 1.0)
+- `RATE_LIMIT` - Limit requestów na sekundę (domyślnie: 2.0)
 - `MAX_RETRIES` - Maksymalna liczba ponownych prób (domyślnie: 3)
 - `LOG_LEVEL` - Poziom logowania (INFO, DEBUG, WARNING, ERROR)
 - `CHECKPOINT_ENABLED` - Włącz checkpoint system (domyślnie: true)
@@ -208,9 +216,10 @@ Dla każdego szablonu scraper zbiera pozycję w każdej kategorii, w której si�
 - Zbierane tylko dla szablonów (templates)
 
 ### Checkpoint System
-Scraper automatycznie zapisuje postęp scrapowania, umożliwiając wznowienie po przerwie:
-- Automatyczne pomijanie już przetworzonych URL-i
-- Śledzenie nieudanych URL-i do ponownego przetworzenia
+Scraper automatycznie zapisuje postęp scrapowania:
+- **Zawsze aktualizuje wszystkie produkty** - aby śledzić zmiany w views, cenach, statystykach
+- **Śledzenie nieudanych URL-i** - automatycznie ponawia próbę na końcu scrapowania
+- **Retry failed URLs** - na końcu każdego scrapowania próbuje ponownie przetworzyć nieudane URL-e
 - Zapisywanie statystyk w checkpointie
 
 ### Zapisywanie Profili Kreatorów

@@ -216,7 +216,10 @@ GitHub Actions (scraping)
 - **pytest** - framework testowy
 - **pytest-asyncio** - testy async
 - **pytest-cov** - coverage
-- **httpx mock** - mockowanie requestów HTTP
+- **pytest-httpx** - mockowanie requestów HTTP (httpx)
+- **pytest-mock** - ogólne mockowanie
+
+**📚 Dokumentacja testów:** Zobacz [`TESTING_AND_FIXTURES.md`](./TESTING_AND_FIXTURES.md) dla pełnej dokumentacji struktury testów, fixture'ów i best practices.
 
 #### Monitoring & Alerting
 - **Sentry** (opcjonalnie) - error tracking

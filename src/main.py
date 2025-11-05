@@ -115,10 +115,11 @@ async def main():
             else:
                 if product_types:
                     logger.info("scraping_product_types", types=product_types)
+                # Always update all products to track changes in views, prices, stats, etc.
+                # force_rescrape flag doesn't change behavior anymore (we always update)
                 stats = await scraper.scrape(
                     limit=limit, 
-                    product_types=product_types, 
-                    skip_processed=not force_rescrape
+                    product_types=product_types
                 )
 
             if creators_only:
