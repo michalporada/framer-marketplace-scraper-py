@@ -215,8 +215,7 @@ Lista szablonów z filtrowaniem i sortowaniem.
       "updated_normalized": "2025-01-12T00:00:00Z",
       "rank_in_category": 3,
       "estimated_revenue": 141.24,
-      "framer_url": "https://www.framer.com/marketplace/templates/calisto/",
-      "affiliate_url": "https://framer.link/xxxxx?url=https://www.framer.com/marketplace/templates/calisto/"
+      "framer_url": "https://www.framer.com/marketplace/templates/calisto/"
     }
   ],
   "total": 1234,
@@ -254,7 +253,6 @@ Szczegóły szablonu.
   "estimated_revenue": 141.24,
   "features": ["Responsive", "Dark mode", "CMS"],
   "framer_url": "https://www.framer.com/marketplace/templates/calisto/",
-  "affiliate_url": "https://framer.link/xxxxx?url=https://www.framer.com/marketplace/templates/calisto/",
   "first_seen_at": "2024-06-15T00:00:00Z",
   "last_seen_at": "2025-01-15T00:00:00Z"
 }
@@ -858,6 +856,113 @@ Globalne dane rynkowe (Framer Marketplace payouts).
 }
 ```
 
+### Market Context Data — Storage Options
+
+Dane o payoutach Framera (pobierane z Twittera @framer) muszą być przechowywane i aktualizowane. Oto opcje z wadami i zaletami:
+
+#### Opcja 1: JSON File (`data/market_context.json`)
+
+**Zalety:**
+- ✅ **Prostota** — łatwe do wdrożenia, bez dodatkowej infrastruktury
+- ✅ **Łatwa edycja** — ręczna aktualizacja przez commit do repo
+- ✅ **Version control** — historię zmian widać w Git
+- ✅ **Zero cost** — brak dodatkowych kosztów
+- ✅ **Szybki start** — działa od razu bez setupu bazy
+
+**Wady:**
+- ❌ **Ręczna aktualizacja** — wymaga commitu przy każdej zmianie
+- ❌ **Brak automatycznego refresh** — nie można automatycznie pobrać z Twittera
+- ❌ **Ograniczona skalowalność** — przy większej ilości danych może być nieporęczne
+- ❌ **Brak query flexibility** — trudniejsze do analizy (wymaga ładowania całego pliku)
+
+**Rekomendacja:** ✅ **Dobra dla MVP/ETAP 1** — prostota i szybki start
+
+---
+
+#### Opcja 2: Database Table (PostgreSQL/Supabase)
+
+**Zalety:**
+- ✅ **Automatyczna aktualizacja** — można zbudować scraper/cron job
+- ✅ **Query flexibility** — łatwe zapytania SQL, agregacje, analizy
+- ✅ **Skalowalność** — łatwo dodać więcej danych rynkowych
+- ✅ **History tracking** — automatyczne logowanie zmian
+- ✅ **API integration** — łatwe do integracji z endpointami
+
+**Wady:**
+- ❌ **Większa złożoność** — wymaga migracji DB, schema management
+- ❌ **Koszt** — jeśli używasz płatnego Supabase planu
+- ❌ **Setup time** — więcej czasu na implementację
+
+**Rekomendacja:** ✅ **Dobra dla ETAP 2+** — gdy potrzebujesz automatycznego refresh i bardziej zaawansowanych analiz
+
+---
+
+#### Opcja 3: Hybrid (JSON + DB Sync)
+
+**Zalety:**
+- ✅ **Best of both worlds** — JSON jako source of truth, DB dla query
+- ✅ **Fallback** — jeśli DB nie działa, można użyć JSON
+- ✅ **Version control** — JSON w repo, DB dla produkcji
+
+**Wady:**
+- ❌ **Duplikacja** — trzeba synchronizować dwie źródła danych
+- ❌ **Złożoność** — więcej kodu do utrzymania
+
+**Rekomendacja:** ⚠️ **Tylko jeśli potrzebujesz** — zwykle niepotrzebne
+
+---
+
+### Rekomendacja Finalna
+
+**ETAP 1 (Foundation):** 
+- Użyj **JSON file** (`data/market_context.json`)
+- Ręczna aktualizacja przez commit
+- Prosty helper function do odczytu
+
+**ETAP 2+ (Intelligence):**
+- Rozważ migrację do **Database table** jeśli:
+  - Chcesz automatyczny refresh (scraper Twittera)
+  - Potrzebujesz bardziej zaawansowanych query
+  - Dane rosną w ilości
+
+**Przykład implementacji JSON (ETAP 1):**
+
+```python
+# services/market_context.py
+import json
+from pathlib import Path
+
+MARKET_CONTEXT_FILE = Path("data/market_context.json")
+
+def get_latest_market_payout() -> float:
+    """Get latest Framer Marketplace payout from JSON file."""
+    with open(MARKET_CONTEXT_FILE) as f:
+        context = json.load(f)
+    latest = max(context, key=lambda x: x["month"])
+    return latest["total_payout_usd"]
+
+def get_market_context() -> dict:
+    """Get full market context data."""
+    with open(MARKET_CONTEXT_FILE) as f:
+        return json.load(f)
+```
+
+**Przykład migracji do DB (ETAP 2+):**
+
+```sql
+-- Migration: Create market_context table
+CREATE TABLE market_context (
+    id SERIAL PRIMARY KEY,
+    month VARCHAR(7) NOT NULL UNIQUE,  -- "2025-09"
+    total_payout_usd INTEGER NOT NULL,
+    source VARCHAR(100) NOT NULL,  -- "twitter:@framer"
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_market_context_month ON market_context(month DESC);
+```
+
 #### `GET /api/market/trends`
 
 Trendy rynku z wizualizacją.
@@ -904,53 +1009,6 @@ Udział kategorii w przychodach rynku.
 ```
 
 ---
-
-## 🔗 Affiliate Links Integration
-
-### 11. Affiliate Management
-
-#### `GET /api/templates/{slug}/affiliate-url`
-
-Pobierz affiliate URL dla szablonu.
-
-**Query Parameters:**
-- `user_affiliate_code` (optional): user's Framer affiliate code (jeśli dostępny)
-
-**Response:**
-```json
-{
-  "template_slug": "calisto",
-  "framer_url": "https://www.framer.com/marketplace/templates/calisto/",
-  "affiliate_url": "https://framer.link/xxxxx?url=https://www.framer.com/marketplace/templates/calisto/",
-  "affiliate_source": "amonit",  // "amonit" (default) or "user" (if user_affiliate_code provided)
-  "disclosure": "Clicking this link supports Amonit and the template creator"
-}
-```
-
-**Logika:**
-- Jeśli użytkownik ma własny affiliate code → użyj jego
-- W przeciwnym razie → użyj domyślnego Amonit affiliate link
-- Wszystkie linki w API responses zawierają `affiliate_url` field
-
-#### `POST /api/user/affiliate-code`
-
-Zapisz affiliate code użytkownika (wymaga authentication).
-
-**Request Body:**
-```json
-{
-  "affiliate_code": "framer.link/xxxxx"  // User's Framer affiliate code
-}
-```
-
-**Response:**
-```json
-{
-  "user_id": "uuid",
-  "affiliate_code": "framer.link/xxxxx",
-  "updated_at": "2025-01-15T10:30:00Z"
-}
-```
 
 ---
 
