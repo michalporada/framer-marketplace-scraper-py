@@ -1,6 +1,7 @@
 """Main marketplace scraper orchestrator."""
 
 import asyncio
+import sys
 from typing import List, Optional
 
 import httpx
@@ -275,9 +276,19 @@ class MarketplaceScraper:
                 # Always update products (skip_if_processed=False) to get latest views, prices, etc.
                 return await self.scrape_product(url, skip_if_processed=False)
 
-        # Scrape with progress bar
+        # Scrape with progress bar (only if stdout is a terminal)
         tasks = [scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)]
-        results = await tqdm.gather(*tasks, desc="Scraping products")
+        try:
+            # Use tqdm only if stdout is a terminal (not redirected)
+            if sys.stdout.isatty():
+                results = await tqdm.gather(*tasks, desc="Scraping products")
+            else:
+                # If output is redirected, use regular asyncio.gather
+                results = await asyncio.gather(*tasks)
+        except (BrokenPipeError, OSError):
+            # Fallback to regular gather if tqdm fails (e.g., broken pipe)
+            logger.warning("tqdm_progress_bar_failed", note="Falling back to asyncio.gather")
+            results = await asyncio.gather(*tasks)
 
         success_count = sum(1 for r in results if r)
 
@@ -539,9 +550,16 @@ class MarketplaceScraper:
                     )
                 return await self.scrape_creator(url, skip_if_processed=skip_processed)
 
-        # Scrape with progress bar
+        # Scrape with progress bar (only if stdout is a terminal)
         tasks = [scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)]
-        results = await tqdm.gather(*tasks, desc="Scraping creators")
+        try:
+            if sys.stdout.isatty():
+                results = await tqdm.gather(*tasks, desc="Scraping creators")
+            else:
+                results = await asyncio.gather(*tasks)
+        except (BrokenPipeError, OSError):
+            logger.warning("tqdm_progress_bar_failed", note="Falling back to asyncio.gather")
+            results = await asyncio.gather(*tasks)
 
         success_count = sum(1 for r in results if r)
 
@@ -746,9 +764,16 @@ class MarketplaceScraper:
                     )
                 return await self.scrape_category(url, skip_if_processed=skip_processed)
 
-        # Scrape with progress bar
+        # Scrape with progress bar (only if stdout is a terminal)
         tasks = [scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)]
-        results = await tqdm.gather(*tasks, desc="Scraping categories")
+        try:
+            if sys.stdout.isatty():
+                results = await tqdm.gather(*tasks, desc="Scraping categories")
+            else:
+                results = await asyncio.gather(*tasks)
+        except (BrokenPipeError, OSError):
+            logger.warning("tqdm_progress_bar_failed", note="Falling back to asyncio.gather")
+            results = await asyncio.gather(*tasks)
 
         success_count = sum(1 for r in results if r)
 
