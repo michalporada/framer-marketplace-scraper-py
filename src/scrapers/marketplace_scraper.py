@@ -308,6 +308,18 @@ class MarketplaceScraper:
             success=success_count,
             failed=len(urls) - success_count,
         )
+        
+        # Log failed URLs if any
+        if settings.checkpoint_enabled:
+            checkpoint = self.checkpoint_manager.load_checkpoint()
+            failed_urls = checkpoint.get("failed_urls", [])
+            if failed_urls:
+                logger.warning(
+                    "failed_urls_summary",
+                    count=len(failed_urls),
+                    sample_urls=failed_urls[:10],  # Log first 10 failed URLs
+                    note="Check checkpoint.json for full list of failed URLs",
+                )
 
     async def scrape(
         self,
@@ -356,6 +368,19 @@ class MarketplaceScraper:
             return self.stats
 
         logger.info("product_urls_found", count=len(product_urls))
+        
+        # Log product type breakdown
+        type_counts = {}
+        for url in product_urls:
+            if "/templates/" in url:
+                type_counts["templates"] = type_counts.get("templates", 0) + 1
+            elif "/components/" in url:
+                type_counts["components"] = type_counts.get("components", 0) + 1
+            elif "/vectors/" in url:
+                type_counts["vectors"] = type_counts.get("vectors", 0) + 1
+            elif "/plugins/" in url:
+                type_counts["plugins"] = type_counts.get("plugins", 0) + 1
+        logger.info("product_urls_by_type", **type_counts)
 
         # Apply limit if specified
         if limit:

@@ -1,5 +1,6 @@
 """Sitemap scraper for extracting product URLs from sitemap.xml."""
 
+import json
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from typing import Dict, List, Optional
@@ -281,6 +282,26 @@ class SitemapScraper:
         if not urls:
             logger.warning("no_products_in_sitemap_fallback_to_marketplace_pages")
             urls = await self._scrape_product_urls_from_marketplace_pages(product_types)
+        else:
+            # Supplement: Use fallback to find additional products not in sitemap
+            # This helps catch products that might be missing from sitemap
+            logger.info("sitemap_products_found_supplementing_with_marketplace_pages", count=len(urls))
+            fallback_urls = await self._scrape_product_urls_from_marketplace_pages(product_types)
+            # Merge, keeping sitemap URLs as primary
+            sitemap_urls_set = set(urls)
+            for fallback_url in fallback_urls:
+                if fallback_url not in sitemap_urls_set:
+                    urls.append(fallback_url)
+                    logger.debug("fallback_product_not_in_sitemap", url=fallback_url)
+            
+            if len(fallback_urls) > 0:
+                logger.info(
+                    "supplemented_with_fallback",
+                    sitemap_count=len(sitemap_urls_set),
+                    fallback_count=len(fallback_urls),
+                    total_count=len(urls),
+                    new_products_found=len(urls) - len(sitemap_urls_set),
+                )
         
         return urls
     
@@ -361,7 +382,13 @@ class SitemapScraper:
             return category_urls
         
         async def scrape_category_page(category_url: str, product_type: str) -> List[str]:
-            """Scrape all products from a category page."""
+            """Scrape all products from a category page.
+            
+            Uses multiple strategies:
+            1. Extract from __NEXT_DATA__ JSON (most complete - includes all products)
+            2. Extract from HTML product cards (fallback)
+            3. Extract from all links matching pattern (fallback)
+            """
             page_urls = []
             try:
                 async def _fetch():
@@ -370,26 +397,74 @@ class SitemapScraper:
                     return response.text
                 
                 html = await retry_async(_fetch)
-                soup = BeautifulSoup(html, "lxml")
                 
-                # Find all product links
-                product_cards = soup.select("div.card-module-scss-module__P62yvW__card")
-                for card in product_cards:
-                    link = card.find("a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"))
-                    if link:
-                        href = link.get("href", "")
-                        if href and href not in seen_urls:
-                            if href.startswith("/"):
-                                full_url = f"https://www.framer.com{href}"
-                            else:
-                                full_url = href
-                            
-                            if f"/marketplace/{product_type}s/" in full_url and "/category/" not in full_url:
-                                page_urls.append(full_url)
-                                seen_urls.add(full_url)
+                # Strategy 1: Try to extract from __NEXT_DATA__ JSON (Next.js embeds data here)
+                # This is more reliable and gets ALL products, not just first page
+                next_data_match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html, re.DOTALL)
+                if next_data_match:
+                    try:
+                        next_data = json.loads(next_data_match.group(1))
+                        # Navigate through Next.js data structure to find products
+                        # Structure varies, so we try multiple paths
+                        def extract_products_from_data(data, path=""):
+                            """Recursively search for product URLs in JSON data."""
+                            found_urls = []
+                            if isinstance(data, dict):
+                                for key, value in data.items():
+                                    # Look for product URLs in various keys
+                                    if isinstance(value, str) and f"/marketplace/{product_type}s/" in value:
+                                        if "/category/" not in value and value not in seen_urls:
+                                            if value.startswith("/"):
+                                                full_url = f"https://www.framer.com{value}"
+                                            else:
+                                                full_url = value
+                                            if f"/marketplace/{product_type}s/" in full_url:
+                                                found_urls.append(full_url)
+                                                seen_urls.add(full_url)
+                                    elif isinstance(value, (dict, list)):
+                                        found_urls.extend(extract_products_from_data(value, f"{path}.{key}"))
+                            elif isinstance(data, list):
+                                for item in data:
+                                    found_urls.extend(extract_products_from_data(item, path))
+                            return found_urls
+                        
+                        json_urls = extract_products_from_data(next_data)
+                        if json_urls:
+                            page_urls.extend(json_urls)
+                            logger.debug(
+                                "fallback_extracted_from_json",
+                                url=category_url,
+                                type=product_type,
+                                count=len(json_urls),
+                            )
+                    except (json.JSONDecodeError, Exception) as e:
+                        logger.debug(
+                            "fallback_json_extraction_failed",
+                            url=category_url,
+                            error=str(e),
+                        )
                 
-                # Strategy 2: Find all links matching product pattern
+                # Strategy 2: Extract from HTML product cards (fallback if JSON fails)
                 if not page_urls:
+                    soup = BeautifulSoup(html, "lxml")
+                    product_cards = soup.select("div.card-module-scss-module__P62yvW__card")
+                    for card in product_cards:
+                        link = card.find("a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"))
+                        if link:
+                            href = link.get("href", "")
+                            if href and href not in seen_urls:
+                                if href.startswith("/"):
+                                    full_url = f"https://www.framer.com{href}"
+                                else:
+                                    full_url = href
+                                
+                                if f"/marketplace/{product_type}s/" in full_url and "/category/" not in full_url:
+                                    page_urls.append(full_url)
+                                    seen_urls.add(full_url)
+                
+                # Strategy 3: Find all links matching product pattern (last resort)
+                if not page_urls:
+                    soup = BeautifulSoup(html, "lxml")
                     all_links = soup.find_all("a", href=re.compile(rf"/marketplace/{product_type}s/[^/]+/"))
                     for link in all_links:
                         href = link.get("href", "")
