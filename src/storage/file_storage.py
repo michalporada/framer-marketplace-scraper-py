@@ -54,7 +54,7 @@ class FileStorage:
 
     async def save_product_json(self, product: Product) -> bool:
         """Save product to JSON file.
-        
+
         Always overwrites existing file to ensure latest data (views, prices, stats, etc.).
 
         Args:
@@ -70,10 +70,10 @@ class FileStorage:
 
             # Check if file exists (for logging)
             file_exists = filepath.exists()
-            
+
             # Convert to dict
             product_dict = product.model_dump(mode="json")
-            
+
             # Add scraped_at timestamp
             product_dict["scraped_at"] = datetime.now().isoformat()
 

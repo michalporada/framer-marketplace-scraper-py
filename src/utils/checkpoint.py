@@ -161,7 +161,7 @@ class CheckpointManager:
             checkpoint["failed_urls"],
             checkpoint["stats"],
         )
-    
+
     def remove_failed(self, url: str) -> None:
         """Remove URL from failed set (after successful retry).
 

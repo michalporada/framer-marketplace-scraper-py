@@ -389,13 +389,13 @@ class ProductParser:
             # First, try to extract from JSON data in script tags (Next.js data)
             # JSON format: "installs":"3.5K" or "installs":123
             installs_raw = None
-            
+
             script_tags = soup.find_all("script")
             for script in script_tags:
                 script_content = script.string
                 if not script_content:
                     continue
-                
+
                 # Look for component data with installs
                 # Patterns: "installs":"3.5K", "installs":123, "installsCount":"3.5K"
                 installs_patterns = [
@@ -404,7 +404,7 @@ class ProductParser:
                     r'["\']installsCount["\']?\s*:\s*["\']([\d.,]+[Kk]?)["\']',
                     r'["\']installCount["\']?\s*:\s*["\']([\d.,]+[Kk]?)["\']',
                 ]
-                
+
                 for pattern in installs_patterns:
                     match = re.search(pattern, script_content, re.IGNORECASE)
                     if match:
@@ -420,35 +420,37 @@ class ProductParser:
                             # Already formatted (e.g., "3.5K")
                             installs_raw = f"{installs_value_str} Installs"
                         break
-                
+
                 if installs_raw:
                     break
-            
+
             # If not found in JSON, try to extract from HTML text
             # HTML format: "3.5K Installs" or "3.5KInstalls" (may be without space)
             if not installs_raw:
                 # Pattern with optional space between number and "Installs"
-                installs_match = re.search(r"([\d.,]+[Kk]?)\s*?Installs", text_content, re.IGNORECASE)
+                installs_match = re.search(
+                    r"([\d.,]+[Kk]?)\s*?Installs", text_content, re.IGNORECASE
+                )
                 if installs_match:
                     installs_raw = installs_match.group(0)
-            
+
             # Also try to extract from details section directly
             if not installs_raw:
-                details_items = soup.find_all('div', class_=re.compile('details.*item'))
+                details_items = soup.find_all("div", class_=re.compile("details.*item"))
                 for item in details_items:
                     item_text = item.get_text().strip()
                     # Check if this item contains "Installs"
-                    if 'install' in item_text.lower():
+                    if "install" in item_text.lower():
                         # Look for value div within this item
-                        value_div = item.find('div', class_=re.compile('value'))
-                        label_div = item.find('div', class_=re.compile('text-color'))
+                        value_div = item.find("div", class_=re.compile("value"))
+                        label_div = item.find("div", class_=re.compile("text-color"))
                         if value_div and label_div:
                             value_text = value_div.get_text().strip()
                             label_text = label_div.get_text().strip()
-                            if 'install' in label_text.lower() and value_text:
+                            if "install" in label_text.lower() and value_text:
                                 installs_raw = f"{value_text} Installs"
                                 break
-            
+
             # If found, parse and add to stats
             if installs_raw:
                 stats_dict["installs"] = NormalizedStatistic(**parse_statistic(installs_raw))

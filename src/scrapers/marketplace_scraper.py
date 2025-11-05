@@ -80,7 +80,7 @@ class MarketplaceScraper:
 
         Returns:
             True if successful, False otherwise
-            
+
         Note:
             By default, we always scrape products to update views, prices, stats, etc.
             Checkpoint is only used for tracking failures, not for skipping updates.
@@ -145,7 +145,7 @@ class MarketplaceScraper:
                     # Convert category name to URL slug (lowercase, replace spaces with hyphens, etc.)
                     # Category names from product page might be "Non-profit" but URL needs "non-profit"
                     category_slug = category.lower().replace(" ", "-").replace("&", "").strip()
-                    
+
                     # Build category URL - try both formats (redirects to /marketplace/templates/category/{category}/)
                     category_urls = [
                         f"/marketplace/category/{category_slug}/",
@@ -156,10 +156,12 @@ class MarketplaceScraper:
                         category_html = await self.category_scraper.scrape_category(category_url)
                         if category_html:
                             break
-                    
+
                     if category_html:
                         # Find product position in category
-                        position = self.category_parser.find_product_position(category_html, str(product.url))
+                        position = self.category_parser.find_product_position(
+                            category_html, str(product.url)
+                        )
                         if position:
                             product.category_positions[category] = position
                             logger.info(
@@ -221,7 +223,7 @@ class MarketplaceScraper:
             urls: List of product URLs
             limit: Maximum number of concurrent requests (defaults to settings)
             skip_processed: Skip URLs that are already processed (default: False - always update)
-            
+
         Note:
             By default, we always scrape all products to update views, prices, stats, etc.
             Set skip_processed=True only if you want to skip already processed URLs.
@@ -378,24 +380,24 @@ class MarketplaceScraper:
                     note="Retrying previously failed URLs at the end of scraping",
                 )
                 # Retry failed URLs with lower concurrency to avoid overwhelming the server
-                retry_limit = min(settings.max_concurrent_requests, 3)  # Max 3 concurrent for retries
-                await self.scrape_products_batch(
-                    failed_urls, retry_limit, skip_processed=False
-                )
-                
+                retry_limit = min(
+                    settings.max_concurrent_requests, 3
+                )  # Max 3 concurrent for retries
+                await self.scrape_products_batch(failed_urls, retry_limit, skip_processed=False)
+
                 # Check which URLs were successfully processed after retry
                 checkpoint_after_retry = self.checkpoint_manager.load_checkpoint()
                 processed_after_retry = checkpoint_after_retry.get("processed_urls", [])
                 if not isinstance(processed_after_retry, set):
                     processed_after_retry = set(processed_after_retry)
-                
+
                 # Remove successfully retried URLs from failed list
                 successful_retries = []
                 for url in failed_urls:
                     if url in processed_after_retry:
                         successful_retries.append(url)
                         self.checkpoint_manager.remove_failed(url)
-                
+
                 if successful_retries:
                     logger.info(
                         "retry_success",
