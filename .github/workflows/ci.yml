@@ -2,13 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, maintenance/*]
   pull_request:
     branches: [main, develop]
-  workflow_dispatch:  # Ręczne uruchomienie
+  workflow_dispatch:  # Manual trigger
 
 jobs:
-  test:
+  code-quality:
+    name: Code Quality Checks
     runs-on: ubuntu-latest
     
     steps:
@@ -24,28 +25,62 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install -e ".[dev]"
       
-      - name: Run tests
+      - name: Check code formatting with Black
         run: |
-          pytest tests/ -v --cov=src --cov-report=xml
+          black --check --line-length=100 src/ tests/ || (echo "::error::Code formatting check failed. Run 'black src/ tests/' to fix." && exit 1)
       
-      - name: Upload coverage
+      - name: Lint with ruff
+        run: |
+          ruff check src/ tests/ || (echo "::error::Linting failed. Run 'ruff check --fix src/ tests/' to fix." && exit 1)
+      
+      - name: Format check with ruff
+        run: |
+          ruff format --check src/ tests/ || (echo "::error::Format check failed. Run 'ruff format src/ tests/' to fix." && exit 1)
+      
+      - name: Type check with mypy
+        run: |
+          mypy src/ --ignore-missing-imports --no-strict-optional || (echo "::warning::Type checking found issues" && exit 0)
+
+  test:
+    name: Tests & Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -v --cov=src --cov-report=xml --cov-report=html --cov-report=term
+      
+      - name: Check coverage threshold
+        run: |
+          pytest tests/ -v --cov=src --cov-report=term --cov-fail-under=60 || (echo "::warning::Coverage is below 60%. Consider adding more tests." && exit 0)
+      
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
       
-      - name: Lint with ruff
-        run: |
-          ruff check src/ tests/
-      
-      - name: Format check with ruff
-        run: |
-          ruff format --check src/ tests/
-      
-      - name: Type check with mypy
-        run: |
-          mypy src/ --ignore-missing-imports || true
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: coverage-report
+          path: htmlcov/
 

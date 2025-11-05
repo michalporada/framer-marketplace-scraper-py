@@ -1,14 +1,17 @@
 """Sitemap scraper for extracting product URLs from sitemap.xml."""
 
 import json
+import re
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
+from bs4 import BeautifulSoup
 
 from src.config.settings import settings
 from src.utils.logger import get_logger
+from src.utils.retry import retry_async
 from src.utils.user_agents import get_random_user_agent
 
 logger = get_logger(__name__)
@@ -51,8 +54,6 @@ class SitemapScraper:
         Returns:
             Sitemap XML content or None if failed
         """
-        from src.utils.retry import retry_async
-        
         async def _fetch():
             logger.info("fetching_sitemap", url=url)
             response = await self.client.get(url)
@@ -92,7 +93,7 @@ class SitemapScraper:
         logger.error("both_sitemaps_failed")
         return None
 
-    def parse_sitemap(self, xml_content: bytes) -> Dict[str, List[str]]:
+    def parse_sitemap(self, xml_content: bytes) -> Dict[str, Any]:
         """Parse sitemap XML and extract URLs by type.
 
         Args:
@@ -116,7 +117,7 @@ class SitemapScraper:
             root = ET.fromstring(xml_content)
             namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 
-            result: Dict[str, any] = {
+            result: Dict[str, Any] = {
                 "products": defaultdict(list),
                 "categories": [],
                 "profiles": [],
@@ -132,7 +133,7 @@ class SitemapScraper:
                 if not url:
                     continue
 
-                # Profile użytkowników (wszystko zaczynające się od @)
+                # User profiles (everything starting with @)
                 if (
                     "/@" in url
                     or url.startswith("https://www.framer.com/@")
@@ -141,13 +142,13 @@ class SitemapScraper:
                     result["profiles"].append(url)
                     continue
 
-                # Kategorie
+                # Categories
                 if "/marketplace/category/" in url:
                     result["categories"].append(url)
                     continue
 
-                # Produkty - rozróżnij typy
-                # Templates: /marketplace/templates/{nazwa}/ (kończy się na /, nie zawiera /category/)
+                # Products - distinguish types
+                # Templates: /marketplace/templates/{name}/ (ends with /, doesn't contain /category/)
                 if (
                     "/marketplace/templates/" in url
                     and url.endswith("/")
@@ -170,12 +171,12 @@ class SitemapScraper:
                     result["products"]["vectors"].append(url)
                     continue
 
-                # Plugins (nowy typ)
+                # Plugins (new type)
                 if "/marketplace/plugins/" in url and url.endswith("/") and "/category/" not in url:
                     result["products"]["plugins"].append(url)
                     continue
 
-                # Strony pomocowe związane z marketplace
+                # Help pages related to marketplace
                 if "/help/articles/" in url and "marketplace" in url.lower():
                     result["help_articles"].append(url)
                     continue
@@ -211,7 +212,7 @@ class SitemapScraper:
             return {"products": {}, "categories": [], "profiles": [], "help_articles": []}
 
     def filter_urls_by_type(
-        self, parsed_sitemap: Dict[str, any], product_types: Optional[List[str]] = None
+        self, parsed_sitemap: Dict[str, Any], product_types: Optional[List[str]] = None
     ) -> List[str]:
         """Filter product URLs by type.
 
@@ -320,12 +321,7 @@ class SitemapScraper:
         Returns:
             List of product URLs
         """
-        from bs4 import BeautifulSoup
-        import re
-        from src.utils.retry import retry_async
-        
         if product_types is None:
-            from src.config.settings import settings
             product_types = settings.get_product_types()
         
         product_urls = []

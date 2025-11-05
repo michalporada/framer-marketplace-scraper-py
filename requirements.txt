@@ -1,3 +1,19 @@
+# Note: This file is kept for backward compatibility.
+# Primary source of truth is pyproject.toml.
+# 
+# To install all dependencies:
+#   pip install -e ".[dev,database]"
+#
+# Or install only production dependencies:
+#   pip install -e .
+#
+# To install database dependencies:
+#   pip install -e ".[database]"
+#
+# This file is auto-generated from pyproject.toml for backward compatibility.
+# All dependencies are defined in pyproject.toml under [project.dependencies]
+# and [project.optional-dependencies].
+
 # HTTP & Scraping
 httpx>=0.25.0
 beautifulsoup4>=4.12.0
@@ -16,7 +32,7 @@ fake-useragent>=1.4.0
 structlog>=23.2.0
 aiofiles>=23.2.0
 
-# Database (opcjonalnie)
-sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.9  # PostgreSQL
+# Database (optional - install with: pip install -e ".[database]")
+# sqlalchemy>=2.0.0
+# psycopg2-binary>=2.9.9
 

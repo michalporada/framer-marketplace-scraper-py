@@ -17,6 +17,7 @@ from src.scrapers.product_scraper import ProductScraper
 from src.scrapers.sitemap_scraper import SitemapScraper
 from src.storage.file_storage import FileStorage
 from src.utils.checkpoint import CheckpointManager
+from src.utils.constants import PROGRESS_LOG_INTERVAL, PROGRESS_MILESTONES
 from src.utils.logger import get_logger
 from src.utils.metrics import get_metrics
 
@@ -261,14 +262,9 @@ class MarketplaceScraper:
 
         async def scrape_with_semaphore(url: str, index: int, total: int):
             async with semaphore:
-                # Log progress every 50 products or at milestones (10%, 25%, 50%, 75%, 90%)
-                if index % 50 == 0 or index in [
-                    int(total * 0.1),
-                    int(total * 0.25),
-                    int(total * 0.5),
-                    int(total * 0.75),
-                    int(total * 0.9),
-                ]:
+                # Log progress every N items or at milestones
+                milestone_indices = [int(total * milestone) for milestone in PROGRESS_MILESTONES]
+                if index % PROGRESS_LOG_INTERVAL == 0 or index in milestone_indices:
                     logger.info(
                         "scraping_progress",
                         current=index + 1,
@@ -561,14 +557,9 @@ class MarketplaceScraper:
 
         async def scrape_with_semaphore(url: str, index: int, total: int):
             async with semaphore:
-                # Log progress every 50 creators or at milestones
-                if index % 50 == 0 or index in [
-                    int(total * 0.1),
-                    int(total * 0.25),
-                    int(total * 0.5),
-                    int(total * 0.75),
-                    int(total * 0.9),
-                ]:
+                # Log progress every N items or at milestones
+                milestone_indices = [int(total * milestone) for milestone in PROGRESS_MILESTONES]
+                if index % PROGRESS_LOG_INTERVAL == 0 or index in milestone_indices:
                     logger.info(
                         "scraping_creators_progress",
                         current=index + 1,
@@ -775,14 +766,9 @@ class MarketplaceScraper:
 
         async def scrape_with_semaphore(url: str, index: int, total: int):
             async with semaphore:
-                # Log progress every 50 categories or at milestones
-                if index % 50 == 0 or index in [
-                    int(total * 0.1),
-                    int(total * 0.25),
-                    int(total * 0.5),
-                    int(total * 0.75),
-                    int(total * 0.9),
-                ]:
+                # Log progress every N items or at milestones
+                milestone_indices = [int(total * milestone) for milestone in PROGRESS_MILESTONES]
+                if index % PROGRESS_LOG_INTERVAL == 0 or index in milestone_indices:
                     logger.info(
                         "scraping_categories_progress",
                         current=index + 1,

@@ -1,5 +1,6 @@
 """Configuration settings for the scraper using pydantic-settings."""
 
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Dict, List
 from pathlib import Path
@@ -25,22 +26,87 @@ class Settings(BaseSettings):
     robots_url: str = "https://www.framer.com/robots.txt"
 
     # Rate Limiting
-    rate_limit: float = 2.0  # requests per second (increased from 1.0 for faster scraping)
-    delay_between_requests: float = 0.5  # seconds (reduced from 1.0 for faster scraping)
-    max_concurrent_requests: int = 10  # increased from 5 for better performance
+    rate_limit: float = Field(
+        default=2.0,
+        description="Requests per second (must be > 0)",
+        gt=0.0,
+    )
+    delay_between_requests: float = Field(
+        default=0.5,
+        description="Delay between requests in seconds (must be >= 0)",
+        ge=0.0,
+    )
+    max_concurrent_requests: int = Field(
+        default=10,
+        description="Maximum number of concurrent requests (must be > 0)",
+        gt=0,
+    )
 
     # HTTP Settings
-    timeout: int = 30  # seconds
-    max_retries: int = 3
+    timeout: int = Field(
+        default=30,
+        description="Request timeout in seconds (must be > 0)",
+        gt=0,
+    )
+    max_retries: int = Field(
+        default=3,
+        description="Maximum number of retries for failed requests (must be >= 0)",
+        ge=0,
+    )
 
     # Logging
-    log_level: str = "INFO"
-    log_format: str = "json"  # json or text
-    log_file: str = "scraper.log"  # Log file name (saved in logs/ directory)
+    log_level: str = Field(
+        default="INFO",
+        description="Log level: DEBUG, INFO, WARNING, ERROR",
+    )
+    log_format: str = Field(
+        default="json",
+        description="Log format: json or text",
+    )
+    log_file: str = Field(
+        default="scraper.log",
+        description="Log file name (saved in logs/ directory)",
+    )
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        """Validate log level."""
+        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        upper_v = v.upper()
+        if upper_v not in valid_levels:
+            raise ValueError(f"log_level must be one of {valid_levels}, got {v}")
+        return upper_v
+
+    @field_validator("log_format")
+    @classmethod
+    def validate_log_format(cls, v: str) -> str:
+        """Validate log format."""
+        valid_formats = {"json", "text"}
+        lower_v = v.lower()
+        if lower_v not in valid_formats:
+            raise ValueError(f"log_format must be one of {valid_formats}, got {v}")
+        return lower_v
 
     # Output Settings
-    output_format: str = "json"  # json, csv, both
-    data_dir: str = "data"
+    output_format: str = Field(
+        default="json",
+        description="Output format: json, csv, both",
+    )
+    data_dir: str = Field(
+        default="data",
+        description="Data directory for storing scraped data",
+    )
+
+    @field_validator("output_format")
+    @classmethod
+    def validate_output_format(cls, v: str) -> str:
+        """Validate output format."""
+        valid_formats = {"json", "csv", "both"}
+        lower_v = v.lower()
+        if lower_v not in valid_formats:
+            raise ValueError(f"output_format must be one of {valid_formats}, got {v}")
+        return lower_v
 
     # Database (optional)
     database_url: str = ""
