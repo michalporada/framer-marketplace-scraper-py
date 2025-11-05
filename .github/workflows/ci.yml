@@ -29,7 +29,8 @@ jobs:
       
       - name: Check code formatting with Black
         run: |
-          black --check --line-length=100 src/ tests/ || (echo "::error::Code formatting check failed. Run 'black src/ tests/' to fix." && exit 1)
+          black --check --line-length=100 src/ tests/
+        continue-on-error: false
       
       - name: Lint with ruff
         run: |

@@ -16,4 +16,3 @@ DEFAULT_TIMEOUT = 30
 
 # Checkpoint configuration
 DEFAULT_CHECKPOINT_FILE = "data/checkpoint.json"
-
