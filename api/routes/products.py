@@ -254,10 +254,9 @@ async def get_products(
     }
     sort_column = sort_column_map.get(sort, "created_at")
 
-    # Get total count - create separate params dict without limit/offset
-    count_params = {k: v for k, v in params.items() if k not in ["limit", "offset"]}
+    # Get total count
     count_query = f"SELECT COUNT(*) as total FROM products {where_clause}"
-    count_result = execute_query_one(count_query, count_params)
+    count_result = execute_query_one(count_query)
     total = count_result["total"] if count_result else 0
 
     # Get products - LIMIT and OFFSET are safe to format directly (they're integers)
