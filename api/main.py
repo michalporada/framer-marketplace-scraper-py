@@ -45,18 +45,32 @@ async def health():
     
     # Test simple query
     test_result = None
+    test_error = None
     if db_status == "configured":
         try:
-            test_result = execute_query_one("SELECT 1 as test")
-            test_result = "connected" if test_result else "query_failed"
-        except Exception:
+            from api.dependencies import get_db_engine
+            from sqlalchemy import text
+            
+            engine = get_db_engine()
+            if engine:
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT 1 as test"))
+                    row = result.fetchone()
+                    test_result = "connected" if row else "no_result"
+            else:
+                test_result = "no_engine"
+        except Exception as e:
             test_result = "error"
+            test_error = str(e)[:100]  # First 100 chars only
     
-    return {
+    response = {
         "status": "healthy",
         "database": db_status,
         "database_test": test_result
     }
+    if test_error:
+        response["test_error"] = test_error
+    return response
 
 
 # Import routes
