@@ -58,7 +58,16 @@ def execute_query(query: str, params: Optional[dict] = None):
             # Convert rows to dicts
             columns = result.keys()
             return [dict(zip(columns, row)) for row in rows]
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
+        # Log error for debugging (but don't expose sensitive info)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Database query error: {str(e)}")
+        return None
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Unexpected database error: {str(e)}")
         return None
 
 
@@ -85,6 +94,15 @@ def execute_query_one(query: str, params: Optional[dict] = None):
             # Convert row to dict
             columns = result.keys()
             return dict(zip(columns, row))
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
+        # Log error for debugging (but don't expose sensitive info)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Database query error: {str(e)}")
+        return None
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Unexpected database error: {str(e)}")
         return None
 

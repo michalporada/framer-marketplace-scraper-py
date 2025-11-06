@@ -39,7 +39,13 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "healthy"}
+    from api.dependencies import get_db_engine
+    
+    db_status = "configured" if get_db_engine() else "not_configured"
+    return {
+        "status": "healthy",
+        "database": db_status
+    }
 
 
 # Import routes
