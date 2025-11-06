@@ -31,9 +31,13 @@ def get_db_engine():
             database_url,
             poolclass=NullPool,
             connect_args={"connect_timeout": 10},
+            echo=False,  # Set to True for SQL debugging
         )
         return _db_engine
-    except Exception:
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to create database engine: {str(e)}")
         return None
 
 
@@ -52,8 +56,8 @@ def execute_query(query: str, params: Optional[dict] = None):
         return None
 
     try:
-        with engine.connect() as conn:
-            # Execute query with autocommit
+        # Use begin() for transaction management in SQLAlchemy 2.0
+        with engine.begin() as conn:
             result = conn.execute(text(query), params or {})
             rows = result.fetchall()
             # Convert rows to dicts
@@ -90,8 +94,8 @@ def execute_query_one(query: str, params: Optional[dict] = None):
         return None
 
     try:
-        with engine.connect() as conn:
-            # Use autocommit for SELECT queries
+        # Use begin() for transaction management in SQLAlchemy 2.0
+        with engine.begin() as conn:
             result = conn.execute(text(query), params or {})
             row = result.fetchone()
             if not row:
