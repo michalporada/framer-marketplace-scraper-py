@@ -1,0 +1,103 @@
+name: Test Scraper (Limited)
+
+on:
+  workflow_dispatch:  # Ręczne uruchomienie
+    inputs:
+      limit:
+        description: 'Number of products to scrape (default: 10)'
+        required: false
+        default: '10'
+        type: string
+
+jobs:
+  test-scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run scraper (test with limit)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FRAMER_BASE_URL: ${{ secrets.FRAMER_BASE_URL || 'https://www.framer.com' }}
+          RATE_LIMIT: ${{ secrets.RATE_LIMIT || '1.0' }}
+          MAX_RETRIES: ${{ secrets.MAX_RETRIES || '3' }}
+          LOG_LEVEL: ${{ secrets.LOG_LEVEL || 'INFO' }}
+          CHECKPOINT_ENABLED: ${{ secrets.CHECKPOINT_ENABLED || 'true' }}
+        run: |
+          LIMIT="${{ inputs.limit || '10' }}"
+          echo "🧪 Testing scraper with limit: $LIMIT products"
+          python -m src.main $LIMIT
+      
+      - name: Check database connection
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "⚠️ DATABASE_URL not set in secrets"
+            exit 1
+          fi
+          echo "✅ DATABASE_URL is configured"
+          python -c "
+          import os
+          from src.config.settings import settings
+          from src.storage.database import DatabaseStorage
+          db = DatabaseStorage()
+          if db.is_available():
+              print('✅ Database connection: OK')
+          else:
+              print('❌ Database connection: FAILED')
+              exit(1)
+          "
+      
+      - name: Verify data in database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python -c "
+          from api.dependencies import get_db_engine, execute_query_one
+          engine = get_db_engine()
+          if engine:
+              result = execute_query_one('SELECT COUNT(*) as total FROM products')
+              if result:
+                  count = result['total']
+                  print(f'📊 Products in database: {count}')
+                  if count > 0:
+                      print('✅ Data successfully saved to database!')
+                  else:
+                      print('⚠️ No products found in database')
+              else:
+                  print('⚠️ Could not query database')
+          else:
+              print('❌ Database engine not available')
+          "
+      
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-scraped-data
+          path: |
+            data/
+            logs/
+          retention-days: 1
+      
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-scraper-logs
+          path: logs/
+          retention-days: 1
+
