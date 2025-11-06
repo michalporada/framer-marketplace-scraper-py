@@ -53,21 +53,24 @@ def execute_query(query: str, params: Optional[dict] = None):
 
     try:
         with engine.connect() as conn:
+            # Use autocommit for SELECT queries
             result = conn.execute(text(query), params or {})
             rows = result.fetchall()
             # Convert rows to dicts
-            columns = result.keys()
-            return [dict(zip(columns, row)) for row in rows]
+            if rows:
+                columns = list(result.keys())
+                return [dict(zip(columns, row)) for row in rows]
+            return []
     except SQLAlchemyError as e:
         # Log error for debugging (but don't expose sensitive info)
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Database query error: {str(e)}")
+        logger.error(f"Database query error: {type(e).__name__}: {str(e)}")
         return None
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Unexpected database error: {str(e)}")
+        logger.error(f"Unexpected database error: {type(e).__name__}: {str(e)}")
         return None
 
 
@@ -87,22 +90,23 @@ def execute_query_one(query: str, params: Optional[dict] = None):
 
     try:
         with engine.connect() as conn:
+            # Use autocommit for SELECT queries
             result = conn.execute(text(query), params or {})
             row = result.fetchone()
             if not row:
                 return None
             # Convert row to dict
-            columns = result.keys()
+            columns = list(result.keys())
             return dict(zip(columns, row))
     except SQLAlchemyError as e:
         # Log error for debugging (but don't expose sensitive info)
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Database query error: {str(e)}")
+        logger.error(f"Database query error: {type(e).__name__}: {str(e)}")
         return None
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Unexpected database error: {str(e)}")
+        logger.error(f"Unexpected database error: {type(e).__name__}: {str(e)}")
         return None
 
