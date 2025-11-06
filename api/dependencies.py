@@ -56,8 +56,9 @@ def execute_query(query: str, params: Optional[dict] = None):
         return None
 
     try:
-        # Use begin() for transaction management in SQLAlchemy 2.0
-        with engine.begin() as conn:
+        # For SELECT queries, use connect() with autocommit
+        with engine.connect() as conn:
+            # Use stream_results=False for compatibility
             result = conn.execute(text(query), params or {})
             rows = result.fetchall()
             # Convert rows to dicts
@@ -94,8 +95,8 @@ def execute_query_one(query: str, params: Optional[dict] = None):
         return None
 
     try:
-        # Use begin() for transaction management in SQLAlchemy 2.0
-        with engine.begin() as conn:
+        # For SELECT queries, use connect() with autocommit
+        with engine.connect() as conn:
             result = conn.execute(text(query), params or {})
             row = result.fetchone()
             if not row:
