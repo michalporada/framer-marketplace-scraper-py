@@ -56,12 +56,17 @@ async def health():
                 with engine.connect() as conn:
                     result = conn.execute(text("SELECT 1 as test"))
                     row = result.fetchone()
-                    test_result = "connected" if row else "no_result"
+                    if row:
+                        # Try to access the result
+                        test_value = row[0] if row else None
+                        test_result = f"connected (value: {test_value})" if test_value else "no_value"
+                    else:
+                        test_result = "no_result"
             else:
                 test_result = "no_engine"
         except Exception as e:
             test_result = "error"
-            test_error = str(e)[:100]  # First 100 chars only
+            test_error = f"{type(e).__name__}: {str(e)[:200]}"  # More details
     
     response = {
         "status": "healthy",
