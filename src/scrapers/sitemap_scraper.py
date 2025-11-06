@@ -66,6 +66,7 @@ class SitemapScraper:
             if retry_on_502 and "marketplace" in url:
                 try:
                     # Retry up to 3 times with exponential backoff (5s, 10s, 20s)
+                    # retry_async catches all exceptions by default, including HTTPStatusError
                     content = await retry_async(_fetch, max_retries=3, initial_wait=5.0, max_wait=20.0)
                     return content
                 except httpx.HTTPStatusError as e:
@@ -75,6 +76,12 @@ class SitemapScraper:
                             url=url,
                             status_code=502,
                             message="Marketplace sitemap returned 502 after retries - may be temporarily unavailable",
+                        )
+                    else:
+                        logger.warning(
+                            "sitemap_fetch_failed_after_retries",
+                            url=url,
+                            status_code=e.response.status_code,
                         )
                     return None
                 except Exception as e:
