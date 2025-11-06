@@ -241,8 +241,8 @@ async def get_products(
     where_clause = ""
     params = {}
     if type:
-        where_clause = "WHERE type = :type"
-        params["type"] = type
+        # Use direct formatting for type (it's validated, safe)
+        where_clause = f"WHERE type = '{type}'"
 
     # Map sort field to database column
     sort_column_map = {
