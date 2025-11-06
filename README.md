@@ -10,19 +10,24 @@ Zaawansowany scraper do zbierania danych z Framer Marketplace, umożliwiający a
 
 ### Główne Dokumenty
 
-1. **[STACK_TECHNICZNY.md](./cursor%20documentation%20and%20rules/STACK_TECHNICZNY.md)** - Szczegółowy opis stacku technicznego, w tym:
+1. **[DEPLOYMENT_PLAN.md](./docs/DEPLOYMENT_PLAN.md)** - Kompletny plan wdrożenia (Vercel + Railway + Supabase):
+   - Krok po kroku instrukcje deploymentu
+   - Konfiguracja wszystkich serwisów
+   - Troubleshooting i best practices
+
+2. **[STACK_TECHNICZNY.md](./documentation_sources/STACK_TECHNICZNY.md)** - Szczegółowy opis stacku technicznego, w tym:
    - Biblioteki Python i narzędzia
    - Opcje baz danych
    - GitHub Actions i Vercel
    - Rekomendacje deployment
 
-2. **[PROPOZYCJA_ARCHITEKTURY.md](./cursor%20documentation%20and%20rules/PROPOZYCJA_ARCHITEKTURY.md)** - Propozycja struktury projektu:
+3. **[PROPOZYCJA_ARCHITEKTURY.md](./documentation_sources/PROPOZYCJA_ARCHITEKTURY.md)** - Propozycja struktury projektu:
    - Struktura folderów
    - Opis komponentów
    - Flow scrapowania
    - Deployment strategy
 
-3. **[REKOMENDACJE_SCRAPERA_FRAMER.md](./cursor%20documentation%20and%20rules/REKOMENDACJE_SCRAPERA_FRAMER.md)** - Szczegółowa analiza Framer Marketplace:
+4. **[REKOMENDACJE_SCRAPERA_FRAMER.md](./documentation_sources/REKOMENDACJE_SCRAPERA_FRAMER.md)** - Szczegółowa analiza Framer Marketplace:
    - Analiza techniczna strony
    - Struktura URL-i i selektory CSS
    - Zalecane dane do zbierania
@@ -127,8 +132,9 @@ Dane są automatycznie zapisywane jako artifacts w GitHub Actions.
 
 ### Deployment & Automation
 - **GitHub Actions** - automatyczne scrapowanie (scheduled)
-- **Vercel** - API i dashboard (opcjonalnie, Faza 3)
-- **PostgreSQL/Supabase** - baza danych (opcjonalnie)
+- **Railway** - FastAPI backend (https://framer-marketplace-scraper-py-production.up.railway.app)
+- **Vercel** - Next.js frontend (https://framer-marketplace-scraper-py.vercel.app)
+- **Supabase** - PostgreSQL database (skonfigurowana)
 
 ### Storage
 - **JSON/CSV** - podstawowe (zalecane na start)
