@@ -45,7 +45,7 @@ def execute_query(query: str, params: Optional[dict] = None):
         params: Optional query parameters
 
     Returns:
-        List of rows (as dicts) or None on error
+        List of rows (as dicts), empty list if no results, or None on error
     """
     engine = get_db_engine()
     if not engine:

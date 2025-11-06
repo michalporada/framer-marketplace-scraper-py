@@ -277,7 +277,7 @@ async def get_products(
             },
         )
 
-    # Convert to Product models
+    # Convert to Product models (rows is empty list if no results)
     products = [db_row_to_product(row) for row in rows]
 
     return ProductListResponse(

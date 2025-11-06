@@ -161,7 +161,7 @@ async def get_creators(
             },
         )
 
-    # Convert to Creator models
+    # Convert to Creator models (rows is empty list if no results)
     creators = [db_row_to_creator(row) for row in rows]
 
     return CreatorListResponse(
