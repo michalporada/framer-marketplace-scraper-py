@@ -14,7 +14,7 @@ app = FastAPI(
 # CORS Configuration
 cors_origins = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:3000"
+    "http://localhost:3000,https://framer-marketplace-scraper-py.vercel.app"
 ).split(",")
 
 app.add_middleware(
