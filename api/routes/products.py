@@ -268,7 +268,7 @@ async def get_products(
     
     query = " ".join(query_parts)
 
-    rows = execute_query(query, params)
+    rows = execute_query(query)
     if rows is None:
         # Log the query for debugging
         import logging
