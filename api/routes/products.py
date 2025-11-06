@@ -88,9 +88,14 @@ def db_row_to_product(row: dict) -> Product:
     # Build features
     features = ProductFeatures()
     if row.get("features_list"):
-        features.features = [
-            f.strip() for f in row["features_list"].split(",") if f.strip()
-        ]
+        try:
+            features_list_str = str(row["features_list"]) if row["features_list"] else ""
+            if features_list_str:
+                features.features = [
+                    f.strip() for f in features_list_str.split(",") if f.strip()
+                ]
+        except (AttributeError, TypeError):
+            features.features = []
     features.is_responsive = row.get("is_responsive", False)
     features.has_animations = row.get("has_animations", False)
     features.cms_integration = row.get("cms_integration", False)
@@ -266,19 +271,33 @@ async def get_products(
 
     rows = execute_query(query, params)
     if rows is None:
+        # Log the query for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Database query failed. Query: {query[:200]}... Params: {params}")
         raise HTTPException(
             status_code=500,
             detail={
                 "error": {
                     "code": "INTERNAL_ERROR",
                     "message": "Failed to fetch products from database",
-                    "details": {},
+                    "details": {"query_preview": query[:100]},
                 }
             },
         )
 
     # Convert to Product models (rows is empty list if no results)
-    products = [db_row_to_product(row) for row in rows]
+    products = []
+    for row in rows:
+        try:
+            product = db_row_to_product(row)
+            products.append(product)
+        except Exception as e:
+            # Log error but continue processing other products
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error converting product row to model: {type(e).__name__}: {str(e)}")
+            continue
 
     return ProductListResponse(
         data=products,
