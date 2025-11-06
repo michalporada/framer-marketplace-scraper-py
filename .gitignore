@@ -43,6 +43,7 @@ data/
 !data/**/.gitkeep
 logs/
 *.log
+logs.*.json
 
 # Testing
 .pytest_cache/
