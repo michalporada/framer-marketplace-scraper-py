@@ -255,18 +255,14 @@ async def get_products(
     count_result = execute_query_one(count_query, count_params)
     total = count_result["total"] if count_result else 0
 
-    # Get products - use bindparam for LIMIT and OFFSET
-    from sqlalchemy import bindparam
-    
+    # Get products - LIMIT and OFFSET are safe to format directly (they're integers)
     query_parts = ["SELECT * FROM products"]
     if where_clause:
         query_parts.append(where_clause)
     query_parts.append(f"ORDER BY {sort_column} {order.upper()}")
-    query_parts.append("LIMIT :limit OFFSET :offset")
+    query_parts.append(f"LIMIT {limit} OFFSET {offset}")
     
     query = " ".join(query_parts)
-    params["limit"] = limit
-    params["offset"] = offset
 
     rows = execute_query(query, params)
     if rows is None:

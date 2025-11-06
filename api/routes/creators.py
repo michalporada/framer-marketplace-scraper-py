@@ -140,13 +140,13 @@ async def get_creators(
     count_result = execute_query_one(count_query)
     total = count_result["total"] if count_result else 0
 
-    # Get creators
+    # Get creators - LIMIT and OFFSET are safe to format directly (they're integers)
     query = f"""
         SELECT * FROM creators
         ORDER BY {sort_column} {order.upper()}
-        LIMIT :limit OFFSET :offset
+        LIMIT {limit} OFFSET {offset}
     """
-    params = {"limit": limit, "offset": offset}
+    params = {}
 
     rows = execute_query(query, params)
     if rows is None:
@@ -274,10 +274,8 @@ async def get_creator_products(
         SELECT * FROM products
         {where_clause}
         ORDER BY created_at DESC
-        LIMIT :limit OFFSET :offset
+        LIMIT {limit} OFFSET {offset}
     """
-    params["limit"] = limit
-    params["offset"] = offset
 
     rows = execute_query(query, params)
     if rows is None:
