@@ -105,11 +105,721 @@
   documentation_sources:
     - "README.md - main project documentation"
     - "docs/ - technical documentation"
+    - "docs/DEPLOYMENT_PLAN.md - step-by-step deployment guide (Vercel + Railway + Supabase)"
     - "ARCHITECTURE.md, PROPOZYCJA_ARCHITEKTURY.md - system architecture"
     - "STACK_TECHNICZNY.md - technology stack"
     - "All .md files in repository containing specifications"
+    - "cursor_rules/ - Cursor AI agent rules"
   guardrails:
     - "Don't ignore documentation even if it seems outdated - always ask about updating."
     - "Don't make changes to documentation without explicit user consent."
     - "Don't assume documentation is outdated - always check first if solution is compliant with documentation."
 
+- name: "Project Philosophy & Structure"
+  description: "Core project principles, structure, and organization rules."
+  appliesTo: ["*"]
+  philosophy:
+    vision: "Advanced scraper for Framer Marketplace data collection, enabling automation of product, creator, category, and review information gathering. Built for stability, security, and Framer Marketplace compliance."
+    key_principles:
+      - "Data Normalization (Option B): All dates and statistics stored in two formats - raw (from HTML) and normalized (ISO 8601 for dates, integers for stats)"
+      - "Type Safety: Use Pydantic v2 for all data validation, full type hints required"
+      - "Framer Marketplace Respect: Rate limiting 1-2 req/s, User-Agent rotation, robots.txt compliance, graceful error handling"
+      - "Checkpoint System: Resume capability, checkpoint in data/checkpoint.json"
+  structure:
+    organization:
+      - "src/scrapers/ - Scrapers (sitemap, product, creator, category)"
+      - "src/parsers/ - HTML parsers (product, creator, review, category)"
+      - "src/models/ - Pydantic models (Product, Creator, Review, Category)"
+      - "src/storage/ - Data storage (file_storage, database)"
+      - "src/utils/ - Utilities (logger, rate_limiter, retry, normalizers, checkpoint, metrics)"
+      - "src/config/ - Configuration (settings.py)"
+      - "data/ - Scraped data (JSON/CSV)"
+      - "tests/ - Unit tests"
+      - "scripts/ - Helper scripts"
+      - "docs/ - Technical documentation"
+      - "cursor_rules/ - Cursor AI rules"
+    naming_conventions:
+      files: "snake_case (e.g. product_scraper.py)"
+      classes: "PascalCase (e.g. ProductScraper)"
+      functions: "snake_case (e.g. scrape_product)"
+      variables: "snake_case (e.g. product_id)"
+    import_organization:
+      - "Standard library"
+      - "Third-party packages"
+      - "Local imports (src/)"
+      - "Alphabetical sorting within each section"
+  separation_of_concerns:
+    - "Scrapers: only HTML fetching"
+    - "Parsers: only data extraction from HTML"
+    - "Models: only data validation and structure"
+    - "Storage: only data read/write"
+  before_work:
+    - "Always check documentation (README.md, documentation_sources/)"
+    - "Understand change context (affected files, dependencies, documentation needs)"
+    - "Check existing tests (are there tests? do they pass? need new tests?)"
+  during_work:
+    - "Maintain consistency (use existing patterns, don't introduce new libraries without justification, maintain code style)"
+    - "Test locally (run tests before commit, check linting/formatting, test on small data sample)"
+    - "Log appropriately (use structured logging, appropriate levels, include context)"
+  after_work:
+    - "Update documentation (if needed, always ask user first, document breaking changes, update usage examples)"
+    - "Commit according to conventions (Conventional Commits, one commit = one logical change, describe what and why)"
+  security:
+    - "Never commit sensitive data (use environment variables, check .gitignore, no hardcoded API keys/tokens/passwords)"
+    - "Validate input data (always validate before save, use Pydantic models, handle edge cases)"
+    - "Error handling (don't hide errors, log error details, implement graceful degradation)"
+  performance:
+    - "Rate limiting (always use rate limiter, don't exceed Framer Marketplace limits, randomize delays)"
+    - "Optimization (use async/await where possible, don't block main thread, optimize database queries)"
+    - "Monitoring (track metrics, monitor performance, alert on issues)"
+
+- name: "Agent Responsibilities & Delegation"
+  description: "Define clear scope of responsibility for each agent type and delegation rules."
+  appliesTo: ["*"]
+  principles:
+    scope: "Each agent should act only within their responsibility scope - don't make decisions outside scope, ask user or delegate to appropriate agent if change needed in other area, always communicate context and dependencies"
+    communication: "Be precise in communication with user, explain technical decisions, always provide context of changes"
+    documentation: "Document changes according to project conventions, update documentation only with user consent, always ask before updating documentation"
+  agent_types:
+    scraper_agent:
+      scope:
+        - "Scrapers (src/scrapers/)"
+        - "Parsers (src/parsers/)"
+        - "Rate limiting and error handling"
+        - "Checkpoint system"
+        - "Metrics tracking for scraping"
+      should_not:
+        - "Change models without consultation"
+        - "Change API without consultation"
+        - "Change frontend"
+      rules:
+        - "Always use rate limiter"
+        - "Respect robots.txt"
+        - "Track metrics"
+        - "Handle checkpoint/resume"
+    api_agent:
+      scope:
+        - "API endpoints (api/)"
+        - "Response models"
+        - "Data access layer"
+        - "API documentation"
+        - "Error handling in API"
+      should_not:
+        - "Change scrapers without consultation"
+        - "Change frontend without consultation"
+        - "Change models without consultation (only response models)"
+      rules:
+        - "RESTful design"
+        - "Always use Pydantic for validation"
+        - "Pagination for lists"
+        - "Structural error responses"
+    frontend_agent:
+      scope:
+        - "Frontend components (frontend/src/)"
+        - "UI/UX implementation"
+        - "API integration"
+        - "Styling (Tailwind + Shadcn)"
+        - "Client-side state management"
+      should_not:
+        - "Change API without consultation"
+        - "Change scrapers"
+        - "Change backend logic"
+      rules:
+        - "Use Shadcn/ui components"
+        - "Tailwind CSS for styling"
+        - "TypeScript strict mode"
+        - "Responsive design"
+        - "Accessibility (WCAG)"
+    data_model_agent:
+      scope:
+        - "Models (src/models/)"
+        - "Data validation"
+        - "Normalization logic"
+        - "Storage layer (src/storage/)"
+        - "Data integrity"
+      should_not:
+        - "Change scrapers without consultation"
+        - "Change API without consultation"
+        - "Change frontend"
+      rules:
+        - "Always use Pydantic v2"
+        - "Data normalization (raw + normalized)"
+        - "Type safety"
+        - "Validate before save"
+    insights_agent:
+      scope:
+        - "Insights logic (src/insights/)"
+        - "Data analysis"
+        - "Statistics calculations"
+        - "Export functionality"
+      should_not:
+        - "Change models without consultation"
+        - "Change scrapers"
+        - "Change API without consultation"
+      rules:
+        - "Use normalized values"
+        - "Handle missing data gracefully"
+        - "Cache results if expensive"
+        - "Document assumptions"
+    metrics_agent:
+      scope:
+        - "Metrics tracking (src/utils/metrics.py)"
+        - "Monitoring setup"
+        - "Performance tracking"
+        - "Error tracking"
+      should_not:
+        - "Change scrapers without consultation"
+        - "Change API without consultation"
+        - "Change business logic"
+      rules:
+        - "Always track successes and errors"
+        - "Use standard error types"
+        - "Log summary at end"
+        - "Performance optimized"
+    analytics_agent:
+      scope:
+        - "Frontend analytics tracking"
+        - "Event definitions"
+        - "Analytics integration"
+        - "Privacy compliance"
+      should_not:
+        - "Change backend without consultation"
+        - "Change business logic"
+      rules:
+        - "Event-based tracking"
+        - "Privacy-first approach"
+        - "Consistent naming"
+        - "GDPR compliance"
+  cross_agent_collaboration:
+    when_needed:
+      - "Model changes (affects: Scraper, API, Insights - always consult before change, ensure all dependencies updated)"
+      - "API changes (affects: Frontend - update documentation, communicate breaking changes)"
+      - "Scraper changes (affects: Models if data structure changes - communicate data structure changes)"
+    process:
+      - "Identify dependencies (check affected components, identify needed changes)"
+      - "Communicate (describe planned changes, indicate dependencies, ask for approval)"
+      - "Implement (deploy changes in correct order, test dependencies, update documentation)"
+  best_practices:
+    - "Stay in scope (don't make decisions outside scope, ask user if unsure, delegate responsibility if needed)"
+    - "Document decisions (document important technical decisions, explain 'why' not just 'what', update documentation with user consent)"
+    - "Test changes (always test locally, ensure tests pass, check dependencies)"
+    - "Communicate clearly (be precise in change descriptions, provide context and dependencies, explain technical decisions)"
+
+- name: "Scraper Rules"
+  description: "Ensure stability, security, and Framer Marketplace compliance for all scrapers."
+  appliesTo: ["src/scrapers/**", "src/parsers/**"]
+  framer_marketplace_respect:
+    rate_limiting:
+      - "Always use RateLimiter from src/utils/rate_limiter.py"
+      - "Limit: 1-2 requests per second (default 1.0 req/s)"
+      - "Randomize delays between requests (0.5-2s)"
+      - "NEVER exceed limits - risk of IP ban"
+    user_agent_rotation:
+      - "Always use User-Agent rotation"
+      - "Use src/utils/user_agents.py for User-Agent"
+      - "Don't use default library User-Agent"
+    robots_txt:
+      - "Check robots.txt before scraping"
+      - "Respect robots.txt rules"
+      - "Don't scrape forbidden pages"
+    error_handling:
+      - "Implement retry logic with exponential backoff"
+      - "Use src/utils/retry.py for retry"
+      - "Max retries: 3 (default)"
+      - "Timeout: 30 seconds (default)"
+  scraper_structure:
+    hierarchy:
+      - "MarketplaceScraper (orchestrator)"
+      - "SitemapScraper (URL list fetching)"
+      - "ProductScraper (product scraping)"
+      - "CreatorScraper (creator scraping)"
+      - "CategoryScraper (category scraping)"
+    implementation:
+      - "All scrapers use async with pattern"
+      - "Implement __aenter__ and __aexit__"
+      - "Manage HTTP session inside context manager"
+      - "Scraper: only HTML fetching"
+      - "Parser: only data extraction from HTML"
+      - "Model: only data validation"
+      - "All scrapers support checkpoint/resume"
+      - "Save checkpoint after each product batch"
+      - "Use src/utils/checkpoint.py for checkpoint management"
+  sitemap_scraper:
+    - "Try first: /marketplace/sitemap.xml"
+    - "Fallback: /sitemap.xml (main sitemap)"
+    - "Handle errors gracefully"
+    - "Filter only marketplace products: /marketplace/templates/{name}/, /marketplace/components/{name}/, /marketplace/vectors/{name}/, /marketplace/plugins/{name}/"
+    - "Profiles: /@{username}/ (everything with @)"
+    - "Categories: /marketplace/category/{name}/"
+    - "Remove duplicate URLs"
+    - "Sort URLs for consistency"
+  product_scraper:
+    - "Handle all product types: templates, components, vectors, plugins"
+    - "Identify product type from URL (priority), HTML (fallback), Next.js JSON data (if available)"
+    - "Fetch product page, call appropriate parser (product_parser.py), validate data through Pydantic model"
+    - "If product doesn't exist: skip, log warning"
+    - "If timeout: retry with exponential backoff"
+    - "If parsing error: log error, skip product"
+  creator_scraper:
+    - "Handle usernames with special characters (e.g. /@-790ivi/)"
+    - "URL-encode username if needed"
+    - "Handle all profiles starting with @"
+    - "Fetch creator profile (/@username/), call creator_parser.py, collect all creator products"
+    - "Save profile as separate file: data/creators/{username}.json"
+    - "DON'T duplicate creator data in product files"
+    - "Link products by username"
+    - "Avatar: extract from Next.js JSON data (priority), skip API placeholders"
+    - "Social Media: filter Framer links automatically, handle: Twitter/X, LinkedIn, Instagram, GitHub, Dribbble, Behance, YouTube"
+  category_scraper:
+    - "Optional scraper (default disabled: scrape_categories: false)"
+    - "Can be enabled through configuration"
+    - "Fetch category page, extract product list in category, collect category metadata (name, description, product count)"
+  rate_limiting_implementation:
+    - "Always use RateLimiter: from src.utils.rate_limiter import RateLimiter"
+    - "Wait BEFORE request, not after"
+    - "Measure wait time for metrics"
+    - "Log excessive delays"
+    - "Add random delay (0.1-0.5s) to base delay"
+    - "Avoid predictable patterns"
+    - "If receive 429 (Too Many Requests): increase delay, stop scraping for 5-10 minutes, log warning"
+  error_handling:
+    timeout_error:
+      - "Retry with exponential backoff"
+      - "Max 3 retries"
+      - "After 3 retries: skip, log error"
+    http_error:
+      - "404: skip, log warning (product doesn't exist)"
+      - "403: skip, log error (may be block)"
+      - "429: increase delay, retry after longer time"
+    parsing_error:
+      - "Log error with context"
+      - "Skip product"
+      - "Don't retry - parsing error is not recoverable"
+    validation_error:
+      - "Log error with validation details"
+      - "Skip product"
+      - "May indicate HTML structure change"
+  metrics_tracking:
+    required_metrics:
+      - "For each scraper: number of scraped products/creators/categories, number of errors, success rate, scraping time"
+      - "For requests: number of requests, total wait time (rate limiting), number of retries"
+      - "For errors: errors by type, errors by URL"
+    usage: "from src.utils.metrics import get_metrics; metrics = get_metrics(); metrics.start(); metrics.record_product_scraped(); metrics.record_request(wait_time=1.5); metrics.record_product_failed(error_type='TimeoutError', url=url); metrics.log_summary()"
+  logging:
+    - "Use structured logging: from src.utils.logger import get_logger; logger = get_logger(__name__)"
+    - "INFO: Normal operations (scraping started, product scraped)"
+    - "WARNING: Unusual situations (product not found, timeout)"
+    - "ERROR: Errors requiring attention (parsing error, validation error)"
+
+- name: "API Rules"
+  description: "Maintain clean API and efficient access to historical data."
+  appliesTo: ["api/**"]
+  architecture:
+    stack:
+      - "Framework: FastAPI (Python)"
+      - "Deployment: Vercel (optional) or Railway/Render"
+      - "Database: PostgreSQL/Supabase (optional) or JSON files"
+      - "Format: REST API with JSON responses"
+    structure:
+      - "api/main.py - FastAPI app"
+      - "api/routes/ - Endpoints (products.py, creators.py, categories.py, reviews.py)"
+      - "api/dependencies.py - Shared dependencies"
+      - "api/models.py - API response models"
+  design_principles:
+    restful:
+      - "Endpoints: kebab-case (e.g. /api/products, /api/creators/{username})"
+      - "Query params: snake_case (e.g. ?product_type=template)"
+      - "Response fields: snake_case (consistent with Pydantic models)"
+      - "GET: read-only, POST: create resources, PUT/PATCH: update, DELETE: delete"
+      - "Status codes: 200 OK, 201 Created, 400 Bad Request, 404 Not Found, 422 Unprocessable Entity, 500 Internal Server Error"
+    endpoints:
+      products:
+        - "GET /api/products - Query: type, limit (default 100, max 1000), offset (default 0), sort (created_at|updated_at|popularity, default created_at), order (asc|desc, default desc)"
+        - "GET /api/products/{product_id} - Single product"
+        - "GET /api/products/{product_id}/reviews - Query: limit (default 50), offset (default 0)"
+      creators:
+        - "GET /api/creators - Query: limit (default 100), offset (default 0), sort (username|products_count, default username)"
+        - "GET /api/creators/{username} - Single creator"
+        - "GET /api/creators/{username}/products - Query: type, limit (default 100), offset (default 0)"
+      categories:
+        - "GET /api/categories - List categories"
+        - "GET /api/categories/{category_name} - Single category"
+        - "GET /api/categories/{category_name}/products - Query: limit (default 100), offset (default 0)"
+  response_models:
+    - "Always use Pydantic Models - Response models inherit from BaseModel, use existing models from src/models/, don't duplicate validation logic"
+    - "Single resource: {data: ProductResponse, meta: {timestamp: ISO8601}}"
+    - "List of resources: {data: [ProductResponse, ...], meta: {total, limit, offset, timestamp: ISO8601}}"
+    - "Error response: {error: {code: 'ERROR_CODE', message: 'Human-readable', details: {}}}"
+    - "Always return both formats (raw + normalized), don't remove raw data, use formats from src/models/ (NormalizedDate, NormalizedStatistic)"
+  data_access:
+    storage_backend:
+      - "File-based (JSON): Default for MVP, read from data/products/{type}/{product_id}.json, read from data/creators/{username}.json, cache in memory (optional)"
+      - "Database (PostgreSQL): Optional for larger projects, use SQLAlchemy ORM, migrations via Alembic"
+      - "Hybrid: JSON as primary source, Database as cache/index, sync between them"
+    caching:
+      - "Cache responses for static data (products, creators), TTL: 1-5 minutes for scraped data, invalidate cache after new scraping"
+      - "Use FastAPI cache (cachetools or redis), cache key: endpoint + query params, log cache hits/misses"
+  performance:
+    pagination:
+      - "Always use pagination - default limit: 100, max limit: 1000, offset-based pagination (for simplicity), cursor-based pagination (optional, for better performance)"
+      - "Target response time: < 200ms for single resource, < 500ms for resource list, monitor response times"
+    query_optimization:
+      - "Database queries: use indexes (product_id, username, type), avoid N+1 queries, use eager loading for relations"
+      - "File-based queries: cache file list, lazy load files, use generators for large lists"
+  error_handling:
+    - "Structural errors: {error: {code: 'ERROR_CODE', message: 'Human-readable', details: {field: 'additional context'}}}"
+    - "Error codes: PRODUCT_NOT_FOUND, CREATOR_NOT_FOUND, INVALID_PRODUCT_TYPE, VALIDATION_ERROR, INTERNAL_ERROR"
+    - "Logging: log all errors at ERROR level, include context (endpoint, params, error), don't log sensitive data"
+  validation:
+    input:
+      - "Query parameters: use Pydantic for validation, validate types, ranges, formats, return 422 for invalid parameters"
+      - "Path parameters: validate format (product_id, username), return 404 for invalid values"
+    output:
+      - "Response models: all responses use Pydantic models, automatic serialization, validate before returning"
+  documentation:
+    - "Auto-generated docs: FastAPI automatically generates OpenAPI schema, available at /docs (Swagger UI), available at /redoc (ReDoc)"
+    - "Endpoint documentation: describe each endpoint in docstring, describe query parameters, describe response model, add examples"
+  security:
+    rate_limiting:
+      - "API rate limits: default 100 requests/minute per IP, configurable via environment variables, return 429 (Too Many Requests) on exceed"
+    cors:
+      - "Configure CORS for frontend, whitelist only needed origins, use FastAPI CORSMiddleware"
+    authentication:
+      - "API Keys (if needed): use API keys, store in environment variables, validate in dependencies"
+      - "Headers: X-API-Key for API key authentication, Authorization: Bearer {token} for token-based auth"
+
+- name: "Frontend Rules"
+  description: "Ensure consistent UI based on Shadcn + Tailwind + Next.js."
+  appliesTo: ["frontend/**"]
+  stack:
+    core:
+      - "Framework: Next.js 14+ (App Router)"
+      - "Styling: Tailwind CSS"
+      - "UI Components: Shadcn/ui"
+      - "Type Safety: TypeScript"
+      - "State Management: React Context / Zustand (if needed)"
+      - "Data Fetching: React Query / SWR (optional)"
+    structure:
+      - "frontend/src/app/ - Next.js App Router"
+      - "frontend/src/components/ - Reusable components (ui/, product/, creator/, layout/)"
+      - "frontend/src/lib/ - Utilities (utils.ts, api.ts, constants.ts)"
+      - "frontend/src/hooks/ - Custom React hooks"
+      - "frontend/src/types/ - TypeScript types"
+      - "frontend/src/styles/ - Global styles"
+  design_system:
+    - "Use Shadcn/ui as base for components, don't modify Shadcn components directly, create wrapper components if changes needed"
+    - "Use Tailwind utility classes, avoid custom CSS where possible, use Tailwind config for custom colors/spacing"
+    - "Responsive design: mobile-first approach, breakpoints: sm (640px), md (768px), lg (1024px), xl (1280px), test on different resolutions"
+  components:
+    naming:
+      - "Components: PascalCase (e.g. ProductCard.tsx)"
+      - "Files: PascalCase for components (e.g. ProductCard.tsx)"
+      - "Hooks: camelCase with 'use' prefix (e.g. useProduct.ts)"
+      - "Utils: camelCase (e.g. formatDate.ts)"
+    structure:
+      - "Single responsibility: one component = one functionality, split large components into smaller, use composition pattern"
+      - "Props interface: always define interface for props, use TypeScript strict mode, optional props: ?"
+      - "Reusability: create reusable components, don't duplicate logic, use composition over inheritance"
+  styling:
+    tailwind:
+      - "Use utility classes: <div className='flex items-center gap-4 p-6 bg-white rounded-lg shadow-md'>"
+      - "Custom classes: only for complex cases, use @apply in CSS, document custom classes"
+      - "Colors: use Tailwind color palette, custom colors in tailwind.config.js, consistent color usage"
+    dark_mode:
+      - "Use next-themes for dark mode, toggle in header/navigation, persist preference"
+      - "Use dark: prefix for dark mode styles, test in both modes"
+  data_fetching:
+    - "API client: const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api'"
+    - "Error handling: try-catch in components, error boundaries for React errors, user-friendly error messages"
+    - "Loading states: always show loading state, use Skeleton components (Shadcn), don't show empty screen"
+    - "React Query/SWR (optional): automatic caching, background refetching, optimistic updates"
+  state_management:
+    local:
+      - "useState: for simple local state, form inputs, UI toggles"
+      - "useReducer: for complex state logic, form state with validation, complex UI state"
+    global:
+      - "React Context: for shared state (theme, user, etc.), don't overuse - may cause re-renders"
+      - "Zustand (if needed): for more complex state, lighter than Redux, easy to use"
+  routing:
+    - "File-based routing: app/page.tsx = /, app/products/page.tsx = /products, app/products/[id]/page.tsx = /products/[id]"
+    - "Dynamic routes: use [param] for dynamic routes, access param through params prop"
+    - "Layouts: shared layout in layout.tsx, nested layouts for sections"
+  performance:
+    - "Image optimization: use next/image for images, lazy loading by default, responsive images"
+    - "Code splitting: automatic with Next.js, dynamic imports for heavy components, lazy load components"
+    - "Memoization: React.memo for expensive components, useMemo for expensive calculations, useCallback for function props"
+  seo:
+    - "Metadata: export const metadata = {title: 'Product Name', description: 'Product description'}"
+    - "Open Graph: social media sharing, og images for products"
+  forms:
+    - "React Hook Form (recommended): type-safe forms, validation with Zod, performance optimized"
+    - "Validation: Zod schemas for validation, client-side + server-side validation, user-friendly error messages"
+  accessibility:
+    - "Semantic HTML: use semantic tags (nav, main, article, etc.), proper heading hierarchy (h1 → h2 → h3)"
+    - "ARIA attributes: aria-label for icon buttons, aria-describedby for form errors, role attributes where needed"
+    - "Keyboard navigation: tab order logical, focus indicators visible, keyboard shortcuts for actions"
+    - "Screen readers: alt text for images, descriptive link text, ARIA labels where needed"
+
+- name: "Data Integrity & Backup Rules"
+  description: "Protect historical data and scraper security."
+  appliesTo: ["src/storage/**", "data/**"]
+  data_integrity:
+    immutable_history:
+      - "Historical data should NOT be modified"
+      - "Each scrape creates new data version"
+      - "Preserve full change history"
+    validation:
+      - "All data must pass Pydantic validation before save"
+      - "Don't save invalid data"
+      - "Log validation errors"
+    consistency:
+      - "Ensure data consistency between different sources"
+      - "Synchronize data between products and creators"
+      - "Check referential integrity"
+  backup_strategy:
+    automated:
+      - "GitHub Actions Artifacts: automatic backup after each scraping, save as GitHub Actions artifacts, store for 90 days (default)"
+      - "GitHub Releases: backup data as release assets, tagged data versions, long-term storage"
+      - "Local backups: backup before major changes, backup before experimental scrapes, store in data/backups/"
+    frequency:
+      - "Daily: automatic backup after scheduled scraping"
+      - "Before major changes: manual backup before changes"
+      - "On error: backup before rollback"
+    content:
+      - "All files from data/products/"
+      - "All files from data/creators/"
+      - "All files from data/categories/ (if available)"
+      - "Checkpoint file (data/checkpoint.json)"
+      - "Exports (data/exports/)"
+  checkpoint_system:
+    - "Checkpoint location: data/checkpoint.json, JSON format, contains: last_scraped_urls, progress, metadata"
+    - "Checkpoint updates: update after each product batch (e.g. every 10-50 products), update after each error (for resume capability), update at end of scraping"
+    - "Resume capability: check checkpoint file on startup, if exists ask user if resume, skip already scraped URLs, save checkpoint before exit on error, enable resume after error fix, log checkpoint location"
+  data_validation:
+    pre_save:
+      - "Pydantic models: always validate before save, check required fields present, check types correct, check values in allowed ranges"
+      - "Data completeness: check data is complete, log missing fields (as warning), don't save if critical fields missing"
+    post_save:
+      - "File integrity: check file saved correctly, check file can be read, verify JSON validity"
+      - "Data consistency: check creator exists for product, check product_id is unique, check references are correct"
+  data_recovery:
+    rollback:
+      - "Identify issue: identify problematic data, check logs for errors, identify scope of problem"
+      - "Restore from backup: find last correct backup, restore data from backup, verify integrity"
+      - "Re-scrape: re-scrape problematic data, verify correct data, update checkpoint"
+    error_recovery:
+      - "Partial failures: if part of data failed, continue with rest, save checkpoint, re-try failed items later"
+      - "Complete failure: backup before changes, rollback to last backup, investigate root cause"
+  file_organization:
+    - "data/products/{type}/{product_id}.json"
+    - "data/creators/{username}.json"
+    - "data/categories/{category_name}.json (optional)"
+    - "data/exports/ - CSV exports"
+    - "data/backups/ - Manual backups"
+    - "data/checkpoint.json - Checkpoint file"
+  file_naming:
+    - "Products: {product_id}.json, product_id: slug from URL (e.g. template-name)"
+    - "Creators: {username}.json, username: without @ (e.g. creator-name)"
+    - "Backups: backup-{timestamp}.tar.gz, timestamp: ISO 8601 (e.g. backup-2024-01-01T00-00-00.tar.gz)"
+  security:
+    - "No sensitive data: don't store API keys in data, don't store passwords, don't store PII"
+    - "Access control: .gitignore for data/ (optional), backup encryption (if needed), secure storage for backups"
+    - "GitHub Artifacts: automatic encryption, access control through GitHub, retention policy"
+    - "External backups: encrypt if sensitive, secure storage, access logs"
+
+- name: "Insights Rules"
+  description: "Ensure consistency in data analysis logic."
+  appliesTo: ["src/insights/**"]
+  data_source:
+    - "Use data from data/products/ (JSON files)"
+    - "Use data from data/creators/ (JSON files)"
+    - "Use data from data/categories/ (JSON files, if available)"
+  normalized_data:
+    - "Always use normalized formats from models"
+    - "Use NormalizedStatistic.normalized for numbers"
+    - "Use NormalizedDate.normalized for dates (ISO 8601)"
+  performance:
+    - "Cache results if expensive calculations"
+    - "Use generators for large datasets"
+    - "Optimize queries to data"
+  accuracy:
+    - "Validate data before analysis"
+    - "Handle missing values gracefully"
+    - "Document assumptions and limitations"
+  structure:
+    - "src/insights/product_insights.py - Product insights"
+    - "src/insights/creator_insights.py - Creator insights"
+    - "src/insights/temporal_insights.py - Time-based insights"
+    - "src/insights/quality_insights.py - Data quality insights"
+    - "src/insights/utils.py - Helper functions"
+  analysis_rules:
+    - "Always use normalized values: product.stats.views.normalized (int), product.metadata.published_date.normalized (ISO 8601)"
+    - "Don't use raw values for calculations: product.stats.views.raw ('19.8K Views') - not for calculations"
+    - "Handle missing data: if product.stats and product.stats.views: views = product.stats.views.normalized else: views = 0 (or skip product)"
+    - "Type safety: use Pydantic models: product = Product(**data), don't use raw dict without validation"
+    - "Error handling: try: product = Product(**data) except ValidationError as e: logger.warning('invalid_product_data', file=product_file, error=str(e)); continue"
+  result_format:
+    - "Standard format: {insight_type, parameters, results: [{product_id, name, views, creator, rank}], metadata: {total_products, generated_at}}"
+    - "Aggregated statistics: {insight_type, product_type, statistics: {total_products, free_count, paid_count, average_price, min_price, max_price, price_distribution}, metadata: {generated_at}}"
+  caching:
+    - "Cache results: cache expensive calculation results, TTL: 1-24 hours (depending on insight), invalidate cache after new scraping"
+  export:
+    - "JSON export: export_insights_to_json(insights: dict, filename: str)"
+    - "CSV export: export_insights_to_csv(insights: List[dict], filename: str)"
+
+- name: "Metrics Rules"
+  description: "Ensure consistency in metrics tracking."
+  appliesTo: ["src/utils/metrics.py", "src/scrapers/**"]
+  required_metrics:
+    counters:
+      products:
+        - "products_scraped: number of successfully scraped products"
+        - "products_failed: number of failed product scraping attempts"
+      creators:
+        - "creators_scraped: number of successfully scraped creators"
+        - "creators_failed: number of failed creator scraping attempts"
+      categories:
+        - "categories_scraped: number of successfully scraped categories"
+        - "categories_failed: number of failed category scraping attempts"
+    timing:
+      - "total_requests: total number of HTTP requests"
+      - "total_wait_time: total wait time (rate limiting)"
+      - "total_retries: total number of retries"
+    errors:
+      - "errors_by_type: dictionary of errors by type (e.g. {'TimeoutError': 5, 'HTTPError': 2})"
+      - "errors_by_url: dictionary of errors by URL (for debugging)"
+    duration:
+      - "start_time: scraping start time"
+      - "end_time: scraping end time"
+      - "Calculated: duration, products_per_second, success_rate"
+  usage:
+    initialization: "from src.utils.metrics import get_metrics; metrics = get_metrics(); metrics.start()"
+    recording:
+      - "Success: metrics.record_product_scraped(), metrics.record_creator_scraped(), metrics.record_category_scraped()"
+      - "Errors: metrics.record_product_failed(error_type='TimeoutError', url=url), metrics.record_creator_failed(error_type='HTTPError', url=url), metrics.record_category_failed(error_type='ParsingError', url=url)"
+      - "Requests: metrics.record_request(wait_time=1.5) - wait_time in seconds"
+      - "Retry: metrics.record_retry()"
+    completion: "metrics.stop(); metrics.log_summary()"
+  tracking_rules:
+    - "Always track: always track successes and errors, always track requests (with wait_time), always track retries"
+    - "Error context: always provide error_type on error, provide url for request errors (optional, for debugging), use standard error names: TimeoutError, HTTPError, ParsingError, ValidationError, ConnectionError"
+    - "Timing: start() at beginning of scraping (in main() or at start of scrape()), stop() at end of scraping (after all operations complete), wait_time in seconds (float)"
+  calculated_metrics:
+    success_rate: "products_scraped / (products_scraped + products_failed) - returns value between 0.0 and 1.0, 0.0 if no attempts"
+    products_per_second: "products_scraped / duration - calculated based on duration, 0.0 if no products or duration = 0"
+    average_wait_time: "total_wait_time / total_requests - average wait time per request, 0.0 if no requests"
+  logging:
+    - "Structured logging: metrics.log_summary() - logs full summary"
+    - "Format: {duration_seconds, duration_formatted, start_time, end_time, products: {scraped, failed, total, success_rate, per_second}, creators: {scraped, failed, total}, categories: {scraped, failed, total}, requests: {total, total_wait_time, average_wait_time}, retries: {total}, errors: {by_type, total_unique_urls_failed}}"
+  best_practices:
+    - "Consistency: always use get_metrics() to access metrics, don't create multiple ScraperMetrics instances, track all important operations"
+    - "Performance: metrics are lightweight - don't affect performance, don't track every small step (overhead), track only significant operations"
+    - "Error tracking: always categorize errors by error_type, use standard error names, don't track every retry as error (use record_retry())"
+    - "Context: add context in logs (not in metrics), metrics = numbers and statistics, logs = details and context"
+
+- name: "Analytics Rules"
+  description: "Consistent user behavior tracking."
+  appliesTo: ["frontend/**"]
+  tracking_principles:
+    - "Event-based tracking: track events, not page views, each event has: name, properties, timestamp, use structural event names"
+    - "Privacy-first: don't track PII (Personally Identifiable Information), respect GDPR/privacy regulations, anonymize data where possible"
+    - "Consistency: use consistent event names, consistent property names, consistent data formats"
+  event_naming:
+    convention: "{category}_{action}_{object}"
+    format: "snake_case"
+    examples:
+      - "product_viewed, product_clicked, product_shared, product_filtered"
+      - "creator_viewed, creator_products_clicked, creator_followed"
+      - "page_viewed, navigation_clicked, search_performed"
+      - "filter_applied, sort_changed, export_clicked"
+  event_properties:
+    standard:
+      - "Context: product_id (string), product_type (template|component|vector|plugin), product_name (string)"
+      - "User context (anonymized): session_id (string), user_id (string, optional if user logged in)"
+      - "Technical: timestamp (ISO 8601), url (string), referrer (string, optional)"
+      - "Custom: [key: string]: any"
+    product_events:
+      - "product_viewed: {product_id, product_type, product_name, creator_username, price, is_free}"
+      - "product_clicked: {product_id, product_type, position (number), list_type (popular|recent|search)}"
+      - "product_shared: {product_id, share_method (twitter|facebook|copy_link)}"
+    creator_events:
+      - "creator_viewed: {creator_username, products_count, source (product_page|direct|search)}"
+      - "creator_products_clicked: {creator_username, product_type (optional)}"
+    navigation_events:
+      - "page_viewed: {page (/products|/creators|/product/[id]), page_title}"
+      - "search_performed: {query, results_count, filters_applied}"
+    filter_sort_events:
+      - "filter_applied: {filter_type (product_type|price|category), filter_value, active_filters}"
+      - "sort_changed: {sort_by (popularity|price|date), sort_order (asc|desc)}"
+  implementation:
+    frontend:
+      - "Analytics provider: type AnalyticsEvent = {event: string, properties?: Record<string, any>}; export function track(event: string, properties?: Record<string, any>)"
+      - "Usage in components: import { track } from '@/lib/analytics'; track('product_clicked', {product_id: product.id, product_type: product.type, position: product.position})"
+    backend:
+      - "Track API usage: async def track_api_usage(request: Request, call_next): track_event('api_request', {endpoint, method, status_code, duration_ms})"
+  analytics_providers:
+    - "Google Analytics 4 (GA4): window.gtag('event', event, properties)"
+    - "Mixpanel: mixpanel.track(event, properties)"
+    - "Custom Analytics: fetch('/api/analytics', {method: 'POST', body: JSON.stringify({event, properties: {...properties, timestamp}})}"
+  best_practices:
+    - "Don't over-track: track only significant events, don't track every click, focus on business metrics"
+    - "Consistent naming: use event dictionary, document all events, review events regularly"
+    - "Error handling: analytics shouldn't block application, handle errors gracefully, log analytics errors"
+    - "Performance: analytics should be async, don't block rendering, batch events if possible"
+  privacy_compliance:
+    gdpr:
+      - "Consent: collect consent before tracking, allow users to opt-out, respect Do Not Track"
+      - "Data minimization: collect only needed data, don't collect PII, anonymize data"
+      - "Transparency: inform users about tracking, privacy policy, clear opt-out mechanism"
+  testing:
+    - "Unit tests: test events are tracked correctly"
+    - "E2E tests: test tracking in E2E tests, verify events are sent, test opt-out functionality"
+
+- name: "Development Workflow Rules"
+  description: "Define workflow with Cursor and GitHub."
+  appliesTo: ["*"]
+  cursor_workflow:
+    working_with_agent:
+      - "Define task: be precise in task description, provide context and requirements, indicate affected files"
+      - "Delegate appropriately: use appropriate agents (see agents.md), don't mix responsibility scopes, check if agent understands task"
+      - "Review changes: always review changes before commit, check if changes follow rules, test locally before merge"
+    communication:
+      - "Precise instructions: ✅ 'Add endpoint GET /api/products/{id} that returns product by ID' ❌ 'Add endpoint for products'"
+      - "Context: provide change context, indicate related files, mention existing patterns"
+      - "Feedback: give feedback if changes not OK, explain what's wrong, ask for corrections"
+  local_development:
+    setup:
+      - "Environment: python -m venv venv; source venv/bin/activate; pip install -r requirements-dev.txt"
+      - "Environment variables: cp .env.example .env; edit .env with your values"
+      - "Pre-commit hooks: pre-commit install"
+    commands:
+      - "Run tests: pytest"
+      - "Run tests with coverage: pytest --cov=src --cov-report=html"
+      - "Linting: ruff check ."
+      - "Formatting: black ."
+      - "Type checking: mypy src/"
+      - "Run scraper: python src/main.py"
+      - "Run scraper with limit: python src/main.py 100"
+  ci_cd:
+    github_actions:
+      - "CI workflow: test, lint, format check, type check on push and pull_request"
+      - "Release workflow: release-please automatically creates PR with version bump, after merge PR automatically creates tag and release, CHANGELOG.md updated automatically"
+  code_review_checklist:
+    before_review:
+      - "All tests passing"
+      - "Linting/formatting OK"
+      - "Commit messages follow conventions"
+      - "No sensitive data"
+      - "Documentation updated (if needed)"
+    during_review:
+      - "Code is readable and understandable"
+      - "Compliance with project patterns"
+      - "Error handling implemented"
+      - "Performance optimized (if applicable)"
+      - "Tests cover new code"
+      - "No code duplication"
+  best_practices:
+    - "Small PRs: small PRs are easier to review, faster to merge, lower risk of conflicts"
+    - "Frequent commits: commit often (logical units), don't commit broken code, use descriptive commit messages"
+    - "Communication: communicate clearly in PR descriptions, give feedback quickly, be constructive in review"
+    - "Documentation: update documentation with changes, document breaking changes, add usage examples"
