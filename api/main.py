@@ -42,8 +42,12 @@ async def health():
     return {"status": "healthy"}
 
 
-# Import routes (will be created next)
-# from api.routes import products, creators, categories
+# Import routes
+from api.routes import creators, products
+
+# Include routers
+app.include_router(products.router)
+app.include_router(creators.router)
 
 if __name__ == "__main__":
     import uvicorn

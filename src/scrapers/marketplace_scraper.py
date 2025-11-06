@@ -14,6 +14,7 @@ from src.scrapers.category_scraper import CategoryScraper
 from src.scrapers.creator_scraper import CreatorScraper
 from src.scrapers.product_scraper import ProductScraper
 from src.scrapers.sitemap_scraper import SitemapScraper
+from src.storage.database import DatabaseStorage
 from src.storage.file_storage import FileStorage
 from src.utils.checkpoint import CheckpointManager
 from src.utils.logger import get_logger
@@ -35,6 +36,7 @@ class MarketplaceScraper:
         self.creator_parser = CreatorParser()
         self.category_parser = CategoryParser()
         self.storage = FileStorage()
+        self.db_storage = DatabaseStorage()
         self.checkpoint_manager = CheckpointManager()
         self.metrics = get_metrics()
         self.client: Optional[httpx.AsyncClient] = None
@@ -116,6 +118,8 @@ class MarketplaceScraper:
                     if creator:
                         # Save creator as separate file (only once per creator)
                         await self.storage.save_creator_json(creator)
+                        # Save creator to database
+                        await self.db_storage.save_creator_db(creator)
                         self.stats["creators_scraped"] = self.stats.get("creators_scraped", 0) + 1
 
                         # Update product.creator with full data (merge to preserve avatar from product page if available)
@@ -134,6 +138,8 @@ class MarketplaceScraper:
 
             # Save product
             success = await self.storage.save_product_json(product)
+            # Save product to database
+            await self.db_storage.save_product_db(product)
             if success:
                 self.stats["products_scraped"] += 1
                 self.metrics.record_product_scraped()
@@ -354,6 +360,8 @@ class MarketplaceScraper:
 
             # Save creator
             success = await self.storage.save_creator_json(creator)
+            # Save creator to database
+            await self.db_storage.save_creator_db(creator)
             if success:
                 self.stats["creators_scraped"] += 1
                 self.metrics.record_product_scraped()  # Reuse metrics for now
@@ -561,6 +569,8 @@ class MarketplaceScraper:
 
             # Save category
             success = await self.storage.save_category_json(category)
+            # Save category to database
+            await self.db_storage.save_category_db(category)
             if success:
                 self.stats["categories_scraped"] += 1
                 self.metrics.record_product_scraped()  # Reuse metrics for now
