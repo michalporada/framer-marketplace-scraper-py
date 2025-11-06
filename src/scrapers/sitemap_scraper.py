@@ -41,21 +41,53 @@ class SitemapScraper:
         if self._should_close_client and self.client:
             await self.client.aclose()
 
-    async def fetch_sitemap(self, url: str) -> Optional[bytes]:
-        """Fetch sitemap XML content.
+    async def fetch_sitemap(self, url: str, retry_on_502: bool = True) -> Optional[bytes]:
+        """Fetch sitemap XML content with retry logic for 502 errors.
 
         Args:
             url: URL to sitemap.xml
+            retry_on_502: Whether to retry on 502 Bad Gateway errors (default: True)
 
         Returns:
             Sitemap XML content or None if failed
         """
-        try:
+        from src.utils.retry import retry_async
+        import asyncio
+
+        async def _fetch():
             logger.info("fetching_sitemap", url=url)
             response = await self.client.get(url)
             response.raise_for_status()
             logger.info("sitemap_fetched", url=url, status_code=response.status_code)
             return response.content
+
+        try:
+            # For marketplace sitemap, retry on 502 errors (temporary Framer issues)
+            if retry_on_502 and "marketplace" in url:
+                try:
+                    # Retry up to 3 times with exponential backoff (5s, 10s, 20s)
+                    content = await retry_async(_fetch, max_retries=3, initial_wait=5.0, max_wait=20.0)
+                    return content
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 502:
+                        logger.warning(
+                            "sitemap_fetch_failed_after_retries",
+                            url=url,
+                            status_code=502,
+                            message="Marketplace sitemap returned 502 after retries - may be temporarily unavailable",
+                        )
+                    return None
+                except Exception as e:
+                    logger.warning(
+                        "sitemap_fetch_failed_after_retries",
+                        url=url,
+                        error=str(e),
+                        error_type=type(e).__name__,
+                    )
+                    return None
+            else:
+                # For other sitemaps, no retry
+                return await _fetch()
         except httpx.HTTPStatusError as e:
             logger.warning("sitemap_fetch_failed", url=url, status_code=e.response.status_code)
             return None
