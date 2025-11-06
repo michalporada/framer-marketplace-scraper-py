@@ -249,18 +249,22 @@ async def get_products(
     }
     sort_column = sort_column_map.get(sort, "created_at")
 
-    # Get total count
+    # Get total count - create separate params dict without limit/offset
+    count_params = {k: v for k, v in params.items() if k not in ["limit", "offset"]}
     count_query = f"SELECT COUNT(*) as total FROM products {where_clause}"
-    count_result = execute_query_one(count_query, params)
+    count_result = execute_query_one(count_query, count_params)
     total = count_result["total"] if count_result else 0
 
-    # Get products
-    query = f"""
-        SELECT * FROM products
-        {where_clause}
-        ORDER BY {sort_column} {order.upper()}
-        LIMIT :limit OFFSET :offset
-    """
+    # Get products - use bindparam for LIMIT and OFFSET
+    from sqlalchemy import bindparam
+    
+    query_parts = ["SELECT * FROM products"]
+    if where_clause:
+        query_parts.append(where_clause)
+    query_parts.append(f"ORDER BY {sort_column} {order.upper()}")
+    query_parts.append("LIMIT :limit OFFSET :offset")
+    
+    query = " ".join(query_parts)
     params["limit"] = limit
     params["offset"] = offset
 

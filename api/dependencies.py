@@ -53,11 +53,12 @@ def execute_query(query: str, params: Optional[dict] = None):
 
     try:
         with engine.connect() as conn:
-            # Use autocommit for SELECT queries
+            # Execute query with autocommit
             result = conn.execute(text(query), params or {})
             rows = result.fetchall()
             # Convert rows to dicts
             if rows:
+                # Get column names from result
                 columns = list(result.keys())
                 return [dict(zip(columns, row)) for row in rows]
             return []
