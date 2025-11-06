@@ -39,12 +39,23 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    from api.dependencies import get_db_engine
+    from api.dependencies import get_db_engine, execute_query_one
     
     db_status = "configured" if get_db_engine() else "not_configured"
+    
+    # Test simple query
+    test_result = None
+    if db_status == "configured":
+        try:
+            test_result = execute_query_one("SELECT 1 as test")
+            test_result = "connected" if test_result else "query_failed"
+        except Exception:
+            test_result = "error"
+    
     return {
         "status": "healthy",
-        "database": db_status
+        "database": db_status,
+        "database_test": test_result
     }
 
 
