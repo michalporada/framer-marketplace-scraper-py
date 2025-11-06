@@ -105,7 +105,8 @@ def db_row_to_product(row: dict) -> Product:
     media = ProductMedia()
     if row.get("thumbnail_url"):
         media.thumbnail = row["thumbnail_url"]
-    media.screenshots_count = row.get("screenshots_count", 0)
+    # screenshots_count is stored in DB but not in ProductMedia model
+    # We can calculate it from screenshots list if needed
 
     # Build creator
     creator = None
@@ -294,8 +295,8 @@ async def get_products(
         except Exception as e:
             # Log error but continue processing other products
             import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error converting product row to model: {type(e).__name__}: {str(e)}")
+            log = logging.getLogger(__name__)
+            log.error(f"Error converting product row to model: {type(e).__name__}: {str(e)}")
             continue
 
     return ProductListResponse(
