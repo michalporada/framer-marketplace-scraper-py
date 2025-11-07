@@ -112,7 +112,13 @@ Scraper może być uruchamiany automatycznie przez GitHub Actions:
 - **Scheduled**: Codziennie o 2:00 UTC (zobacz `.github/workflows/scrape.yml`)
 - **Manual**: Ręczne uruchomienie przez `workflow_dispatch`
 
-Dane są automatycznie zapisywane jako artifacts w GitHub Actions.
+**Zachowanie historii:**
+- Najnowsze dane: `data/` (nadpisywane przy każdym scrapie)
+- Archiwum z datą: `scraped-data-YYYY-MM-DD/` (zachowuje historię)
+- Artifacts w GitHub: 90 dni przechowywania
+
+**Automatyczne porównywanie:**
+Po kilku dniach scrapowania możesz porównywać zmiany w czasie przez API (zobacz sekcję API poniżej).
 
 ## 🛠️ Stack Techniczny
 
@@ -159,9 +165,32 @@ Dane są automatycznie zapisywane jako artifacts w GitHub Actions.
 - [x] Normalizacja danych (Opcja B - raw + normalized)
 - [x] Obsługa różnych typów produktów (różne statystyki i pola)
 
+### ✅ API Endpoints (FastAPI)
+
+API jest dostępne i gotowe do użycia:
+
+**Porównywanie produktów w czasie:**
+```bash
+GET /api/products/{product_id}/changes
+```
+Porównuje dane produktu między różnymi scrapami, wykrywa zmiany w statystykach, cenie i metadanych.
+
+**Porównywanie kategorii:**
+```bash
+GET /api/products/categories/comparison
+GET /api/products/categories/comparison?product_type=template
+GET /api/products/categories/comparison?category=Agency
+```
+Porównuje łączną liczbę wyświetleń kategorii między scrapami z procentowym wzrostem/spadkiem.
+
+**Inne endpointy:**
+- `GET /api/products` - lista produktów
+- `GET /api/products/{id}` - pojedynczy produkt
+- `GET /api/creators` - lista twórców
+- `GET /api/creators/{username}` - pojedynczy twórca
+
 ### 🔮 Opcjonalne (Faza 2+)
 
-- [ ] API endpoints (FastAPI)
 - [ ] Dashboard (Next.js)
 - [ ] Baza danych (PostgreSQL) - setup script gotowy
 - [ ] Error tracking (Sentry)
