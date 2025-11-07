@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sync scraped data from JSON files to PostgreSQL database.
 
-This script reads all products and creators from JSON files and imports them
+This script reads all products, creators, and categories from JSON files and imports them
 into the Supabase database. It's safe to run multiple times (uses ON CONFLICT).
 """
 
@@ -15,6 +15,7 @@ from typing import List, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config.settings import settings
+from src.models.category import Category
 from src.models.creator import Creator
 from src.models.product import Product
 from src.storage.database import DatabaseStorage
@@ -56,6 +57,24 @@ def load_creator_from_json(filepath: Path) -> Optional[Creator]:
         return Creator(**data)
     except Exception as e:
         logger.warning("failed_to_load_creator", filepath=str(filepath), error=str(e))
+        return None
+
+
+def load_category_from_json(filepath: Path) -> Optional[Category]:
+    """Load Category model from JSON file.
+
+    Args:
+        filepath: Path to JSON file
+
+    Returns:
+        Category model or None if error
+    """
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return Category(**data)
+    except Exception as e:
+        logger.warning("failed_to_load_category", filepath=str(filepath), error=str(e))
         return None
 
 
@@ -140,6 +159,45 @@ async def sync_creators(db_storage: DatabaseStorage, data_dir: Path) -> dict:
     return stats
 
 
+async def sync_categories(db_storage: DatabaseStorage, data_dir: Path) -> dict:
+    """Sync all categories from JSON files to database.
+
+    Args:
+        db_storage: DatabaseStorage instance
+        data_dir: Path to data directory
+
+    Returns:
+        Dictionary with sync statistics
+    """
+    categories_dir = data_dir / "categories"
+    if not categories_dir.exists():
+        logger.info("categories_dir_not_found")
+        return {"total": 0, "success": 0, "failed": 0}
+
+    json_files = list(categories_dir.glob("*.json"))
+    logger.info("syncing_categories", count=len(json_files))
+
+    stats = {"total": len(json_files), "success": 0, "failed": 0}
+
+    for json_file in json_files:
+        category = load_category_from_json(json_file)
+
+        if not category:
+            stats["failed"] += 1
+            continue
+
+        # Save to database
+        success = await db_storage.save_category_db(category)
+        if success:
+            stats["success"] += 1
+            if stats["success"] % 50 == 0:
+                logger.info("sync_progress", categories_synced=stats["success"], total=stats["total"])
+        else:
+            stats["failed"] += 1
+
+    return stats
+
+
 async def main():
     """Main sync function."""
     # Check if DATABASE_URL is configured
@@ -181,12 +239,23 @@ async def main():
         failed=creator_stats["failed"],
     )
 
+    # Sync categories
+    logger.info("syncing_categories_start")
+    category_stats = await sync_categories(db_storage, data_dir)
+    logger.info(
+        "categories_sync_completed",
+        total=category_stats["total"],
+        success=category_stats["success"],
+        failed=category_stats["failed"],
+    )
+
     # Summary
     logger.info(
         "sync_completed",
         products=product_stats,
         creators=creator_stats,
-        total_synced=product_stats["success"] + creator_stats["success"],
+        categories=category_stats,
+        total_synced=product_stats["success"] + creator_stats["success"] + category_stats["success"],
     )
 
     print("\n" + "=" * 60)
@@ -194,9 +263,10 @@ async def main():
     print("=" * 60)
     print(f"Products: {product_stats['success']}/{product_stats['total']} synced")
     print(f"Creators: {creator_stats['success']}/{creator_stats['total']} synced")
-    print(f"Total: {product_stats['success'] + creator_stats['success']} items synced")
-    if product_stats["failed"] > 0 or creator_stats["failed"] > 0:
-        print(f"Failed: {product_stats['failed'] + creator_stats['failed']} items")
+    print(f"Categories: {category_stats['success']}/{category_stats['total']} synced")
+    print(f"Total: {product_stats['success'] + creator_stats['success'] + category_stats['success']} items synced")
+    if product_stats["failed"] > 0 or creator_stats["failed"] > 0 or category_stats["failed"] > 0:
+        print(f"Failed: {product_stats['failed'] + creator_stats['failed'] + category_stats['failed']} items")
     print("=" * 60)
 
 
