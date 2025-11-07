@@ -35,10 +35,34 @@ jobs:
         run: |
           python -m src.main
       
-      - name: Upload artifacts
+      - name: Archive scraped data with date
+        run: |
+          # Create dated folder for this scrape
+          SCRAPE_DATE=$(date +%Y-%m-%d)
+          SCRAPE_FOLDER="scraped-data-${SCRAPE_DATE}"
+          
+          # Copy data to dated folder
+          if [ -d "data" ]; then
+            mkdir -p "$SCRAPE_FOLDER"
+            cp -r data/* "$SCRAPE_FOLDER/" 2>/dev/null || true
+            echo "✅ Data archived to $SCRAPE_FOLDER"
+          fi
+      
+      - name: Upload artifacts (dated)
         uses: actions/upload-artifact@v4
         with:
-          name: scraped-data
+          name: scraped-data-${{ github.run_number }}
+          path: |
+            data/
+            scraped-data-*/
+            logs/
+          retention-days: 90
+          if-no-artifact-found: warn
+      
+      - name: Upload latest data (for API access)
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraped-data-latest
           path: |
             data/
             logs/
