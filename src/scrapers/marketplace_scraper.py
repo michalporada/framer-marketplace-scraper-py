@@ -740,17 +740,21 @@ class MarketplaceScraper:
                 message=f"Using stale cache ({cache_age_hours}h old) - will attempt sitemap refresh at 25%, 50%, 75%, 100% progress (will stop after first success)",
             )
 
-        # Scrape products with global timeout
+        # Scrape products with global timeout (if enabled)
         try:
-            await asyncio.wait_for(
-                self.scrape_products_batch(
-                    product_urls,
-                    settings.max_concurrent_requests,
-                    skip_processed=resume,
-                    used_stale_cache=used_stale_cache,
-                ),
-                timeout=settings.global_scraping_timeout,
+            scrape_task = self.scrape_products_batch(
+                product_urls,
+                settings.max_concurrent_requests,
+                skip_processed=resume,
+                used_stale_cache=used_stale_cache,
             )
+
+            # Only apply timeout if it's enabled (timeout > 0)
+            if settings.global_scraping_timeout and settings.global_scraping_timeout > 0:
+                await asyncio.wait_for(scrape_task, timeout=settings.global_scraping_timeout)
+            else:
+                # No timeout - let it run indefinitely
+                await scrape_task
         except asyncio.TimeoutError:
             elapsed = time.time() - start_time
             logger.error(
