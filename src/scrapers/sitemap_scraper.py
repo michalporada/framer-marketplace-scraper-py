@@ -181,7 +181,7 @@ class SitemapScraper:
         except Exception as e:
             logger.warning("sitemap_cache_save_error", error=str(e))
 
-    async def get_sitemap(self) -> Optional[bytes]:
+    async def get_sitemap(self) -> tuple[Optional[bytes], bool, float]:
         """Get marketplace sitemap with cache support.
 
         Tries marketplace sitemap first. If upstream fails:
@@ -190,7 +190,10 @@ class SitemapScraper:
         - For other errors: Use cache if available
 
         Returns:
-            Sitemap XML content or None if failed (non-5xx errors)
+            Tuple of (sitemap XML content, cache_used: bool, cache_age_hours: float)
+            - content: Sitemap XML content or None if failed (non-5xx errors)
+            - cache_used: True if cache was used, False if fresh sitemap
+            - cache_age_hours: Age of cache in hours (0.0 if fresh)
 
         Raises:
             httpx.HTTPStatusError: If marketplace sitemap returns 5xx error (except 502 with cache)
@@ -206,7 +209,7 @@ class SitemapScraper:
                     message="✅ Fresh sitemap fetched successfully - all products will be detected",
                     cache_used=False,
                 )
-                return content
+                return (content, False, 0.0)
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
 
@@ -244,19 +247,20 @@ class SitemapScraper:
                                 url=settings.sitemap_url,
                                 cache_age_hours=cache_age_hours,
                                 max_age_hours=round(max_age_for_502 / 3600, 2),
-                                message=f"🔴 WARNING: Using STALE cached sitemap ({cache_age_hours}h old) due to CloudFront 502 error. This is better than missing the entire scrape, but NEW PRODUCTS added in the last {cache_age_hours}h WILL BE MISSED. Product data for existing products will still be scraped fresh.",
+                                message=f"🔴 WARNING: Using STALE cached sitemap ({cache_age_hours}h old) due to CloudFront 502 error. This is better than missing the entire scrape, but NEW PRODUCTS added in the last {cache_age_hours}h WILL BE MISSED. Product data for existing products will still be scraped fresh. Will attempt to refresh sitemap during scraping.",
                                 cache_used=True,
                                 new_products_may_be_missed=True,
                             )
-                            return cached_content
+                            return (cached_content, True, cache_age_hours)
                     else:
+                        cache_age_hours = round(cache_age / 3600, 2)
                         logger.warning(
                             "using_cached_sitemap_on_502",
-                            message=f"⚠️ Using cached sitemap ({round(cache_age / 3600, 2)}h old) due to CloudFront 502 error. Product data will still be scraped fresh, but new products added in the last {round(cache_age / 3600, 2)}h may be missed.",
+                            message=f"⚠️ Using cached sitemap ({cache_age_hours}h old) due to CloudFront 502 error. Product data will still be scraped fresh, but new products added in the last {cache_age_hours}h may be missed.",
                             cache_used=True,
-                            cache_age_hours=round(cache_age / 3600, 2),
+                            cache_age_hours=cache_age_hours,
                         )
-                        return cached_content
+                        return (cached_content, True, cache_age_hours)
                 else:
                     logger.error(
                         "sitemap_502_no_cache",
@@ -277,15 +281,19 @@ class SitemapScraper:
         # If fetch failed (non-5xx), try cache
         cached_content = self._load_cached_sitemap()
         if cached_content:
+            cache_path = Path(settings.sitemap_cache_file)
+            cache_age = time.time() - cache_path.stat().st_mtime
+            cache_age_hours = round(cache_age / 3600, 2)
             logger.warning(
                 "using_cached_sitemap",
-                message="⚠️ Using cached sitemap due to upstream failure. Product data will still be scraped fresh, but new products may be missed if they were added after cache was created.",
+                message=f"⚠️ Using cached sitemap ({cache_age_hours}h old) due to upstream failure. Product data will still be scraped fresh, but new products may be missed if they were added after cache was created.",
                 cache_used=True,
+                cache_age_hours=cache_age_hours,
             )
-            return cached_content
+            return (cached_content, True, cache_age_hours)
 
         logger.error("marketplace_sitemap_failed_no_cache", url=settings.sitemap_url)
-        return None
+        return (None, False, 0.0)
 
     def parse_sitemap(self, xml_content: bytes) -> Dict[str, List[str]]:
         """Parse sitemap XML and extract URLs by type.
@@ -438,11 +446,11 @@ class SitemapScraper:
         logger.info("urls_filtered", count=len(urls), types=product_types)
         return urls
 
-    async def scrape(self) -> Dict[str, List[str]]:
+    async def scrape(self) -> tuple[Dict[str, List[str]], bool, float]:
         """Main method to scrape sitemap.
 
         Returns:
-            Dictionary with categorized URLs
+            Tuple of (parsed sitemap dict, cache_used: bool, cache_age_hours: float)
 
         Raises:
             httpx.HTTPStatusError: If marketplace sitemap returns 5xx error
@@ -450,10 +458,14 @@ class SitemapScraper:
         """
         # Get sitemap content
         # This may raise HTTPStatusError for 5xx errors (no fallback)
-        xml_content = await self.get_sitemap()
+        xml_content, cache_used, cache_age_hours = await self.get_sitemap()
         if xml_content is None:
             logger.error("sitemap_fetch_failed_all_attempts")
-            return {"products": {}, "categories": [], "profiles": [], "help_articles": []}
+            return (
+                {"products": {}, "categories": [], "profiles": [], "help_articles": []},
+                False,
+                0.0,
+            )
 
         # Parse sitemap
         parsed = self.parse_sitemap(xml_content)
@@ -479,9 +491,11 @@ class SitemapScraper:
             products=sum(len(urls) for urls in parsed.get("products", {}).values()),
             categories=len(parsed.get("categories", [])),
             profiles=len(parsed.get("profiles", [])),
+            cache_used=cache_used,
+            cache_age_hours=cache_age_hours,
         )
 
-        return parsed
+        return (parsed, cache_used, cache_age_hours)
 
     async def get_product_urls(self, product_types: Optional[List[str]] = None) -> List[str]:
         """Get filtered list of product URLs.
@@ -492,5 +506,5 @@ class SitemapScraper:
         Returns:
             List of product URLs
         """
-        parsed = await self.scrape()
+        parsed, _, _ = await self.scrape()
         return self.filter_urls_by_type(parsed, product_types)
