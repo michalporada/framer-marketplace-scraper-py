@@ -31,9 +31,22 @@ class SitemapScraper:
         """Async context manager entry."""
         if self.client is None:
             timeout = httpx.Timeout(settings.timeout)
+            # Use realistic browser headers to avoid bot detection
+            user_agent = get_random_user_agent()
             self.client = httpx.AsyncClient(
                 timeout=timeout,
-                headers={"User-Agent": get_random_user_agent()},
+                headers={
+                    "User-Agent": user_agent,
+                    "Accept": "application/xml, text/xml, */*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "Referer": settings.marketplace_url,
+                    "Connection": "keep-alive",
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "same-origin",
+                    "Cache-Control": "max-age=0",
+                },
                 follow_redirects=True,
             )
         return self
@@ -60,6 +73,12 @@ class SitemapScraper:
 
         async def _fetch():
             logger.info("fetching_sitemap", url=url)
+            # Add small random delay before request to avoid hitting rate limits
+            import asyncio
+            import random
+
+            await asyncio.sleep(random.uniform(0.5, 1.5))
+
             response = await self.client.get(url)
             response.raise_for_status()
             logger.info("sitemap_fetched", url=url, status_code=response.status_code)

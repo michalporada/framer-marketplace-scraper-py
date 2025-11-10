@@ -60,9 +60,24 @@ class MarketplaceScraper:
     async def __aenter__(self):
         """Async context manager entry."""
         timeout = httpx.Timeout(settings.timeout)
+        from src.utils.user_agents import get_random_user_agent
+
+        # Use realistic browser headers to avoid bot detection
+        user_agent = get_random_user_agent()
         self.client = httpx.AsyncClient(
             timeout=timeout,
-            headers={"User-Agent": "Mozilla/5.0"},
+            headers={
+                "User-Agent": user_agent,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Referer": settings.marketplace_url,
+                "Connection": "keep-alive",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin",
+                "Upgrade-Insecure-Requests": "1",
+            },
             follow_redirects=True,
         )
 
