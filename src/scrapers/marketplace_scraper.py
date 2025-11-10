@@ -71,6 +71,9 @@ class MarketplaceScraper:
         self.creator_scraper = CreatorScraper(self.client)
         self.category_scraper = CategoryScraper(self.client)
 
+        # Initialize refresh lock
+        self.refresh_lock = asyncio.Lock()
+
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -208,6 +211,47 @@ class MarketplaceScraper:
                 self.checkpoint_manager.add_failed(url)
             return False
 
+    async def _scrape_new_products_background(self, new_urls: List[str]) -> None:
+        """Scrape new products found during sitemap refresh in background.
+
+        Args:
+            new_urls: List of new product URLs to scrape
+        """
+        if not new_urls:
+            return
+
+        logger.info(
+            "scraping_new_products_background",
+            count=len(new_urls),
+            message=f"Scraping {len(new_urls)} new products found during sitemap refresh (background task)",
+        )
+
+        # Scrape new URLs without refresh (to avoid infinite loop)
+        # Use same concurrency limit as main batch
+        limit = settings.max_concurrent_requests
+
+        # Create semaphore for concurrency control
+        semaphore = asyncio.Semaphore(limit)
+
+        async def scrape_with_semaphore(url: str):
+            async with semaphore:
+                return await self.scrape_product(url, skip_if_processed=True)
+
+        # Scrape new products
+        tasks = [scrape_with_semaphore(url) for url in new_urls]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        success_count = sum(1 for r in results if r and not isinstance(r, Exception))
+        failed_count = len(new_urls) - success_count
+
+        logger.info(
+            "new_products_background_completed",
+            total=len(new_urls),
+            success=success_count,
+            failed=failed_count,
+            message=f"Background scraping of new products completed: {success_count} success, {failed_count} failed",
+        )
+
     async def _attempt_sitemap_refresh(self, milestone: float) -> None:
         """Attempt to refresh sitemap at milestone if stale cache was used.
 
@@ -217,69 +261,83 @@ class MarketplaceScraper:
         if not self.sitemap_scraper or not self.types_to_scrape:
             return
 
-        try:
-            logger.info(
-                "attempting_sitemap_refresh",
-                milestone=f"{milestone * 100:.0f}%",
-                message=f"Attempting to refresh sitemap at {milestone * 100:.0f}% progress",
-            )
+        # Skip if we already have fresh sitemap (optimization)
+        if self.fresh_sitemap_obtained:
+            return
 
-            # Try to fetch fresh sitemap
-            xml_content, cache_used, cache_age_hours = await self.sitemap_scraper.get_sitemap()
+        # Use lock to ensure only one refresh attempt at a time (prevents race condition)
+        if not self.refresh_lock:
+            return
 
-            if xml_content and not cache_used:
-                # Successfully fetched fresh sitemap!
+        async with self.refresh_lock:
+            # Double-check after acquiring lock (another task might have succeeded)
+            if self.fresh_sitemap_obtained:
+                return
+
+            try:
                 logger.info(
-                    "sitemap_refresh_success",
+                    "attempting_sitemap_refresh",
                     milestone=f"{milestone * 100:.0f}%",
-                    message=f"✅ Successfully refreshed sitemap at {milestone * 100:.0f}% - checking for new products",
+                    message=f"Attempting to refresh sitemap at {milestone * 100:.0f}% progress",
                 )
 
-                # Parse fresh sitemap
-                fresh_sitemap_data = self.sitemap_scraper.parse_sitemap(xml_content)
-                fresh_urls = self.sitemap_scraper.filter_urls_by_type(
-                    fresh_sitemap_data, self.types_to_scrape
-                )
+                # Try to fetch fresh sitemap
+                xml_content, cache_used, cache_age_hours = await self.sitemap_scraper.get_sitemap()
 
-                # Find new URLs that weren't in original list
-                new_urls = [url for url in fresh_urls if url not in self.seen_product_urls]
-
-                if new_urls:
+                if xml_content and not cache_used:
+                    # Successfully fetched fresh sitemap!
+                    self.fresh_sitemap_obtained = True  # Stop further attempts
                     logger.info(
-                        "new_products_found_in_refresh",
+                        "sitemap_refresh_success",
                         milestone=f"{milestone * 100:.0f}%",
-                        count=len(new_urls),
-                        message=f"Found {len(new_urls)} new products in refreshed sitemap - will be added to queue",
+                        message=f"✅ Successfully refreshed sitemap at {milestone * 100:.0f}% - checking for new products. No further refresh attempts will be made.",
                     )
-                    # Add to additional_urls list (will be processed after current batch)
-                    self.additional_urls.extend(new_urls)
+
+                    # Parse fresh sitemap
+                    fresh_sitemap_data = self.sitemap_scraper.parse_sitemap(xml_content)
+                    fresh_urls = self.sitemap_scraper.filter_urls_by_type(
+                        fresh_sitemap_data, self.types_to_scrape
+                    )
+
+                    # Find new URLs that weren't in original list
+                    new_urls = [url for url in fresh_urls if url not in self.seen_product_urls]
+
+                    if new_urls:
+                        logger.info(
+                            "new_products_found_in_refresh",
+                            milestone=f"{milestone * 100:.0f}%",
+                            count=len(new_urls),
+                            message=f"Found {len(new_urls)} new products in refreshed sitemap - will be scraped immediately in background",
+                        )
+                        # Scrape new products immediately in background (non-blocking)
+                        asyncio.create_task(self._scrape_new_products_background(new_urls))
+                    else:
+                        logger.info(
+                            "no_new_products_in_refresh",
+                            milestone=f"{milestone * 100:.0f}%",
+                            message="Refreshed sitemap but no new products found",
+                        )
+                elif xml_content and cache_used:
+                    logger.warning(
+                        "sitemap_refresh_still_cache",
+                        milestone=f"{milestone * 100:.0f}%",
+                        cache_age_hours=cache_age_hours,
+                        message=f"Refresh attempt at {milestone * 100:.0f}% still returned cached sitemap ({cache_age_hours}h old)",
+                    )
                 else:
-                    logger.info(
-                        "no_new_products_in_refresh",
+                    logger.warning(
+                        "sitemap_refresh_failed",
                         milestone=f"{milestone * 100:.0f}%",
-                        message="Refreshed sitemap but no new products found",
+                        message=f"Failed to refresh sitemap at {milestone * 100:.0f}% - continuing with original list",
                     )
-            elif xml_content and cache_used:
+            except Exception as e:
                 logger.warning(
-                    "sitemap_refresh_still_cache",
+                    "sitemap_refresh_error",
                     milestone=f"{milestone * 100:.0f}%",
-                    cache_age_hours=cache_age_hours,
-                    message=f"Refresh attempt at {milestone * 100:.0f}% still returned cached sitemap ({cache_age_hours}h old)",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    message=f"Error refreshing sitemap at {milestone * 100:.0f}% - continuing",
                 )
-            else:
-                logger.warning(
-                    "sitemap_refresh_failed",
-                    milestone=f"{milestone * 100:.0f}%",
-                    message=f"Failed to refresh sitemap at {milestone * 100:.0f}% - continuing with original list",
-                )
-        except Exception as e:
-            logger.warning(
-                "sitemap_refresh_error",
-                milestone=f"{milestone * 100:.0f}%",
-                error=str(e),
-                error_type=type(e).__name__,
-                message=f"Error refreshing sitemap at {milestone * 100:.0f}% - continuing",
-            )
 
     async def scrape_products_batch(
         self,
@@ -344,7 +402,8 @@ class MarketplaceScraper:
                     )
 
                 # Attempt to refresh sitemap at milestones if used stale cache
-                if used_stale_cache and refresh_milestones:
+                # Skip if we already have fresh sitemap (optimization)
+                if used_stale_cache and refresh_milestones and not self.fresh_sitemap_obtained:
                     for milestone in refresh_milestones:
                         if current_progress >= milestone and milestone not in refresh_attempted_at:
                             refresh_attempted_at.add(milestone)
@@ -357,21 +416,6 @@ class MarketplaceScraper:
         results = await tqdm.gather(*tasks, desc="Scraping products")
 
         success_count = sum(1 for r in results if r)
-
-        # Process any new URLs found during sitemap refresh
-        if self.additional_urls:
-            new_urls = [url for url in self.additional_urls if url not in self.seen_product_urls]
-            if new_urls:
-                logger.info(
-                    "processing_new_urls_from_refresh",
-                    count=len(new_urls),
-                    message=f"Processing {len(new_urls)} new products found during sitemap refresh",
-                )
-                # Scrape new URLs (recursive call, but without refresh to avoid infinite loop)
-                await self.scrape_products_batch(
-                    new_urls, limit, skip_processed, used_stale_cache=False
-                )
-                self.additional_urls.clear()
 
         # Save final checkpoint with stats
         if settings.checkpoint_enabled:
@@ -494,10 +538,12 @@ class MarketplaceScraper:
         # Determine if we used stale cache (cache_used and cache_age > 6h)
         used_stale_cache = cache_used and cache_age_hours > 6.0
         if used_stale_cache:
+            # Reset flags for this scraping session
+            self.fresh_sitemap_obtained = False
             logger.info(
                 "stale_cache_detected",
                 cache_age_hours=cache_age_hours,
-                message=f"Using stale cache ({cache_age_hours}h old) - will attempt sitemap refresh at 25%, 50%, 75%, 100% progress",
+                message=f"Using stale cache ({cache_age_hours}h old) - will attempt sitemap refresh at 25%, 50%, 75%, 100% progress (will stop after first success)",
             )
 
         # Scrape products with global timeout
