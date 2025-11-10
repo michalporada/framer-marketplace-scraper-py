@@ -239,11 +239,14 @@ class MarketplaceScraper:
         ]  # Fibonacci sequence in seconds
         total_attempts = len(retry_delays)
 
+        total_max_wait = sum(retry_delays)
+        total_max_wait_minutes = round(total_max_wait / 60, 2)
         logger.info(
             "sitemap_initial_retry_start",
             total_attempts=total_attempts,
-            max_wait_minutes=sum(retry_delays) // 60,
-            message=f"Starting sitemap fetch with {total_attempts} retry attempts (max wait: {sum(retry_delays) // 60} minutes)",
+            max_wait_seconds=total_max_wait,
+            max_wait_minutes=total_max_wait_minutes,
+            message=f"Starting sitemap fetch with {total_attempts} retry attempts (max wait: {total_max_wait}s / {total_max_wait_minutes} minutes)",
         )
 
         for attempt_num, delay_seconds in enumerate(retry_delays, 1):
