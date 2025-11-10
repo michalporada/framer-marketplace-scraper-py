@@ -25,15 +25,15 @@ class Settings(BaseSettings):
     robots_url: str = "https://www.framer.com/robots.txt"
 
     # Rate Limiting
-    rate_limit: float = 1.0  # requests per second
-    delay_between_requests: float = 1.0  # seconds
-    max_concurrent_requests: int = 5
+    rate_limit: float = 2.0  # requests per second (optimized: was 1.0)
+    delay_between_requests: float = 0  # seconds (removed - rate_limiter handles this)
+    max_concurrent_requests: int = 10  # concurrent requests (optimized: was 5)
 
     # HTTP Settings
-    timeout: int = 25  # seconds per request (20-30s range)
-    max_retries: int = 5  # 5-6 retries with exponential backoff
-    retry_initial_wait: float = 2.0  # Initial wait time in seconds
-    retry_max_wait: float = 300.0  # Max wait time (5 minutes)
+    timeout: int = 18  # seconds per request (optimized: was 25s, faster failure detection)
+    max_retries: int = 3  # retries (optimized: was 5, faster failure handling)
+    retry_initial_wait: float = 1.5  # Initial wait time in seconds (optimized: was 2.0s)
+    retry_max_wait: float = 120.0  # Max wait time (2 minutes, optimized: was 5 minutes)
     retry_jitter: bool = True  # Add random jitter to retry delays
 
     # Global scraping timeout

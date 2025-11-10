@@ -8,6 +8,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 90  # Maximum 90 minutes per job (safety limit for private repo)
     
     steps:
       - name: Checkout repository
