@@ -30,8 +30,14 @@ class Settings(BaseSettings):
     max_concurrent_requests: int = 5
 
     # HTTP Settings
-    timeout: int = 30  # seconds
-    max_retries: int = 3
+    timeout: int = 25  # seconds per request (20-30s range)
+    max_retries: int = 5  # 5-6 retries with exponential backoff
+    retry_initial_wait: float = 2.0  # Initial wait time in seconds
+    retry_max_wait: float = 300.0  # Max wait time (5 minutes)
+    retry_jitter: bool = True  # Add random jitter to retry delays
+
+    # Global scraping timeout
+    global_scraping_timeout: int = 900  # 15 minutes in seconds
 
     # Logging
     log_level: str = "INFO"
@@ -49,8 +55,19 @@ class Settings(BaseSettings):
     checkpoint_enabled: bool = True
     checkpoint_file: str = "data/checkpoint.json"
 
+    # Sitemap cache
+    sitemap_cache_enabled: bool = True
+    sitemap_cache_file: str = "data/sitemap_cache.xml"
+    sitemap_cache_max_age: int = 3600  # 1 hour in seconds
+
     # GitHub Actions
     github_actions: bool = False
+
+    # Alerting
+    webhook_url: str = ""  # Webhook URL for alerts (Slack, Discord, etc.)
+    alert_on_consecutive_failures: bool = (
+        True  # Alert if two consecutive runs fail with upstream errors
+    )
 
     # Scraping options - which types to scrape
     scrape_templates: bool = True
@@ -59,6 +76,10 @@ class Settings(BaseSettings):
     scrape_plugins: bool = True  # New product type
     scrape_categories: bool = True  # Optional
     scrape_profiles: bool = False  # Optional
+
+    # Data validation thresholds
+    min_urls_threshold: int = 50  # Minimum URLs required from sitemap to proceed
+    min_products_scraped: int = 0  # Minimum products scraped to allow export/DB write
 
     @property
     def base_url(self) -> str:

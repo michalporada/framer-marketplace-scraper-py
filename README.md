@@ -50,6 +50,10 @@ venv\Scripts\activate  # Windows
 
 # Zainstaluj zależności
 pip install -r requirements.txt
+pip install -r requirements-dev.txt  # Dla development
+
+# Zainstaluj pre-commit hooks (OBOWIĄZKOWE - zapobiega błędom CI)
+pre-commit install
 ```
 
 ### 2. Konfiguracja
@@ -65,9 +69,12 @@ cp .env.example .env
 Główne zmienne środowiskowe:
 - `FRAMER_BASE_URL` - URL do Framer (domyślnie: https://www.framer.com)
 - `RATE_LIMIT` - Limit requestów na sekundę (domyślnie: 1.0)
-- `MAX_RETRIES` - Maksymalna liczba ponownych prób (domyślnie: 3)
+- `MAX_RETRIES` - Maksymalna liczba ponownych prób (domyślnie: 5, z exponential backoff + jitter, max 5 min)
+- `TIMEOUT` - Timeout per request w sekundach (domyślnie: 25s, zakres 20-30s)
+- `GLOBAL_SCRAPING_TIMEOUT` - Globalny timeout na cały scraping (domyślnie: 900s = 15 min)
 - `LOG_LEVEL` - Poziom logowania (INFO, DEBUG, WARNING, ERROR)
 - `CHECKPOINT_ENABLED` - Włącz checkpoint system (domyślnie: true)
+- `MIN_URLS_THRESHOLD` - Minimalny próg URL-i z sitemapa (domyślnie: 50)
 - `SCRAPE_TEMPLATES`, `SCRAPE_COMPONENTS`, `SCRAPE_VECTORS`, `SCRAPE_PLUGINS` - Typy produktów do scrapowania
 
 ### 3. Uruchomienie
@@ -132,7 +139,7 @@ Po kilku dniach scrapowania możesz porównywać zmiany w czasie przez API (zoba
 
 ### Narzędzia
 - **structlog** - strukturalne logowanie
-- **tenacity** - retry logic z exponential backoff
+- **tenacity** - retry logic z exponential backoff + jitter (5 retry, max 5 min)
 - **fake-useragent** - rotacja User-Agent headers
 - **tqdm** - progress bars
 

@@ -791,7 +791,18 @@
     setup:
       - "Environment: python -m venv venv; source venv/bin/activate; pip install -r requirements-dev.txt"
       - "Environment variables: cp .env.example .env; edit .env with your values"
-      - "Pre-commit hooks: pre-commit install"
+      - "Pre-commit hooks: pre-commit install (OBOWIĄZKOWE - automatycznie naprawia błędy przed commitem)"
+  pre_commit_requirements:
+    mandatory:
+      - "Pre-commit hooks MUST be installed: pre-commit install"
+      - "Pre-commit hooks automatically fix: unused imports, code formatting, trailing whitespace"
+      - "Pre-commit hooks check: YAML/JSON/TOML syntax, large files, merge conflicts"
+      - "If pre-commit fixes files: git add . then commit again"
+    before_commit:
+      - "ALWAYS run pre-commit hooks before committing (automatic on git commit)"
+      - "If hooks fail: fix issues manually or let hooks auto-fix, then git add and commit"
+      - "Never commit with unused imports, formatting errors, or syntax issues"
+      - "Check: ruff check . and black --check . should pass before commit"
     commands:
       - "Run tests: pytest"
       - "Run tests with coverage: pytest --cov=src --cov-report=html"

@@ -138,15 +138,74 @@ async def main():
             metrics = get_metrics()
             metrics.log_summary()
 
-            # Export to CSV if configured
+            # Log record counts before export/DB write
+            products_scraped = stats.get("products_scraped", 0)
+            products_failed = stats.get("products_failed", 0)
+            creators_scraped = stats.get("creators_scraped", 0)
+            duplicate_count = getattr(scraper, "duplicate_count", 0)
+
+            logger.info(
+                "records_before_export",
+                products_scraped=products_scraped,
+                products_failed=products_failed,
+                creators_scraped=creators_scraped,
+                duplicates=duplicate_count,
+                total_products=products_scraped + products_failed,
+            )
+
+            # Check for duplicates - block DB writes if duplicates found
+            if duplicate_count > 0:
+                logger.error(
+                    "duplicates_detected",
+                    count=duplicate_count,
+                    message=f"Found {duplicate_count} duplicates - DB writes were blocked during scraping",
+                )
+
+            # Check for zero products scraped
+            if products_scraped == 0:
+                logger.error(
+                    "no_products_scraped",
+                    message="No products scraped - blocking CSV export and DB writes",
+                )
+            elif products_scraped < settings.min_products_scraped:
+                logger.warning(
+                    "insufficient_products_scraped",
+                    scraped=products_scraped,
+                    required=settings.min_products_scraped,
+                    message=f"Only {products_scraped} products scraped, minimum {settings.min_products_scraped} required",
+                )
+
+            # Export to CSV if configured and threshold met
             if settings.output_format in ["csv", "both"]:
-                logger.info("exporting_to_csv")
-                storage = scraper.storage
-                storage.export_products_to_csv()
+                if products_scraped > 0:
+                    logger.info("exporting_to_csv", products_count=products_scraped)
+                    storage = scraper.storage
+                    storage.export_products_to_csv()
+                else:
+                    logger.warning("csv_export_blocked", reason="no_products_scraped")
 
     except KeyboardInterrupt:
         logger.info("scraping_interrupted_by_user")
         sys.exit(1)
+    except httpx.HTTPStatusError as e:
+        # Handle upstream 5xx errors - fail with exit code != 0
+        if 500 <= e.response.status_code < 600:
+            logger.error(
+                "upstream_unavailable",
+                url=str(e.request.url) if e.request else "unknown",
+                status_code=e.response.status_code,
+                message="Upstream service unavailable - scraper aborted",
+            )
+            sys.exit(2)  # Exit code 2 for upstream errors
+        else:
+            # Other HTTP errors
+            logger.error(
+                "scraping_failed_http",
+                url=str(e.request.url) if e.request else "unknown",
+                status_code=e.response.status_code,
+                error=str(e),
+            )
+            sys.exit(1)
     except Exception as e:
         logger.error(
             "scraping_failed",

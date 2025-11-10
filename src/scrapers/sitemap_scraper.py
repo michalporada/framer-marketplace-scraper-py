@@ -1,7 +1,9 @@
 """Sitemap scraper for extracting product URLs from sitemap.xml."""
 
+import time
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import httpx
@@ -50,9 +52,11 @@ class SitemapScraper:
 
         Returns:
             Sitemap XML content or None if failed
+
+        Raises:
+            httpx.HTTPStatusError: If marketplace sitemap returns 5xx error (after retries)
         """
         from src.utils.retry import retry_async
-        import asyncio
 
         async def _fetch():
             logger.info("fetching_sitemap", url=url)
@@ -65,25 +69,32 @@ class SitemapScraper:
             # For marketplace sitemap, retry on 502 errors (temporary Framer issues)
             if retry_on_502 and "marketplace" in url:
                 try:
-                    # Retry up to 3 times with exponential backoff (5s, 10s, 20s)
+                    # Retry with exponential backoff + jitter (uses settings.max_retries)
                     # retry_async catches all exceptions by default, including HTTPStatusError
-                    content = await retry_async(_fetch, max_retries=3, initial_wait=5.0, max_wait=20.0)
+                    content = await retry_async(
+                        _fetch,
+                        max_retries=settings.max_retries,
+                        initial_wait=settings.retry_initial_wait,
+                        max_wait=settings.retry_max_wait,
+                    )
                     return content
                 except httpx.HTTPStatusError as e:
-                    if e.response.status_code == 502:
-                        logger.warning(
-                            "sitemap_fetch_failed_after_retries",
+                    # If marketplace sitemap returns 5xx after retries, fail immediately
+                    if 500 <= e.response.status_code < 600:
+                        logger.error(
+                            "sitemap_fetch_failed_5xx",
                             url=url,
-                            status_code=502,
-                            message="Marketplace sitemap returned 502 after retries - may be temporarily unavailable",
+                            status_code=e.response.status_code,
+                            message="Marketplace sitemap returned 5xx error - aborting scraper run",
                         )
+                        raise  # Re-raise to abort scraper
                     else:
                         logger.warning(
                             "sitemap_fetch_failed_after_retries",
                             url=url,
                             status_code=e.response.status_code,
                         )
-                    return None
+                        return None
                 except Exception as e:
                     logger.warning(
                         "sitemap_fetch_failed_after_retries",
@@ -96,32 +107,102 @@ class SitemapScraper:
                 # For other sitemaps, no retry
                 return await _fetch()
         except httpx.HTTPStatusError as e:
+            # Re-raise 5xx errors for marketplace sitemap (they should be handled upstream)
+            if 500 <= e.response.status_code < 600 and "marketplace" in url:
+                raise
             logger.warning("sitemap_fetch_failed", url=url, status_code=e.response.status_code)
             return None
         except Exception as e:
             logger.error("sitemap_fetch_error", url=url, error=str(e))
             return None
 
-    async def get_sitemap(self) -> Optional[bytes]:
-        """Get sitemap with fallback mechanism.
-
-        Tries marketplace sitemap first, then falls back to main sitemap.
+    def _load_cached_sitemap(self) -> Optional[bytes]:
+        """Load cached sitemap if available and not expired.
 
         Returns:
-            Sitemap XML content or None if both fail
+            Cached sitemap content or None if cache is missing/expired
+        """
+        if not settings.sitemap_cache_enabled:
+            return None
+
+        cache_path = Path(settings.sitemap_cache_file)
+        if not cache_path.exists():
+            return None
+
+        # Check cache age
+        cache_age = time.time() - cache_path.stat().st_mtime
+        if cache_age > settings.sitemap_cache_max_age:
+            logger.debug(
+                "sitemap_cache_expired",
+                age=round(cache_age, 2),
+                max_age=settings.sitemap_cache_max_age,
+            )
+            return None
+
+        try:
+            with open(cache_path, "rb") as f:
+                content = f.read()
+            logger.info("sitemap_cache_loaded", cache_age=round(cache_age, 2), size=len(content))
+            return content
+        except Exception as e:
+            logger.warning("sitemap_cache_load_error", error=str(e))
+            return None
+
+    def _save_cached_sitemap(self, content: bytes) -> None:
+        """Save sitemap to cache.
+
+        Args:
+            content: Sitemap XML content
+        """
+        if not settings.sitemap_cache_enabled:
+            return
+
+        try:
+            cache_path = Path(settings.sitemap_cache_file)
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_path, "wb") as f:
+                f.write(content)
+            logger.info("sitemap_cache_saved", path=str(cache_path), size=len(content))
+        except Exception as e:
+            logger.warning("sitemap_cache_save_error", error=str(e))
+
+    async def get_sitemap(self) -> Optional[bytes]:
+        """Get marketplace sitemap with cache support.
+
+        Tries marketplace sitemap first. If upstream fails (non-5xx), uses cache.
+        If marketplace sitemap returns 5xx, raises exception to abort scraper.
+
+        Returns:
+            Sitemap XML content or None if failed (non-5xx errors)
+
+        Raises:
+            httpx.HTTPStatusError: If marketplace sitemap returns 5xx error
         """
         # Try marketplace sitemap first
-        content = await self.fetch_sitemap(settings.sitemap_url)
-        if content:
-            return content
+        try:
+            content = await self.fetch_sitemap(settings.sitemap_url)
+            if content:
+                # Save to cache on success
+                self._save_cached_sitemap(content)
+                return content
+        except httpx.HTTPStatusError as e:
+            # For 5xx errors, don't use cache - fail immediately
+            if 500 <= e.response.status_code < 600:
+                raise
+            # For other HTTP errors, try cache
+            logger.warning("sitemap_fetch_failed_trying_cache", status_code=e.response.status_code)
+        except Exception as e:
+            logger.warning("sitemap_fetch_error_trying_cache", error=str(e))
 
-        # Fallback to main sitemap
-        logger.info("falling_back_to_main_sitemap", url=settings.main_sitemap_url)
-        content = await self.fetch_sitemap(settings.main_sitemap_url)
-        if content:
-            return content
+        # If fetch failed (non-5xx), try cache
+        cached_content = self._load_cached_sitemap()
+        if cached_content:
+            logger.info(
+                "using_cached_sitemap", message="Using cached sitemap due to upstream failure"
+            )
+            return cached_content
 
-        logger.error("both_sitemaps_failed")
+        logger.error("marketplace_sitemap_failed_no_cache", url=settings.sitemap_url)
         return None
 
     def parse_sitemap(self, xml_content: bytes) -> Dict[str, List[str]]:
@@ -280,8 +361,13 @@ class SitemapScraper:
 
         Returns:
             Dictionary with categorized URLs
+
+        Raises:
+            httpx.HTTPStatusError: If marketplace sitemap returns 5xx error
+            ValueError: If sitemap parsing fails or returns empty/invalid data
         """
         # Get sitemap content
+        # This may raise HTTPStatusError for 5xx errors (no fallback)
         xml_content = await self.get_sitemap()
         if xml_content is None:
             logger.error("sitemap_fetch_failed_all_attempts")
@@ -289,6 +375,30 @@ class SitemapScraper:
 
         # Parse sitemap
         parsed = self.parse_sitemap(xml_content)
+
+        # Verify sitemap parsing was successful
+        total_urls = (
+            sum(len(urls) for urls in parsed.get("products", {}).values())
+            + len(parsed.get("categories", []))
+            + len(parsed.get("profiles", []))
+            + len(parsed.get("help_articles", []))
+        )
+
+        if total_urls == 0:
+            logger.error(
+                "sitemap_parse_verification_failed",
+                message="Sitemap parsed but contains no URLs - aborting scraper",
+            )
+            raise ValueError("Sitemap parsing returned empty result - no URLs found")
+
+        logger.info(
+            "sitemap_parse_verified",
+            total_urls=total_urls,
+            products=sum(len(urls) for urls in parsed.get("products", {}).values()),
+            categories=len(parsed.get("categories", [])),
+            profiles=len(parsed.get("profiles", [])),
+        )
+
         return parsed
 
     async def get_product_urls(self, product_types: Optional[List[str]] = None) -> List[str]:

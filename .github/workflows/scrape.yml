@@ -24,6 +24,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
+      - name: Add random jitter to avoid hitting same CloudFront edge
+        run: |
+          # Add random delay 0-60 seconds to avoid hitting same CloudFront edge
+          JITTER=$((RANDOM % 61))
+          echo "⏱️ Adding ${JITTER}s jitter before scraping..."
+          sleep ${JITTER}
+      
       - name: Run scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -57,7 +64,7 @@ jobs:
             scraped-data-*/
             logs/
           retention-days: 90
-          if-no-artifact-found: warn
+          if-no-files-found: warn
       
       - name: Upload latest data (for API access)
         uses: actions/upload-artifact@v4
@@ -75,4 +82,58 @@ jobs:
           name: scraper-logs
           path: logs/
           retention-days: 7
+      
+      - name: Check for upstream failures and send alert
+        if: failure() && github.event_name == 'schedule'
+        run: |
+          # Check if scraper failed with exit code 2 (upstream error)
+          if [ "${{ job.status }}" == "failure" ]; then
+            echo "⚠️ Scraper failed - checking for upstream errors..."
+            
+            # Check logs for upstream_unavailable error
+            if grep -q "upstream_unavailable" logs/*.log 2>/dev/null || grep -q "sitemap_fetch_failed_5xx" logs/*.log 2>/dev/null; then
+              echo "🔴 Upstream error detected - this may trigger alert if it's the second consecutive failure"
+              
+              # Check previous run status (this would need GitHub API or artifact check)
+              # For now, just log the error - full implementation would require:
+              # 1. Storing last run status in artifact
+              # 2. Checking previous run on failure
+              # 3. Sending webhook if two consecutive failures
+              
+              # Webhook/Slack notification would go here
+              # Example: curl -X POST ${{ secrets.WEBHOOK_URL }} -d '{"text":"Upstream error detected"}'
+              
+              echo "📢 Alert: Upstream service unavailable detected"
+            fi
+          fi
+      
+      - name: Send webhook notification on failure
+        if: failure() && github.event_name == 'schedule' && secrets.WEBHOOK_URL != ''
+        run: |
+          # Send webhook notification about failure
+          curl -X POST "${{ secrets.WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \"🔴 Scraper failed\",
+              \"attachments\": [{
+                \"color\": \"danger\",
+                \"fields\": [{
+                  \"title\": \"Workflow\",
+                  \"value\": \"${{ github.workflow }}\",
+                  \"short\": true
+                }, {
+                  \"title\": \"Run Number\",
+                  \"value\": \"${{ github.run_number }}\",
+                  \"short\": true
+                }, {
+                  \"title\": \"Commit\",
+                  \"value\": \"${{ github.sha }}\",
+                  \"short\": true
+                }, {
+                  \"title\": \"View Run\",
+                  \"value\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+                  \"short\": false
+                }]
+              }]
+            }" || echo "Webhook notification failed"
 

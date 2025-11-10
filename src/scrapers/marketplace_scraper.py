@@ -51,6 +51,12 @@ class MarketplaceScraper:
             "categories_failed": 0,
         }
 
+        # Deduplication tracking
+        self.seen_product_ids: set = set()
+        self.seen_product_urls: set = set()
+        self.seen_creator_ids: set = set()
+        self.duplicate_count: int = 0
+
     async def __aenter__(self):
         """Async context manager entry."""
         timeout = httpx.Timeout(settings.timeout)
@@ -136,10 +142,38 @@ class MarketplaceScraper:
                         if creator.stats:
                             product.creator.stats = creator.stats
 
+            # Deduplication check
+            is_duplicate = False
+            if product.id in self.seen_product_ids:
+                logger.warning("duplicate_product_id", product_id=product.id, url=url)
+                is_duplicate = True
+                self.duplicate_count += 1
+            elif product.url in self.seen_product_urls:
+                logger.warning("duplicate_product_url", product_id=product.id, url=url)
+                is_duplicate = True
+                self.duplicate_count += 1
+            else:
+                self.seen_product_ids.add(product.id)
+                self.seen_product_urls.add(product.url)
+
+            # Log record count before save
+            logger.debug(
+                "product_before_save",
+                product_id=product.id,
+                total_scraped=self.stats["products_scraped"],
+                total_failed=self.stats["products_failed"],
+            )
+
             # Save product
             success = await self.storage.save_product_json(product)
-            # Save product to database
-            await self.db_storage.save_product_db(product)
+
+            # Save product to database only if not duplicate
+            # Note: products_scraped check happens at end of scraping in main()
+            if not is_duplicate:
+                await self.db_storage.save_product_db(product)
+            else:
+                logger.warning("db_write_skipped_duplicate", product_id=product.id)
+
             if success:
                 self.stats["products_scraped"] += 1
                 self.metrics.record_product_scraped()
@@ -263,10 +297,17 @@ class MarketplaceScraper:
 
         Returns:
             Dictionary with scraping statistics
+
+        Raises:
+            TimeoutError: If global scraping timeout is exceeded
         """
+        import asyncio
+        import time
+
         # Start metrics tracking
         self.metrics.start()
-        logger.info("marketplace_scraping_started")
+        start_time = time.time()
+        logger.info("marketplace_scraping_started", global_timeout=settings.global_scraping_timeout)
 
         # Check for existing checkpoint
         if resume and settings.checkpoint_enabled:
@@ -281,7 +322,33 @@ class MarketplaceScraper:
 
         # Get product URLs from sitemap
         async with self.sitemap_scraper:
-            sitemap_data = await self.sitemap_scraper.scrape()
+            try:
+                sitemap_data = await self.sitemap_scraper.scrape()
+            except httpx.HTTPStatusError as e:
+                # If marketplace sitemap returns 5xx, abort scraper
+                if 500 <= e.response.status_code < 600:
+                    logger.error(
+                        "upstream_unavailable",
+                        url=str(e.request.url),
+                        status_code=e.response.status_code,
+                        message="Marketplace sitemap returned 5xx - aborting scraper",
+                    )
+                    self.metrics.stop()
+                    raise  # Propagate to main() for exit code handling
+                else:
+                    # Other HTTP errors - continue but log warning
+                    logger.warning(
+                        "sitemap_fetch_error",
+                        url=str(e.request.url),
+                        status_code=e.response.status_code,
+                    )
+                    sitemap_data = {
+                        "products": {},
+                        "categories": [],
+                        "profiles": [],
+                        "help_articles": [],
+                    }
+
             # Use provided product types or fall back to settings
             types_to_scrape = (
                 product_types if product_types is not None else settings.get_product_types()
@@ -292,6 +359,19 @@ class MarketplaceScraper:
             logger.warning("no_products_found")
             return self.stats
 
+        # Validate minimum URLs threshold
+        if len(product_urls) < settings.min_urls_threshold:
+            logger.error(
+                "insufficient_urls",
+                found=len(product_urls),
+                required=settings.min_urls_threshold,
+                message=f"Found only {len(product_urls)} URLs, minimum {settings.min_urls_threshold} required - aborting scraper",
+            )
+            self.metrics.stop()
+            raise ValueError(
+                f"Insufficient URLs: found {len(product_urls)}, required {settings.min_urls_threshold}"
+            )
+
         logger.info("product_urls_found", count=len(product_urls))
 
         # Apply limit if specified
@@ -299,10 +379,36 @@ class MarketplaceScraper:
             product_urls = product_urls[:limit]
             logger.info("applying_limit", limit=limit, remaining=len(product_urls))
 
-        # Scrape products
-        await self.scrape_products_batch(
-            product_urls, settings.max_concurrent_requests, skip_processed=resume
-        )
+        # Scrape products with global timeout
+        try:
+            await asyncio.wait_for(
+                self.scrape_products_batch(
+                    product_urls, settings.max_concurrent_requests, skip_processed=resume
+                ),
+                timeout=settings.global_scraping_timeout,
+            )
+        except asyncio.TimeoutError:
+            elapsed = time.time() - start_time
+            logger.error(
+                "global_scraping_timeout",
+                elapsed=round(elapsed, 2),
+                timeout=settings.global_scraping_timeout,
+                message=f"Scraping exceeded global timeout of {settings.global_scraping_timeout}s after {elapsed:.2f}s",
+            )
+            self.metrics.stop()
+            raise TimeoutError(
+                f"Scraping exceeded global timeout of {settings.global_scraping_timeout}s"
+            )
+
+        # Check elapsed time
+        elapsed = time.time() - start_time
+        if elapsed > settings.global_scraping_timeout * 0.8:  # Warn if > 80% of timeout
+            logger.warning(
+                "scraping_approaching_timeout",
+                elapsed=round(elapsed, 2),
+                timeout=settings.global_scraping_timeout,
+                percentage=round((elapsed / settings.global_scraping_timeout) * 100, 1),
+            )
 
         # Stop metrics tracking
         self.metrics.stop()
@@ -316,9 +422,18 @@ class MarketplaceScraper:
         # Log metrics summary
         self.metrics.log_summary()
 
+        # Log duplicate count
+        if self.duplicate_count > 0:
+            logger.warning(
+                "duplicates_found",
+                count=self.duplicate_count,
+                message=f"Found {self.duplicate_count} duplicate products - DB writes were skipped for duplicates",
+            )
+
         logger.info(
             "marketplace_scraping_completed",
             stats=self.stats,
+            duplicates=self.duplicate_count,
         )
 
         return self.stats
@@ -358,10 +473,23 @@ class MarketplaceScraper:
                     self.checkpoint_manager.add_failed(url)
                 return False
 
+            # Deduplication check for creators
+            is_duplicate_creator = False
+            if creator.username in self.seen_creator_ids:
+                logger.warning("duplicate_creator_id", username=creator.username, url=url)
+                is_duplicate_creator = True
+            else:
+                self.seen_creator_ids.add(creator.username)
+
             # Save creator
             success = await self.storage.save_creator_json(creator)
-            # Save creator to database
-            await self.db_storage.save_creator_db(creator)
+
+            # Save creator to database only if not duplicate
+            if not is_duplicate_creator:
+                await self.db_storage.save_creator_db(creator)
+            else:
+                logger.warning("db_write_skipped_duplicate_creator", username=creator.username)
+
             if success:
                 self.stats["creators_scraped"] += 1
                 self.metrics.record_product_scraped()  # Reuse metrics for now
@@ -495,7 +623,32 @@ class MarketplaceScraper:
 
         # Get creator profile URLs from sitemap
         async with self.sitemap_scraper:
-            sitemap_data = await self.sitemap_scraper.scrape()
+            try:
+                sitemap_data = await self.sitemap_scraper.scrape()
+            except httpx.HTTPStatusError as e:
+                # If marketplace sitemap returns 5xx, abort scraper
+                if 500 <= e.response.status_code < 600:
+                    logger.error(
+                        "upstream_unavailable",
+                        url=str(e.request.url),
+                        status_code=e.response.status_code,
+                        message="Marketplace sitemap returned 5xx - aborting scraper",
+                    )
+                    self.metrics.stop()
+                    raise  # Propagate to main() for exit code handling
+                else:
+                    # Other HTTP errors - continue but log warning
+                    logger.warning(
+                        "sitemap_fetch_error",
+                        url=str(e.request.url),
+                        status_code=e.response.status_code,
+                    )
+                    sitemap_data = {
+                        "products": {},
+                        "categories": [],
+                        "profiles": [],
+                        "help_articles": [],
+                    }
             creator_urls = sitemap_data.get("profiles", [])
 
         if not creator_urls:
@@ -706,7 +859,32 @@ class MarketplaceScraper:
 
         # Get category URLs from sitemap
         async with self.sitemap_scraper:
-            sitemap_data = await self.sitemap_scraper.scrape()
+            try:
+                sitemap_data = await self.sitemap_scraper.scrape()
+            except httpx.HTTPStatusError as e:
+                # If marketplace sitemap returns 5xx, abort scraper
+                if 500 <= e.response.status_code < 600:
+                    logger.error(
+                        "upstream_unavailable",
+                        url=str(e.request.url),
+                        status_code=e.response.status_code,
+                        message="Marketplace sitemap returned 5xx - aborting scraper",
+                    )
+                    self.metrics.stop()
+                    raise  # Propagate to main() for exit code handling
+                else:
+                    # Other HTTP errors - continue but log warning
+                    logger.warning(
+                        "sitemap_fetch_error",
+                        url=str(e.request.url),
+                        status_code=e.response.status_code,
+                    )
+                    sitemap_data = {
+                        "products": {},
+                        "categories": [],
+                        "profiles": [],
+                        "help_articles": [],
+                    }
             category_urls = sitemap_data.get("categories", [])
 
         if not category_urls:

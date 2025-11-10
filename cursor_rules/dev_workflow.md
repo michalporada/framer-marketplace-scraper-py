@@ -204,9 +204,33 @@ Brief description of changes
    # Edit .env with your values
    ```
 
-3. **Pre-commit Hooks**
+3. **Pre-commit Hooks** (OBOWIĄZKOWE)
    ```bash
    pre-commit install
+   ```
+   
+   **Pre-commit hooks automatycznie:**
+   - Naprawiają nieużywane importy (ruff --fix)
+   - Formatują kod (ruff-format, black)
+   - Sprawdzają YAML, JSON, TOML
+   - Usuwają trailing whitespace
+   - Sprawdzają duże pliki
+   - Wykrywają merge conflicts
+   
+   **WAŻNE:** Pre-commit hooks uruchamiają się automatycznie przed każdym commitem.
+   Jeśli hook naprawi błędy, musisz dodać poprawione pliki do staging:
+   ```bash
+   git add .
+   git commit -m "fix: ..."
+   ```
+   
+   **Ręczne uruchomienie:**
+   ```bash
+   # Sprawdź wszystkie pliki
+   pre-commit run --all-files
+   
+   # Sprawdź tylko staged files (domyślnie)
+   pre-commit run
    ```
 
 ### Development Commands
