@@ -1,7 +1,6 @@
 """Database storage for saving scraped data to PostgreSQL/Supabase."""
 
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError

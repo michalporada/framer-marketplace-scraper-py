@@ -1,6 +1,5 @@
 """Sitemap scraper for extracting product URLs from sitemap.xml."""
 
-import os
 import time
 import xml.etree.ElementTree as ET
 from collections import defaultdict
