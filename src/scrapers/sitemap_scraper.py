@@ -132,7 +132,11 @@ class SitemapScraper:
         # Check cache age
         cache_age = time.time() - cache_path.stat().st_mtime
         if cache_age > settings.sitemap_cache_max_age:
-            logger.debug("sitemap_cache_expired", age=round(cache_age, 2), max_age=settings.sitemap_cache_max_age)
+            logger.debug(
+                "sitemap_cache_expired",
+                age=round(cache_age, 2),
+                max_age=settings.sitemap_cache_max_age,
+            )
             return None
 
         try:
@@ -193,7 +197,9 @@ class SitemapScraper:
         # If fetch failed (non-5xx), try cache
         cached_content = self._load_cached_sitemap()
         if cached_content:
-            logger.info("using_cached_sitemap", message="Using cached sitemap due to upstream failure")
+            logger.info(
+                "using_cached_sitemap", message="Using cached sitemap due to upstream failure"
+            )
             return cached_content
 
         logger.error("marketplace_sitemap_failed_no_cache", url=settings.sitemap_url)
@@ -369,7 +375,7 @@ class SitemapScraper:
 
         # Parse sitemap
         parsed = self.parse_sitemap(xml_content)
-        
+
         # Verify sitemap parsing was successful
         total_urls = (
             sum(len(urls) for urls in parsed.get("products", {}).values())
@@ -377,14 +383,14 @@ class SitemapScraper:
             + len(parsed.get("profiles", []))
             + len(parsed.get("help_articles", []))
         )
-        
+
         if total_urls == 0:
             logger.error(
                 "sitemap_parse_verification_failed",
                 message="Sitemap parsed but contains no URLs - aborting scraper",
             )
             raise ValueError("Sitemap parsing returned empty result - no URLs found")
-        
+
         logger.info(
             "sitemap_parse_verified",
             total_urls=total_urls,
@@ -392,7 +398,7 @@ class SitemapScraper:
             categories=len(parsed.get("categories", [])),
             profiles=len(parsed.get("profiles", [])),
         )
-        
+
         return parsed
 
     async def get_product_urls(self, product_types: Optional[List[str]] = None) -> List[str]:

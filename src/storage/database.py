@@ -22,7 +22,10 @@ class DatabaseStorage:
         """Initialize database storage."""
         self.database_url = settings.database_url
         if not self.database_url:
-            logger.warning("database_url_not_configured", message="Database URL not configured, database storage disabled")
+            logger.warning(
+                "database_url_not_configured",
+                message="Database URL not configured, database storage disabled",
+            )
             self.engine = None
             return
 
@@ -60,9 +63,13 @@ class DatabaseStorage:
 
         # Validate product before save
         if not product.id:
-            logger.warning("product_validation_failed", reason="missing_id", product_url=product.url if product else "unknown")
+            logger.warning(
+                "product_validation_failed",
+                reason="missing_id",
+                product_url=product.url if product else "unknown",
+            )
             return False
-        
+
         if not product.url:
             logger.warning("product_validation_failed", reason="missing_url", product_id=product.id)
             return False
@@ -145,7 +152,9 @@ class DatabaseStorage:
 
             # Extract features
             features_list = (
-                ", ".join(product.features.features) if product.features and product.features.features else None
+                ", ".join(product.features.features)
+                if product.features and product.features.features
+                else None
             )
 
             # Use INSERT ... ON CONFLICT to handle duplicates
@@ -262,14 +271,16 @@ class DatabaseStorage:
                         "cms_integration": (
                             product.features.cms_integration if product.features else False
                         ),
-                        "pages_count": (
-                            product.features.pages_count if product.features else None
-                        ),
+                        "pages_count": (product.features.pages_count if product.features else None),
                         "thumbnail_url": (
-                            str(product.media.thumbnail) if product.media and product.media.thumbnail else None
+                            str(product.media.thumbnail)
+                            if product.media and product.media.thumbnail
+                            else None
                         ),
                         "screenshots_count": (
-                            len(product.media.screenshots) if product.media and product.media.screenshots else 0
+                            len(product.media.screenshots)
+                            if product.media and product.media.screenshots
+                            else 0
                         ),
                     },
                 )
@@ -311,7 +322,9 @@ class DatabaseStorage:
             # Convert social_media dict to JSON string for JSONB
             import json as json_lib
 
-            social_media_json = json_lib.dumps(creator.social_media) if creator.social_media else None
+            social_media_json = (
+                json_lib.dumps(creator.social_media) if creator.social_media else None
+            )
 
             insert_sql = text("""
                 INSERT INTO creators (
@@ -461,4 +474,3 @@ class DatabaseStorage:
                 error_type=type(e).__name__,
             )
             return False
-

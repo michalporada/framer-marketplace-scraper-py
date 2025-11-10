@@ -143,7 +143,7 @@ async def main():
             products_failed = stats.get("products_failed", 0)
             creators_scraped = stats.get("creators_scraped", 0)
             duplicate_count = getattr(scraper, "duplicate_count", 0)
-            
+
             logger.info(
                 "records_before_export",
                 products_scraped=products_scraped,
@@ -152,7 +152,7 @@ async def main():
                 duplicates=duplicate_count,
                 total_products=products_scraped + products_failed,
             )
-            
+
             # Check for duplicates - block DB writes if duplicates found
             if duplicate_count > 0:
                 logger.error(
@@ -160,7 +160,7 @@ async def main():
                     count=duplicate_count,
                     message=f"Found {duplicate_count} duplicates - DB writes were blocked during scraping",
                 )
-            
+
             # Check for zero products scraped
             if products_scraped == 0:
                 logger.error(

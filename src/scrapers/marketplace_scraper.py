@@ -163,17 +163,17 @@ class MarketplaceScraper:
                 total_scraped=self.stats["products_scraped"],
                 total_failed=self.stats["products_failed"],
             )
-            
+
             # Save product
             success = await self.storage.save_product_json(product)
-            
+
             # Save product to database only if not duplicate
             # Note: products_scraped check happens at end of scraping in main()
             if not is_duplicate:
                 await self.db_storage.save_product_db(product)
             else:
                 logger.warning("db_write_skipped_duplicate", product_id=product.id)
-            
+
             if success:
                 self.stats["products_scraped"] += 1
                 self.metrics.record_product_scraped()
@@ -303,7 +303,7 @@ class MarketplaceScraper:
         """
         import asyncio
         import time
-        
+
         # Start metrics tracking
         self.metrics.start()
         start_time = time.time()
@@ -342,8 +342,13 @@ class MarketplaceScraper:
                         url=str(e.request.url),
                         status_code=e.response.status_code,
                     )
-                    sitemap_data = {"products": {}, "categories": [], "profiles": [], "help_articles": []}
-            
+                    sitemap_data = {
+                        "products": {},
+                        "categories": [],
+                        "profiles": [],
+                        "help_articles": [],
+                    }
+
             # Use provided product types or fall back to settings
             types_to_scrape = (
                 product_types if product_types is not None else settings.get_product_types()
@@ -478,13 +483,13 @@ class MarketplaceScraper:
 
             # Save creator
             success = await self.storage.save_creator_json(creator)
-            
+
             # Save creator to database only if not duplicate
             if not is_duplicate_creator:
                 await self.db_storage.save_creator_db(creator)
             else:
                 logger.warning("db_write_skipped_duplicate_creator", username=creator.username)
-            
+
             if success:
                 self.stats["creators_scraped"] += 1
                 self.metrics.record_product_scraped()  # Reuse metrics for now
@@ -638,7 +643,12 @@ class MarketplaceScraper:
                         url=str(e.request.url),
                         status_code=e.response.status_code,
                     )
-                    sitemap_data = {"products": {}, "categories": [], "profiles": [], "help_articles": []}
+                    sitemap_data = {
+                        "products": {},
+                        "categories": [],
+                        "profiles": [],
+                        "help_articles": [],
+                    }
             creator_urls = sitemap_data.get("profiles", [])
 
         if not creator_urls:
@@ -869,7 +879,12 @@ class MarketplaceScraper:
                         url=str(e.request.url),
                         status_code=e.response.status_code,
                     )
-                    sitemap_data = {"products": {}, "categories": [], "profiles": [], "help_articles": []}
+                    sitemap_data = {
+                        "products": {},
+                        "categories": [],
+                        "profiles": [],
+                        "help_articles": [],
+                    }
             category_urls = sitemap_data.get("categories", [])
 
         if not category_urls:

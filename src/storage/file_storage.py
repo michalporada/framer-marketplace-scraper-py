@@ -197,21 +197,21 @@ class FileStorage:
             seen_urls = set()
             unique_products = []
             duplicate_count = 0
-            
+
             for product in products:
                 product_id = product.get("id")
                 product_url = product.get("url")
-                
+
                 if product_id in seen_ids or product_url in seen_urls:
                     duplicate_count += 1
                     logger.debug("duplicate_skipped_export", product_id=product_id, url=product_url)
                     continue
-                
+
                 seen_ids.add(product_id)
                 if product_url:
                     seen_urls.add(product_url)
                 unique_products.append(product)
-            
+
             if duplicate_count > 0:
                 logger.warning(
                     "duplicates_removed_before_export",
@@ -219,7 +219,7 @@ class FileStorage:
                     unique_count=len(unique_products),
                     total_count=len(products),
                 )
-            
+
             if not unique_products:
                 logger.warning("no_unique_products_to_export")
                 return False

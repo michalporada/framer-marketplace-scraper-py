@@ -119,7 +119,7 @@ async def retry_async(
             if attempt < max_retries - 1:
                 # Exponential backoff: initial_wait * 2^attempt
                 base_wait = min(initial_wait * (2**attempt), max_wait)
-                
+
                 # Add jitter if enabled (random 0-20% of base wait time)
                 if settings.retry_jitter:
                     jitter = random.uniform(0, base_wait * 0.2)
@@ -128,7 +128,7 @@ async def retry_async(
                 else:
                     wait_time = base_wait
                     jitter_value = 0
-                
+
                 logger.warning(
                     "retry_attempt",
                     attempt=attempt + 1,

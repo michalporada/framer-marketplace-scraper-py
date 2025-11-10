@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     retry_initial_wait: float = 2.0  # Initial wait time in seconds
     retry_max_wait: float = 300.0  # Max wait time (5 minutes)
     retry_jitter: bool = True  # Add random jitter to retry delays
-    
+
     # Global scraping timeout
     global_scraping_timeout: int = 900  # 15 minutes in seconds
 
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # Checkpoint & Resume
     checkpoint_enabled: bool = True
     checkpoint_file: str = "data/checkpoint.json"
-    
+
     # Sitemap cache
     sitemap_cache_enabled: bool = True
     sitemap_cache_file: str = "data/sitemap_cache.xml"
@@ -62,10 +62,12 @@ class Settings(BaseSettings):
 
     # GitHub Actions
     github_actions: bool = False
-    
+
     # Alerting
     webhook_url: str = ""  # Webhook URL for alerts (Slack, Discord, etc.)
-    alert_on_consecutive_failures: bool = True  # Alert if two consecutive runs fail with upstream errors
+    alert_on_consecutive_failures: bool = (
+        True  # Alert if two consecutive runs fail with upstream errors
+    )
 
     # Scraping options - which types to scrape
     scrape_templates: bool = True
