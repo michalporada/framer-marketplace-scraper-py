@@ -348,11 +348,14 @@ class MarketplaceScraper:
                 continue
 
         # All retry attempts failed - fall back to cache
+        total_wait = sum(retry_delays)
+        total_wait_minutes = round(total_wait / 60, 2)
         logger.warning(
             "sitemap_all_retries_failed",
             total_attempts=total_attempts,
-            total_wait_minutes=round(sum(retry_delays) / 60, 1),
-            message=f"All {total_attempts} retry attempts failed (waited {round(sum(retry_delays) / 60, 1)} minutes total) - falling back to cached sitemap",
+            total_wait_seconds=total_wait,
+            total_wait_minutes=total_wait_minutes,
+            message=f"All {total_attempts} retry attempts failed (waited {total_wait}s / {total_wait_minutes} minutes total) - falling back to cached sitemap",
         )
 
         # Try to get cached sitemap (this should work as get_sitemap falls back to cache)
