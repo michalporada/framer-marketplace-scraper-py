@@ -201,6 +201,11 @@ class SitemapScraper:
             if content:
                 # Save to cache on success
                 self._save_cached_sitemap(content)
+                logger.info(
+                    "sitemap_fetched_fresh",
+                    message="✅ Fresh sitemap fetched successfully - all products will be detected",
+                    cache_used=False,
+                )
                 return content
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
@@ -215,9 +220,10 @@ class SitemapScraper:
                 # Try to load cache with extended max_age for 502
                 cached_content = self._load_cached_sitemap(extended_max_age=True)
                 if cached_content:
-                    logger.info(
+                    logger.warning(
                         "using_cached_sitemap_on_502",
-                        message="Using cached sitemap due to CloudFront 502 error",
+                        message="⚠️ Using cached sitemap due to CloudFront 502 error. Product data will still be scraped fresh, but new products may be missed if they were added after cache was created.",
+                        cache_used=True,
                     )
                     return cached_content
                 else:
@@ -240,8 +246,10 @@ class SitemapScraper:
         # If fetch failed (non-5xx), try cache
         cached_content = self._load_cached_sitemap()
         if cached_content:
-            logger.info(
-                "using_cached_sitemap", message="Using cached sitemap due to upstream failure"
+            logger.warning(
+                "using_cached_sitemap",
+                message="⚠️ Using cached sitemap due to upstream failure. Product data will still be scraped fresh, but new products may be missed if they were added after cache was created.",
+                cache_used=True,
             )
             return cached_content
 
