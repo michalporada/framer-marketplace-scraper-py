@@ -770,7 +770,10 @@ class MarketplaceScraper:
 
         # Check elapsed time
         elapsed = time.time() - start_time
-        if elapsed > settings.global_scraping_timeout * 0.8:  # Warn if > 80% of timeout
+        if (
+            settings.global_scraping_timeout > 0
+            and elapsed > settings.global_scraping_timeout * 0.8
+        ):  # Warn if > 80% of timeout
             logger.warning(
                 "scraping_approaching_timeout",
                 elapsed=round(elapsed, 2),
