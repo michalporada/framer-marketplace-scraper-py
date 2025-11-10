@@ -37,7 +37,8 @@ class Settings(BaseSettings):
     retry_jitter: bool = True  # Add random jitter to retry delays
 
     # Global scraping timeout
-    global_scraping_timeout: int = 900  # 15 minutes in seconds
+    # Increased to 1200s (20 min) to accommodate initial retry sequence (986s) + scraping time
+    global_scraping_timeout: int = 1200  # 20 minutes in seconds
 
     # Logging
     log_level: str = "INFO"
