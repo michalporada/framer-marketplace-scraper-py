@@ -50,6 +50,10 @@ venv\Scripts\activate  # Windows
 
 # Zainstaluj zależności
 pip install -r requirements.txt
+pip install -r requirements-dev.txt  # Dla development
+
+# Zainstaluj pre-commit hooks (OBOWIĄZKOWE - zapobiega błędom CI)
+pre-commit install
 ```
 
 ### 2. Konfiguracja
