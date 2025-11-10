@@ -85,7 +85,7 @@ MarketplaceScraper (orchestrator)
    - Tylko jeden task próbuje jednocześnie (asyncio.Lock)
    - Nowe produkty znalezione podczas refresh są scrapowane natychmiast w tle (non-blocking)
 
-2. **Filtrowanie URL**
+3. **Filtrowanie URL**
    - Wyodrębnij tylko produkty marketplace:
      - Templates: `/marketplace/templates/{name}/`
      - Components: `/marketplace/components/{name}/`
