@@ -116,8 +116,11 @@ class SitemapScraper:
             logger.error("sitemap_fetch_error", url=url, error=str(e))
             return None
 
-    def _load_cached_sitemap(self) -> Optional[bytes]:
+    def _load_cached_sitemap(self, extended_max_age: bool = False) -> Optional[bytes]:
         """Load cached sitemap if available and not expired.
+
+        Args:
+            extended_max_age: If True, use extended max_age (for 502 errors)
 
         Returns:
             Cached sitemap content or None if cache is missing/expired
@@ -131,18 +134,30 @@ class SitemapScraper:
 
         # Check cache age
         cache_age = time.time() - cache_path.stat().st_mtime
-        if cache_age > settings.sitemap_cache_max_age:
+        max_age = (
+            settings.sitemap_cache_max_age_on_502
+            if extended_max_age
+            else settings.sitemap_cache_max_age
+        )
+
+        if cache_age > max_age:
             logger.debug(
                 "sitemap_cache_expired",
                 age=round(cache_age, 2),
-                max_age=settings.sitemap_cache_max_age,
+                max_age=max_age,
+                extended=extended_max_age,
             )
             return None
 
         try:
             with open(cache_path, "rb") as f:
                 content = f.read()
-            logger.info("sitemap_cache_loaded", cache_age=round(cache_age, 2), size=len(content))
+            logger.info(
+                "sitemap_cache_loaded",
+                cache_age=round(cache_age, 2),
+                size=len(content),
+                extended=extended_max_age,
+            )
             return content
         except Exception as e:
             logger.warning("sitemap_cache_load_error", error=str(e))
@@ -169,14 +184,16 @@ class SitemapScraper:
     async def get_sitemap(self) -> Optional[bytes]:
         """Get marketplace sitemap with cache support.
 
-        Tries marketplace sitemap first. If upstream fails (non-5xx), uses cache.
-        If marketplace sitemap returns 5xx, raises exception to abort scraper.
+        Tries marketplace sitemap first. If upstream fails:
+        - For 502 (CloudFront): Use cache even if expired (up to 24h)
+        - For other 5xx: Fail immediately (origin server problem)
+        - For other errors: Use cache if available
 
         Returns:
             Sitemap XML content or None if failed (non-5xx errors)
 
         Raises:
-            httpx.HTTPStatusError: If marketplace sitemap returns 5xx error
+            httpx.HTTPStatusError: If marketplace sitemap returns 5xx error (except 502 with cache)
         """
         # Try marketplace sitemap first
         try:
@@ -186,11 +203,37 @@ class SitemapScraper:
                 self._save_cached_sitemap(content)
                 return content
         except httpx.HTTPStatusError as e:
-            # For 5xx errors, don't use cache - fail immediately
-            if 500 <= e.response.status_code < 600:
+            status_code = e.response.status_code
+
+            # Special handling for 502 (CloudFront problem, not origin)
+            if status_code == 502 and settings.use_cache_on_502:
+                logger.warning(
+                    "sitemap_502_cloudfront_error",
+                    url=settings.sitemap_url,
+                    message="502 from CloudFront - attempting to use cache even if expired",
+                )
+                # Try to load cache with extended max_age for 502
+                cached_content = self._load_cached_sitemap(extended_max_age=True)
+                if cached_content:
+                    logger.info(
+                        "using_cached_sitemap_on_502",
+                        message="Using cached sitemap due to CloudFront 502 error",
+                    )
+                    return cached_content
+                else:
+                    logger.error(
+                        "sitemap_502_no_cache",
+                        url=settings.sitemap_url,
+                        message="502 error and no cache available - cannot proceed",
+                    )
+                    # For 502 without cache, treat as temporary error but still fail
+                    raise
+
+            # For other 5xx errors, don't use cache - fail immediately
+            if 500 <= status_code < 600:
                 raise
             # For other HTTP errors, try cache
-            logger.warning("sitemap_fetch_failed_trying_cache", status_code=e.response.status_code)
+            logger.warning("sitemap_fetch_failed_trying_cache", status_code=status_code)
         except Exception as e:
             logger.warning("sitemap_fetch_error_trying_cache", error=str(e))
 

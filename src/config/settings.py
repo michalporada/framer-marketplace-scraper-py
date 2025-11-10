@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     sitemap_cache_enabled: bool = True
     sitemap_cache_file: str = "data/sitemap_cache.xml"
     sitemap_cache_max_age: int = 3600  # 1 hour in seconds
+    sitemap_cache_max_age_on_502: int = 86400  # 24 hours for 502 errors (CloudFront issues)
+    use_cache_on_502: bool = True  # Use cache even for 502 errors (CloudFront problem, not origin)
 
     # GitHub Actions
     github_actions: bool = False
