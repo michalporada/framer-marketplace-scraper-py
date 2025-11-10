@@ -225,16 +225,30 @@ class SitemapScraper:
                     cache_age = time.time() - cache_path.stat().st_mtime
                     max_age_for_502 = settings.sitemap_cache_max_age_on_502
 
-                    if cache_age > max_age_for_502 and settings.fail_on_stale_cache_502:
-                        logger.error(
-                            "sitemap_502_stale_cache",
-                            url=settings.sitemap_url,
-                            cache_age_hours=round(cache_age / 3600, 2),
-                            max_age_hours=round(max_age_for_502 / 3600, 2),
-                            message=f"502 error and cache is stale ({round(cache_age / 3600, 2)}h old, max {round(max_age_for_502 / 3600, 2)}h). Failing to avoid missing new products added since cache was created.",
-                        )
-                        # Fail to avoid missing new products
-                        raise
+                    if cache_age > max_age_for_502:
+                        if settings.fail_on_stale_cache_502:
+                            logger.error(
+                                "sitemap_502_stale_cache",
+                                url=settings.sitemap_url,
+                                cache_age_hours=round(cache_age / 3600, 2),
+                                max_age_hours=round(max_age_for_502 / 3600, 2),
+                                message=f"502 error and cache is stale ({round(cache_age / 3600, 2)}h old, max {round(max_age_for_502 / 3600, 2)}h). Failing to avoid missing new products added since cache was created.",
+                            )
+                            # Fail to avoid missing new products
+                            raise
+                        else:
+                            # Use stale cache with strong warning - better than missing entire scrape
+                            logger.error(
+                                "using_stale_cache_on_502",
+                                url=settings.sitemap_url,
+                                cache_age_hours=round(cache_age / 3600, 2),
+                                max_age_hours=round(max_age_for_502 / 3600, 2),
+                                message=f"🔴 WARNING: Using STALE cached sitemap ({round(cache_age / 3600, 2)}h old) due to CloudFront 502 error. This is better than missing the entire scrape, but NEW PRODUCTS added in the last {round(cache_age / 3600, 2)}h WILL BE MISSED. Product data for existing products will still be scraped fresh.",
+                                cache_used=True,
+                                cache_age_hours=round(cache_age / 3600, 2),
+                                new_products_may_be_missed=True,
+                            )
+                            return cached_content
                     else:
                         logger.warning(
                             "using_cached_sitemap_on_502",
