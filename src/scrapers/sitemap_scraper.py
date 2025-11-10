@@ -238,14 +238,14 @@ class SitemapScraper:
                             raise
                         else:
                             # Use stale cache with strong warning - better than missing entire scrape
+                            cache_age_hours = round(cache_age / 3600, 2)
                             logger.error(
                                 "using_stale_cache_on_502",
                                 url=settings.sitemap_url,
-                                cache_age_hours=round(cache_age / 3600, 2),
+                                cache_age_hours=cache_age_hours,
                                 max_age_hours=round(max_age_for_502 / 3600, 2),
-                                message=f"🔴 WARNING: Using STALE cached sitemap ({round(cache_age / 3600, 2)}h old) due to CloudFront 502 error. This is better than missing the entire scrape, but NEW PRODUCTS added in the last {round(cache_age / 3600, 2)}h WILL BE MISSED. Product data for existing products will still be scraped fresh.",
+                                message=f"🔴 WARNING: Using STALE cached sitemap ({cache_age_hours}h old) due to CloudFront 502 error. This is better than missing the entire scrape, but NEW PRODUCTS added in the last {cache_age_hours}h WILL BE MISSED. Product data for existing products will still be scraped fresh.",
                                 cache_used=True,
-                                cache_age_hours=round(cache_age / 3600, 2),
                                 new_products_may_be_missed=True,
                             )
                             return cached_content
