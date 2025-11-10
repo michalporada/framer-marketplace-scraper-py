@@ -215,17 +215,34 @@ class SitemapScraper:
                 logger.warning(
                     "sitemap_502_cloudfront_error",
                     url=settings.sitemap_url,
-                    message="502 from CloudFront - attempting to use cache even if expired",
+                    message="502 from CloudFront - checking cache freshness",
                 )
                 # Try to load cache with extended max_age for 502
                 cached_content = self._load_cached_sitemap(extended_max_age=True)
                 if cached_content:
-                    logger.warning(
-                        "using_cached_sitemap_on_502",
-                        message="⚠️ Using cached sitemap due to CloudFront 502 error. Product data will still be scraped fresh, but new products may be missed if they were added after cache was created.",
-                        cache_used=True,
-                    )
-                    return cached_content
+                    # Check cache age to avoid missing new products
+                    cache_path = Path(settings.sitemap_cache_file)
+                    cache_age = time.time() - cache_path.stat().st_mtime
+                    max_age_for_502 = settings.sitemap_cache_max_age_on_502
+
+                    if cache_age > max_age_for_502 and settings.fail_on_stale_cache_502:
+                        logger.error(
+                            "sitemap_502_stale_cache",
+                            url=settings.sitemap_url,
+                            cache_age_hours=round(cache_age / 3600, 2),
+                            max_age_hours=round(max_age_for_502 / 3600, 2),
+                            message=f"502 error and cache is stale ({round(cache_age / 3600, 2)}h old, max {round(max_age_for_502 / 3600, 2)}h). Failing to avoid missing new products added since cache was created.",
+                        )
+                        # Fail to avoid missing new products
+                        raise
+                    else:
+                        logger.warning(
+                            "using_cached_sitemap_on_502",
+                            message=f"⚠️ Using cached sitemap ({round(cache_age / 3600, 2)}h old) due to CloudFront 502 error. Product data will still be scraped fresh, but new products added in the last {round(cache_age / 3600, 2)}h may be missed.",
+                            cache_used=True,
+                            cache_age_hours=round(cache_age / 3600, 2),
+                        )
+                        return cached_content
                 else:
                     logger.error(
                         "sitemap_502_no_cache",
