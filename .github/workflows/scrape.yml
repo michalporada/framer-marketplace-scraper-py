@@ -108,32 +108,38 @@ jobs:
           fi
       
       - name: Send webhook notification on failure
-        if: failure() && github.event_name == 'schedule' && secrets.WEBHOOK_URL != ''
+        if: failure() && github.event_name == 'schedule'
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: |
-          # Send webhook notification about failure
-          curl -X POST "${{ secrets.WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"text\": \"🔴 Scraper failed\",
-              \"attachments\": [{
-                \"color\": \"danger\",
-                \"fields\": [{
-                  \"title\": \"Workflow\",
-                  \"value\": \"${{ github.workflow }}\",
-                  \"short\": true
-                }, {
-                  \"title\": \"Run Number\",
-                  \"value\": \"${{ github.run_number }}\",
-                  \"short\": true
-                }, {
-                  \"title\": \"Commit\",
-                  \"value\": \"${{ github.sha }}\",
-                  \"short\": true
-                }, {
-                  \"title\": \"View Run\",
-                  \"value\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
-                  \"short\": false
+          # Send webhook notification about failure (only if WEBHOOK_URL is set)
+          if [ -n "$WEBHOOK_URL" ]; then
+            curl -X POST "$WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"text\": \"🔴 Scraper failed\",
+                \"attachments\": [{
+                  \"color\": \"danger\",
+                  \"fields\": [{
+                    \"title\": \"Workflow\",
+                    \"value\": \"${{ github.workflow }}\",
+                    \"short\": true
+                  }, {
+                    \"title\": \"Run Number\",
+                    \"value\": \"${{ github.run_number }}\",
+                    \"short\": true
+                  }, {
+                    \"title\": \"Commit\",
+                    \"value\": \"${{ github.sha }}\",
+                    \"short\": true
+                  }, {
+                    \"title\": \"View Run\",
+                    \"value\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+                    \"short\": false
+                  }]
                 }]
-              }]
-            }" || echo "Webhook notification failed"
+              }" || echo "Webhook notification failed"
+          else
+            echo "ℹ️ WEBHOOK_URL not set, skipping notification"
+          fi
 
