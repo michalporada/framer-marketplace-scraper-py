@@ -1,7 +1,7 @@
 """Main marketplace scraper orchestrator."""
 
 import asyncio
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from tqdm.asyncio import tqdm
@@ -210,6 +210,150 @@ class MarketplaceScraper:
             if settings.checkpoint_enabled:
                 self.checkpoint_manager.add_failed(url)
             return False
+
+    async def _get_sitemap_with_initial_retry(self) -> tuple[Dict[str, Any], bool, float]:
+        """Get sitemap with initial retry attempts before falling back to cache.
+
+        Retry sequence: immediate, 1min, 1min, 2min, 3min, 5min, 8min
+        Total max wait: ~20 minutes before using cache.
+
+        Returns:
+            Tuple of (sitemap_data, cache_used, cache_age_hours)
+        """
+        retry_delays = [0, 60, 60, 120, 180, 300, 480]  # 0s, 1min, 1min, 2min, 3min, 5min, 8min
+        total_attempts = len(retry_delays)
+
+        logger.info(
+            "sitemap_initial_retry_start",
+            total_attempts=total_attempts,
+            max_wait_minutes=sum(retry_delays) // 60,
+            message=f"Starting sitemap fetch with {total_attempts} retry attempts (max wait: {sum(retry_delays) // 60} minutes)",
+        )
+
+        for attempt_num, delay_seconds in enumerate(retry_delays, 1):
+            # Wait before retry (except first attempt)
+            if delay_seconds > 0:
+                logger.info(
+                    "sitemap_retry_wait",
+                    attempt=attempt_num,
+                    total=total_attempts,
+                    wait_seconds=delay_seconds,
+                    wait_minutes=round(delay_seconds / 60, 1),
+                    message=f"Waiting {delay_seconds}s ({round(delay_seconds / 60, 1)}min) before retry attempt {attempt_num}/{total_attempts}",
+                )
+                await asyncio.sleep(delay_seconds)
+
+            try:
+                logger.info(
+                    "sitemap_retry_attempt",
+                    attempt=attempt_num,
+                    total=total_attempts,
+                    message=f"Attempt {attempt_num}/{total_attempts}: Trying to fetch fresh sitemap",
+                )
+
+                # Try to get fresh sitemap (this will use cache if upstream fails)
+                xml_content, cache_used, cache_age_hours = await self.sitemap_scraper.get_sitemap()
+
+                # If we got fresh sitemap (not from cache), parse and return
+                if xml_content and not cache_used:
+                    logger.info(
+                        "sitemap_fetch_success_after_retry",
+                        attempt=attempt_num,
+                        total_wait_seconds=sum(retry_delays[:attempt_num]),
+                        total_wait_minutes=round(sum(retry_delays[:attempt_num]) / 60, 1),
+                        message=f"✅ Successfully fetched fresh sitemap on attempt {attempt_num}/{total_attempts} (waited {round(sum(retry_delays[:attempt_num]) / 60, 1)} minutes total)",
+                    )
+                    # Parse and return
+                    sitemap_data = self.sitemap_scraper.parse_sitemap(xml_content)
+                    return (sitemap_data, False, 0.0)
+
+                # If we got cached sitemap, it means upstream is still failing
+                # Continue to next retry attempt
+                if xml_content and cache_used:
+                    logger.warning(
+                        "sitemap_retry_still_cache",
+                        attempt=attempt_num,
+                        total=total_attempts,
+                        cache_age_hours=cache_age_hours,
+                        message=f"Attempt {attempt_num}/{total_attempts} still returned cached sitemap ({cache_age_hours}h old) - will retry",
+                    )
+                    continue
+
+                # If no content, continue to next retry
+                logger.warning(
+                    "sitemap_retry_no_content",
+                    attempt=attempt_num,
+                    total=total_attempts,
+                    message=f"Attempt {attempt_num}/{total_attempts} returned no content - will retry",
+                )
+                continue
+
+            except httpx.HTTPStatusError as e:
+                # For 5xx errors, get_sitemap might return cache or raise
+                # If it raises, it's a real 5xx - log and continue retry
+                if 500 <= e.response.status_code < 600:
+                    logger.warning(
+                        "sitemap_retry_5xx",
+                        attempt=attempt_num,
+                        total=total_attempts,
+                        status_code=e.response.status_code,
+                        message=f"Attempt {attempt_num}/{total_attempts} got 5xx error ({e.response.status_code}) - will retry",
+                    )
+                    continue
+                else:
+                    logger.warning(
+                        "sitemap_retry_http_error",
+                        attempt=attempt_num,
+                        total=total_attempts,
+                        status_code=e.response.status_code,
+                        message=f"Attempt {attempt_num}/{total_attempts} got HTTP error ({e.response.status_code}) - will retry",
+                    )
+                    continue
+            except Exception as e:
+                logger.warning(
+                    "sitemap_retry_error",
+                    attempt=attempt_num,
+                    total=total_attempts,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    message=f"Attempt {attempt_num}/{total_attempts} failed with error - will retry",
+                )
+                continue
+
+        # All retry attempts failed - fall back to cache
+        logger.warning(
+            "sitemap_all_retries_failed",
+            total_attempts=total_attempts,
+            total_wait_minutes=round(sum(retry_delays) / 60, 1),
+            message=f"All {total_attempts} retry attempts failed (waited {round(sum(retry_delays) / 60, 1)} minutes total) - falling back to cached sitemap",
+        )
+
+        # Try to get cached sitemap (this should work as get_sitemap falls back to cache)
+        try:
+            xml_content, cache_used, cache_age_hours = await self.sitemap_scraper.get_sitemap()
+            if xml_content:
+                sitemap_data = self.sitemap_scraper.parse_sitemap(xml_content)
+                logger.info(
+                    "sitemap_using_cache_after_retries",
+                    cache_age_hours=cache_age_hours,
+                    message=f"Using cached sitemap ({cache_age_hours}h old) after all retry attempts failed",
+                )
+                return (sitemap_data, True, cache_age_hours)
+        except Exception as e:
+            logger.error(
+                "sitemap_cache_fallback_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                message="Failed to get cached sitemap after all retries - this is a critical error",
+            )
+            raise
+
+        # If we get here, we have no sitemap at all
+        logger.error(
+            "sitemap_completely_failed",
+            message="All retry attempts failed and no cache available - cannot proceed",
+        )
+        raise ValueError("Failed to get sitemap after all retry attempts and cache fallback")
 
     async def _scrape_new_products_background(self, new_urls: List[str]) -> None:
         """Scrape new products found during sitemap refresh in background.
@@ -471,10 +615,14 @@ class MarketplaceScraper:
                     timestamp=resume_info["timestamp"],
                 )
 
-        # Get product URLs from sitemap
+        # Get product URLs from sitemap with initial retry attempts
         async with self.sitemap_scraper:
             try:
-                sitemap_data, cache_used, cache_age_hours = await self.sitemap_scraper.scrape()
+                (
+                    sitemap_data,
+                    cache_used,
+                    cache_age_hours,
+                ) = await self._get_sitemap_with_initial_retry()
             except httpx.HTTPStatusError as e:
                 # If marketplace sitemap returns 5xx, abort scraper
                 if 500 <= e.response.status_code < 600:
