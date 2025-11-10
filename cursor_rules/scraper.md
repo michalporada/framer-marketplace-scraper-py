@@ -65,10 +65,25 @@ MarketplaceScraper (orchestrator)
 
 1. **Priorytet sitemap**
    - Próbuj tylko: `/marketplace/sitemap.xml` (BRAK fallback do głównego sitemap)
-   - Jeśli marketplace sitemap zwraca 5xx: przerwij scraper natychmiast (exit code 2)
-   - Jeśli marketplace sitemap zwraca inne błędy (non-5xx): użyj cache sitemapa (jeśli dostępny)
-   - Cache sitemapa: zapisywany po każdym udanym pobraniu, TTL: 1 godzina
+   - **Initial Retry Sequence**: Przed użyciem cache, scraper próbuje pobrać świeżą sitemap 7 razy z opóźnieniami:
+     - Próba 1: natychmiast (0s)
+     - Próba 2: po 1 minucie
+     - Próba 3: po 1 minucie (2 min od startu)
+     - Próba 4: po 2 minutach (4 min od startu)
+     - Próba 5: po 3 minutach (7 min od startu)
+     - Próba 6: po 5 minutach (12 min od startu)
+     - Próba 7: po 8 minutach (20 min od startu)
+     - **Łączny maksymalny czas oczekiwania**: ~20 minut przed użyciem cache
+   - Jeśli marketplace sitemap zwraca 5xx: kontynuuj retry sequence (nie przerywaj natychmiast)
+   - Jeśli wszystkie próby się nie powiodą: użyj cache sitemapa (jeśli dostępny)
+   - Cache sitemapa: zapisywany po każdym udanym pobraniu, TTL: 1 godzina (6h dla 502 errors)
    - Weryfikacja parsowania: scraper kończy się błędem, jeśli sitemap nie zawiera URL-i
+
+2. **Dynamic Sitemap Refresh podczas scrapowania**
+   - Jeśli użyto starego cache (>6h): próby odświeżenia sitemap na milestone'ach (25%, 50%, 75%, 100%)
+   - Próby odświeżenia zatrzymują się po pierwszym sukcesie (flaga `fresh_sitemap_obtained`)
+   - Tylko jeden task próbuje jednocześnie (asyncio.Lock)
+   - Nowe produkty znalezione podczas refresh są scrapowane natychmiast w tle (non-blocking)
 
 2. **Filtrowanie URL**
    - Wyodrębnij tylko produkty marketplace:

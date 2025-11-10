@@ -75,7 +75,11 @@ Główne zmienne środowiskowe:
 - `LOG_LEVEL` - Poziom logowania (INFO, DEBUG, WARNING, ERROR)
 - `CHECKPOINT_ENABLED` - Włącz checkpoint system (domyślnie: true)
 - `MIN_URLS_THRESHOLD` - Minimalny próg URL-i z sitemapa (domyślnie: 50)
+- `SITEMAP_CACHE_ENABLED` - Włącz cache sitemap (domyślnie: true)
+- `SITEMAP_CACHE_MAX_AGE` - Maksymalny wiek cache w sekundach (domyślnie: 3600s = 1h)
 - `SCRAPE_TEMPLATES`, `SCRAPE_COMPONENTS`, `SCRAPE_VECTORS`, `SCRAPE_PLUGINS` - Typy produktów do scrapowania
+
+**Uwaga o retry sequence**: Scraper automatycznie próbuje pobrać świeżą sitemap 7 razy z opóźnieniami (łącznie ~20 min) przed użyciem cache. To daje CloudFront czas na odbudowę i zwiększa szansę na świeże dane.
 
 ### 3. Uruchomienie
 
