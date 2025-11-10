@@ -65,15 +65,23 @@ MarketplaceScraper (orchestrator)
 
 1. **Priorytet sitemap**
    - Próbuj tylko: `/marketplace/sitemap.xml` (BRAK fallback do głównego sitemap)
-   - **Initial Retry Sequence**: Przed użyciem cache, scraper próbuje pobrać świeżą sitemap 7 razy z opóźnieniami:
+   - **Initial Retry Sequence**: Przed użyciem cache, scraper próbuje pobrać świeżą sitemap 15 razy z opóźnieniami (ciąg Fibonacciego w sekundach):
      - Próba 1: natychmiast (0s)
-     - Próba 2: po 1 minucie
-     - Próba 3: po 1 minucie (2 min od startu)
-     - Próba 4: po 2 minutach (4 min od startu)
-     - Próba 5: po 3 minutach (7 min od startu)
-     - Próba 6: po 5 minutach (12 min od startu)
-     - Próba 7: po 8 minutach (20 min od startu)
-     - **Łączny maksymalny czas oczekiwania**: ~20 minut przed użyciem cache
+     - Próba 2: po 1s
+     - Próba 3: po 1s (2s od startu)
+     - Próba 4: po 2s (4s od startu)
+     - Próba 5: po 3s (7s od startu)
+     - Próba 6: po 5s (12s od startu)
+     - Próba 7: po 8s (20s od startu)
+     - Próba 8: po 13s (33s od startu)
+     - Próba 9: po 21s (54s od startu)
+     - Próba 10: po 34s (1.5 min od startu)
+     - Próba 11: po 55s (2.5 min od startu)
+     - Próba 12: po 89s (4.2 min od startu)
+     - Próba 13: po 144s (6.6 min od startu)
+     - Próba 14: po 233s (10.5 min od startu)
+     - Próba 15: po 377s (16.4 min od startu)
+     - **Łączny maksymalny czas oczekiwania**: ~16.4 minuty (986 sekund) przed użyciem cache
    - Jeśli marketplace sitemap zwraca 5xx: kontynuuj retry sequence (nie przerywaj natychmiast)
    - Jeśli wszystkie próby się nie powiodą: użyj cache sitemapa (jeśli dostępny)
    - Cache sitemapa: zapisywany po każdym udanym pobraniu, TTL: 1 godzina (6h dla 502 errors)

@@ -214,13 +214,29 @@ class MarketplaceScraper:
     async def _get_sitemap_with_initial_retry(self) -> tuple[Dict[str, Any], bool, float]:
         """Get sitemap with initial retry attempts before falling back to cache.
 
-        Retry sequence: immediate, 1min, 1min, 2min, 3min, 5min, 8min
-        Total max wait: ~20 minutes before using cache.
+        Retry sequence: Fibonacci sequence in seconds (0s, 1s, 1s, 2s, 3s, 5s, 8s, 13s, 21s, 34s, 55s, 89s, 144s, 233s, 377s)
+        Total max wait: ~16.4 minutes (986 seconds) before using cache.
 
         Returns:
             Tuple of (sitemap_data, cache_used, cache_age_hours)
         """
-        retry_delays = [0, 60, 60, 120, 180, 300, 480]  # 0s, 1min, 1min, 2min, 3min, 5min, 8min
+        retry_delays = [
+            0,
+            1,
+            1,
+            2,
+            3,
+            5,
+            8,
+            13,
+            21,
+            34,
+            55,
+            89,
+            144,
+            233,
+            377,
+        ]  # Fibonacci sequence in seconds
         total_attempts = len(retry_delays)
 
         logger.info(
@@ -233,13 +249,19 @@ class MarketplaceScraper:
         for attempt_num, delay_seconds in enumerate(retry_delays, 1):
             # Wait before retry (except first attempt)
             if delay_seconds > 0:
+                # Format wait time: show seconds for < 60s, minutes for >= 60s
+                if delay_seconds < 60:
+                    wait_display = f"{delay_seconds}s"
+                else:
+                    wait_display = f"{delay_seconds}s ({round(delay_seconds / 60, 1)}min)"
+
                 logger.info(
                     "sitemap_retry_wait",
                     attempt=attempt_num,
                     total=total_attempts,
                     wait_seconds=delay_seconds,
-                    wait_minutes=round(delay_seconds / 60, 1),
-                    message=f"Waiting {delay_seconds}s ({round(delay_seconds / 60, 1)}min) before retry attempt {attempt_num}/{total_attempts}",
+                    wait_minutes=round(delay_seconds / 60, 2) if delay_seconds >= 60 else 0,
+                    message=f"Waiting {wait_display} before retry attempt {attempt_num}/{total_attempts}",
                 )
                 await asyncio.sleep(delay_seconds)
 
@@ -256,12 +278,14 @@ class MarketplaceScraper:
 
                 # If we got fresh sitemap (not from cache), parse and return
                 if xml_content and not cache_used:
+                    total_wait = sum(retry_delays[:attempt_num])
+                    total_wait_minutes = round(total_wait / 60, 2)
                     logger.info(
                         "sitemap_fetch_success_after_retry",
                         attempt=attempt_num,
-                        total_wait_seconds=sum(retry_delays[:attempt_num]),
-                        total_wait_minutes=round(sum(retry_delays[:attempt_num]) / 60, 1),
-                        message=f"✅ Successfully fetched fresh sitemap on attempt {attempt_num}/{total_attempts} (waited {round(sum(retry_delays[:attempt_num]) / 60, 1)} minutes total)",
+                        total_wait_seconds=total_wait,
+                        total_wait_minutes=total_wait_minutes,
+                        message=f"✅ Successfully fetched fresh sitemap on attempt {attempt_num}/{total_attempts} (waited {total_wait}s / {total_wait_minutes} minutes total)",
                     )
                     # Parse and return
                     sitemap_data = self.sitemap_scraper.parse_sitemap(xml_content)

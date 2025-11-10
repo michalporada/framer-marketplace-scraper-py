@@ -79,7 +79,7 @@ Główne zmienne środowiskowe:
 - `SITEMAP_CACHE_MAX_AGE` - Maksymalny wiek cache w sekundach (domyślnie: 3600s = 1h)
 - `SCRAPE_TEMPLATES`, `SCRAPE_COMPONENTS`, `SCRAPE_VECTORS`, `SCRAPE_PLUGINS` - Typy produktów do scrapowania
 
-**Uwaga o retry sequence**: Scraper automatycznie próbuje pobrać świeżą sitemap 7 razy z opóźnieniami (łącznie ~20 min) przed użyciem cache. To daje CloudFront czas na odbudowę i zwiększa szansę na świeże dane.
+**Uwaga o retry sequence**: Scraper automatycznie próbuje pobrać świeżą sitemap 15 razy z opóźnieniami (ciąg Fibonacciego w sekundach: 0s, 1s, 1s, 2s, 3s, 5s, 8s, 13s, 21s, 34s, 55s, 89s, 144s, 233s, 377s, łącznie ~16.4 min) przed użyciem cache. To daje CloudFront czas na odbudowę i zwiększa szansę na świeże dane.
 
 ### 3. Uruchomienie
 
