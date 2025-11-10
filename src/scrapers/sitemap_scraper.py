@@ -39,7 +39,8 @@ class SitemapScraper:
                     "User-Agent": user_agent,
                     "Accept": "application/xml, text/xml, */*;q=0.8",
                     "Accept-Language": "en-US,en;q=0.9",
-                    "Accept-Encoding": "gzip, deflate, br",
+                    # Only request gzip/deflate - httpx auto-decompresses these, but NOT Brotli (br)
+                    "Accept-Encoding": "gzip, deflate",
                     "Referer": settings.marketplace_url,
                     "Connection": "keep-alive",
                     "Sec-Fetch-Dest": "document",
@@ -81,8 +82,28 @@ class SitemapScraper:
 
             response = await self.client.get(url)
             response.raise_for_status()
-            logger.info("sitemap_fetched", url=url, status_code=response.status_code)
-            return response.content
+
+            # Get content - httpx should auto-decompress, but verify
+            content = response.content
+
+            # Debug: log first 200 chars to diagnose parsing issues
+            try:
+                preview = content[:200].decode("utf-8", errors="replace")
+                content_type = response.headers.get("content-type", "unknown")
+                logger.debug(
+                    "sitemap_content_preview",
+                    preview=preview,
+                    content_length=len(content),
+                    content_type=content_type,
+                    encoding=response.headers.get("content-encoding", "none"),
+                )
+            except Exception as e:
+                logger.warning("sitemap_preview_failed", error=str(e))
+
+            logger.info(
+                "sitemap_fetched", url=url, status_code=response.status_code, size=len(content)
+            )
+            return content
 
         try:
             # For marketplace sitemap, retry on 502 errors (temporary Framer issues)
@@ -335,6 +356,26 @@ class SitemapScraper:
             }
         """
         try:
+            # Ensure we have bytes, not string
+            if isinstance(xml_content, str):
+                xml_content = xml_content.encode("utf-8")
+
+            # Try to decode and re-encode to ensure proper encoding
+            try:
+                # First try UTF-8
+                decoded = xml_content.decode("utf-8")
+            except UnicodeDecodeError:
+                # Fallback to latin-1 (more permissive)
+                logger.warning("sitemap_encoding_fallback", encoding="latin-1")
+                decoded = xml_content.decode("latin-1", errors="replace")
+
+            # Remove BOM if present
+            if decoded.startswith("\ufeff"):
+                decoded = decoded[1:]
+
+            # Re-encode to UTF-8 for parsing
+            xml_content = decoded.encode("utf-8")
+
             root = ET.fromstring(xml_content)
             namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 
@@ -419,7 +460,23 @@ class SitemapScraper:
             return result
 
         except ET.ParseError as e:
-            logger.error("sitemap_parse_error", error=str(e))
+            # Log more details about parsing error
+            try:
+                preview = xml_content[:500].decode("utf-8", errors="replace")
+                logger.error(
+                    "sitemap_parse_error",
+                    error=str(e),
+                    content_preview=preview,
+                    content_length=len(xml_content),
+                    message=f"Failed to parse sitemap XML: {str(e)}. First 500 chars: {preview}",
+                )
+            except Exception:
+                logger.error(
+                    "sitemap_parse_error",
+                    error=str(e),
+                    content_length=len(xml_content),
+                    message=f"Failed to parse sitemap XML: {str(e)}",
+                )
             return {"products": {}, "categories": [], "profiles": [], "help_articles": []}
         except Exception as e:
             logger.error("sitemap_parse_exception", error=str(e), error_type=type(e).__name__)

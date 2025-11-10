@@ -70,7 +70,8 @@ class MarketplaceScraper:
                 "User-Agent": user_agent,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
-                "Accept-Encoding": "gzip, deflate, br",
+                # Only request gzip/deflate - httpx auto-decompresses these, but NOT Brotli (br)
+                "Accept-Encoding": "gzip, deflate",
                 "Referer": settings.marketplace_url,
                 "Connection": "keep-alive",
                 "Sec-Fetch-Dest": "document",
