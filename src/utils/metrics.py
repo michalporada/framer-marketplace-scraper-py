@@ -1,9 +1,12 @@
 """Metrics and monitoring utilities for tracking scraper performance."""
 
+import json
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Optional
 
+from src.config.settings import settings
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -209,9 +212,27 @@ class ScraperMetrics:
         }
 
     def log_summary(self) -> None:
-        """Log summary of metrics."""
+        """Log summary of metrics and save to metrics.log file."""
         summary = self.get_summary()
         logger.info("scraper_metrics_summary", **summary)
+        
+        # Save to metrics.log file for monitoring
+        try:
+            metrics_file = Path(settings.data_dir) / "metrics.log"
+            metrics_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Append metrics entry with timestamp
+            metrics_entry = {
+                "timestamp": datetime.now().isoformat(),
+                **summary
+            }
+            
+            with open(metrics_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(metrics_entry, ensure_ascii=False) + "\n")
+            
+            logger.debug("metrics_saved_to_file", file=str(metrics_file))
+        except Exception as e:
+            logger.warning("metrics_file_save_error", error=str(e))
 
     def _format_duration(self, seconds: float) -> str:
         """Format duration in human-readable format.

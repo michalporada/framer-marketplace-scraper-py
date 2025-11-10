@@ -89,16 +89,31 @@ class ProductScraper:
         Returns:
             HTML content or None if failed
         """
+        import time
+        
         try:
             # Rate limiting
             await self.rate_limiter.acquire()
 
             # Retry logic with exponential backoff
             async def _fetch():
+                start_time = time.time()
                 logger.debug("fetching_product", url=url)
                 response = await self.client.get(url)
                 response.raise_for_status()
-                logger.debug("product_fetched", url=url, status_code=response.status_code)
+                elapsed = time.time() - start_time
+                
+                # Log slow requests (> 10 seconds)
+                if elapsed > 10.0:
+                    logger.warning(
+                        "slow_request",
+                        url=url,
+                        duration=round(elapsed, 2),
+                        status_code=response.status_code,
+                        message=f"Request took {elapsed:.2f}s (threshold: 10s)",
+                    )
+                
+                logger.debug("product_fetched", url=url, status_code=response.status_code, duration=round(elapsed, 2))
                 return response.text
 
             html_content = await retry_async(_fetch)

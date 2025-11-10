@@ -23,10 +23,12 @@
    - Nie scrapuj stron zabronionych
 
 4. **Error Handling**
-   - Implementuj retry logic z exponential backoff
+   - Implementuj retry logic z exponential backoff + jitter
    - Używaj `src/utils/retry.py` dla retry
-   - Max retries: 3 (domyślnie)
-   - Timeout: 30 sekund (domyślnie)
+   - Max retries: 5 (domyślnie, z exponential backoff do max 5 min)
+   - Timeout per request: 25 sekund (domyślnie, zakres 20-30s)
+   - Globalny timeout na cały scraping: 15 minut
+   - Jitter: losowe opóźnienie 0-20% do base wait time
 
 ## Struktura Scraperów
 
@@ -62,9 +64,11 @@ MarketplaceScraper (orchestrator)
 ### Zasady
 
 1. **Priorytet sitemap**
-   - Próbuj najpierw: `/marketplace/sitemap.xml`
-   - Fallback: `/sitemap.xml` (główny sitemap)
-   - Obsługuj błędy gracefully
+   - Próbuj tylko: `/marketplace/sitemap.xml` (BRAK fallback do głównego sitemap)
+   - Jeśli marketplace sitemap zwraca 5xx: przerwij scraper natychmiast (exit code 2)
+   - Jeśli marketplace sitemap zwraca inne błędy (non-5xx): użyj cache sitemapa (jeśli dostępny)
+   - Cache sitemapa: zapisywany po każdym udanym pobraniu, TTL: 1 godzina
+   - Weryfikacja parsowania: scraper kończy się błędem, jeśli sitemap nie zawiera URL-i
 
 2. **Filtrowanie URL**
    - Wyodrębnij tylko produkty marketplace:
@@ -177,20 +181,26 @@ async with RateLimiter(rate_limit=1.0) as limiter:
 ### Retry Logic
 
 ```python
-from src.utils.retry import retry_with_backoff
+from src.utils.retry import retry_async
 
-@retry_with_backoff(max_retries=3, base_delay=1.0)
-async def scrape_product(url: str):
-    # Scrapowanie produktu
-    pass
+# Retry z exponential backoff + jitter
+html = await retry_async(
+    _fetch,
+    max_retries=5,  # 5-6 retry
+    initial_wait=2.0,  # Start z 2s
+    max_wait=300.0  # Max 5 minut
+)
 ```
 
 ### Error Types
 
 1. **TimeoutError**
-   - Retry z exponential backoff
-   - Max 3 retry
-   - Po 3 retry: skip, loguj error
+   - Retry z exponential backoff + jitter
+   - Max 5 retry (domyślnie)
+   - Exponential backoff: initial_wait * 2^attempt (max 5 min)
+   - Jitter: losowe 0-20% base wait time
+   - Po wyczerpaniu retry: skip, loguj error
+   - Logowanie slow requests (>10s)
 
 2. **HTTPError (404, 403, 429)**
    - 404: skip, loguj warning (produkt nie istnieje)
@@ -216,15 +226,22 @@ async def scrape_product(url: str):
    - Liczba błędów
    - Success rate
    - Czas scrapowania
+   - Monitoring trwania runów (zapis do `data/metrics.log`)
 
 2. **Dla requestów:**
    - Liczba requestów
    - Total wait time (rate limiting)
    - Liczba retry
+   - Slow requests (>10s) - logowanie z warning
 
 3. **Dla błędów:**
    - Błędy według typu
    - Błędy według URL
+
+4. **Globalne timeouty:**
+   - Globalny timeout na cały scraping: 15 minut
+   - Ostrzeżenie gdy >80% timeoutu wykorzystane
+   - Scraper kończy się błędem po przekroczeniu globalnego timeoutu
 
 ### Użycie
 
@@ -258,16 +275,55 @@ logger.error("scraping_failed", error=str(e), url=url, retry_count=retry)
 - **WARNING**: Niestandardowe sytuacje (produkt nie znaleziony, timeout)
 - **ERROR**: Błędy wymagające uwagi (parsing error, validation error)
 
+## Zabezpieczenia i Walidacja
+
+### Twarde Zabezpieczenia
+
+1. **Minimalny próg danych**
+   - Minimum 50 URL-i z sitemapa (konfigurowalne: `min_urls_threshold`)
+   - Jeśli mniej → scraper kończy się błędem przed rozpoczęciem scrapowania
+
+2. **Blokowanie eksportu przy braku danych**
+   - Jeśli `products_scraped == 0`: zablokuj eksport CSV i zapis do DB
+   - Loguj error i kończ z odpowiednim exit code
+
+3. **Deduplikacja**
+   - Deduplikacja po: product ID, product URL, creator username
+   - Zablokuj zapis do DB jeśli znaleziono duplikaty
+   - Loguj liczbę duplikatów
+
+4. **Walidacja przed zapisem**
+   - Walidacja produktu przed zapisem do DB (sprawdzenie ID i URL)
+   - Deduplikacja przed eksportem CSV
+   - Logowanie liczby rekordów przed zapisaniem
+
+### Cache i Monitoring
+
+1. **Cache sitemapa**
+   - Cache ostatniego poprawnego sitemapa (TTL: 1 godzina)
+   - Używany jako fallback przy błędach non-5xx
+   - Lokalizacja: `data/sitemap_cache.xml`
+
+2. **Monitoring trwania runów**
+   - Zapis metryk do `data/metrics.log` (JSON Lines format)
+   - Każdy run zapisuje timestamp i pełne metryki
+   - Umożliwia analizę trendów i wykrywanie problemów
+
 ## Checklist przed Implementacją
 
 - [ ] Rate limiting zaimplementowany
 - [ ] User-Agent rotation działa
-- [ ] Retry logic z exponential backoff
+- [ ] Retry logic z exponential backoff + jitter (5 retry, max 5 min)
+- [ ] Globalny timeout na cały scraping (15 min)
+- [ ] Timeout per request (25s)
+- [ ] Cache sitemapa zaimplementowany
 - [ ] Checkpoint system obsługiwany
-- [ ] Metrics tracking zaimplementowany
+- [ ] Metrics tracking zaimplementowany (zapis do metrics.log)
 - [ ] Strukturalne logowanie
 - [ ] Error handling dla wszystkich przypadków
 - [ ] Walidacja danych przez Pydantic
+- [ ] Twarde zabezpieczenia (min próg, deduplikacja, blokowanie eksportu)
+- [ ] Logowanie slow requests
 - [ ] Testy jednostkowe napisane
 - [ ] Dokumentacja zaktualizowana (jeśli potrzebne)
 

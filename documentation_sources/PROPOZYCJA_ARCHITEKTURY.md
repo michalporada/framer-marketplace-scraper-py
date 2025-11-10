@@ -129,7 +129,9 @@ scraper-v2/
   - **Profile**: `/@{username}/` (wszystko zaczynające się od `@`)
   - **Strony pomocowe**: `/help/articles/...marketplace...`
 - Filtruje według typu produktu
-- Obsługuje fallback jeśli marketplace sitemap nie działa
+- Używa tylko marketplace sitemap (brak fallback do głównego sitemap)
+- Cache sitemapa jako fallback przy błędach non-5xx (TTL: 1h)
+- Przerwanie scrapera przy błędach 5xx (exit code 2)
 
 #### `product_scraper.py`
 - Scrapuje pojedynczy produkt (template/component/vector/**plugin**)
@@ -268,8 +270,10 @@ scraper-v2/
 3. GET PRODUCT LIST
    ├─▶ OPCJA A: Sitemap (REKOMENDOWANE) ⭐
    │   ├─▶ sitemap_scraper.py → pobierz sitemap.xml
-   │   │   ├─▶ Spróbuj: `/marketplace/sitemap.xml`
-   │   │   └─▶ Fallback: `/sitemap.xml` (jeśli marketplace nie działa)
+   │   │   ├─▶ Spróbuj: `/marketplace/sitemap.xml` (tylko marketplace sitemap)
+   │   │   ├─▶ Jeśli 5xx: przerwij scraper natychmiast (exit code 2)
+   │   │   ├─▶ Jeśli inne błędy: użyj cache sitemapa (jeśli dostępny, TTL: 1h)
+   │   │   └─▶ Weryfikacja: scraper kończy się błędem, jeśli sitemap nie zawiera URL-i
    │   ├─▶ Wyodrębnij wszystkie URL-e:
    │   │   ├─▶ Produkty:
    │   │   │   ├─▶ Templates: `/marketplace/templates/{nazwa}/`
@@ -450,10 +454,14 @@ logger.error("scraping_failed", error="timeout", retry_count=2)
 DATABASE_URL=postgresql://...
 FRAMER_BASE_URL=https://www.framer.com
 MARKETPLACE_SITEMAP_URL=https://www.framer.com/marketplace/sitemap.xml
-MAIN_SITEMAP_URL=https://www.framer.com/sitemap.xml  # Fallback
+# MAIN_SITEMAP_URL - NIE UŻYWANY (brak fallback do głównego sitemap)
+# Cache sitemapa używany jako fallback przy błędach non-5xx
 RATE_LIMIT=1.0
-MAX_RETRIES=3
+MAX_RETRIES=5  # 5 retry z exponential backoff + jitter (max 5 min)
+TIMEOUT=25  # Timeout per request (20-30s)
+GLOBAL_SCRAPING_TIMEOUT=900  # Globalny timeout na cały scraping (15 min)
 LOG_LEVEL=INFO
+MIN_URLS_THRESHOLD=50  # Minimalny próg URL-i z sitemapa
 # Opcjonalne - typy produktów do scrapowania
 SCRAPE_TEMPLATES=true
 SCRAPE_COMPONENTS=true

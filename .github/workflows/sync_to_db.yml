@@ -25,18 +25,34 @@ jobs:
           pip install -r requirements.txt
       
       - name: Download artifacts (if available)
+        id: download-artifacts
         uses: actions/download-artifact@v4
         with:
-          name: scraped-data
+          name: scraped-data-latest
           path: data/
-          if-no-artifact-found: continue
+          if-no-files-found: continue
+      
+      - name: Check if artifact was downloaded
+        run: |
+          if [ "${{ steps.download-artifacts.outcome }}" != "success" ]; then
+            echo "⚠️ Artifact 'scraped-data-latest' not found or empty"
+            echo "This may happen if:"
+            echo "  - Scrape workflow hasn't run yet"
+            echo "  - Scrape workflow failed"
+            echo "  - Artifact expired (retention: 7 days)"
+            exit 1
+          else
+            echo "✅ Artifact downloaded successfully"
+          fi
       
       - name: Check if data exists
         run: |
           if [ ! -d "data/products" ] || [ -z "$(ls -A data/products/*/*.json 2>/dev/null)" ]; then
-            echo "⚠️ No JSON data found. Make sure data/ directory exists with scraped data."
+            echo "⚠️ No JSON data found in artifact. Make sure data/ directory exists with scraped data."
             echo "Available directories:"
             ls -la data/ 2>/dev/null || echo "data/ directory not found"
+            echo "Checking for product files:"
+            find data/ -name "*.json" -type f 2>/dev/null | head -10 || echo "No JSON files found"
             exit 1
           else
             echo "✅ Found JSON data files"

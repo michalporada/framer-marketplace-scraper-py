@@ -48,7 +48,7 @@ class DatabaseStorage:
         return self.engine is not None
 
     async def save_product_db(self, product: Product) -> bool:
-        """Save product to database.
+        """Save product to database with validation.
 
         Args:
             product: Product model
@@ -57,6 +57,15 @@ class DatabaseStorage:
             True if successful, False otherwise
         """
         if not self.is_available():
+            return False
+
+        # Validate product before save
+        if not product.id:
+            logger.warning("product_validation_failed", reason="missing_id", product_url=product.url if product else "unknown")
+            return False
+        
+        if not product.url:
+            logger.warning("product_validation_failed", reason="missing_url", product_id=product.id)
             return False
 
         try:

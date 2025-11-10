@@ -899,8 +899,9 @@ Categories (tabela kategorii)
 - ⚠️ **Może być potrzebny dla dynamicznych elementów** - niektóre dane mogą być ładowane przez JavaScript
 
 #### Sitemap (KLUCZOWE!):
-- **URL Marketplace**: `https://www.framer.com/marketplace/sitemap.xml` (może zwracać 502 - sprawdzić)
-- **URL Główny**: `https://www.framer.com/sitemap.xml` (zawiera również informacje o marketplace)
+- **URL Marketplace**: `https://www.framer.com/marketplace/sitemap.xml` (jedyny używany sitemap)
+- **UWAGA**: Brak fallback do głównego sitemap (`/sitemap.xml`) - scraper kończy się błędem przy 5xx
+- **Cache**: Ostatni poprawny sitemap jest cachowany (TTL: 1h) i używany przy błędach non-5xx
 - **Rekomendacja**: Rozpocznij od pobrania sitemap - to najszybszy sposób na uzyskanie listy wszystkich produktów
 - **Zawartość sitemap:**
   - ✅ Wszystkie URL-e produktów:
@@ -1197,21 +1198,19 @@ from urllib.parse import urlparse
 from collections import defaultdict
 
 # Spróbuj marketplace sitemap, jeśli nie działa - użyj głównego
-sitemap_urls = [
-    "https://www.framer.com/marketplace/sitemap.xml",
-    "https://www.framer.com/sitemap.xml"  # fallback
-]
+sitemap_url = "https://www.framer.com/marketplace/sitemap.xml"
+# UWAGA: Brak fallback do głównego sitemap
+# Cache sitemapa używany jako fallback przy błędach non-5xx (TTL: 1h)
 
 sitemap = None
-for url in sitemap_urls:
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            sitemap = ET.fromstring(response.content)
-            print(f"Użyto sitemap: {url}")
-            break
-    except:
-        continue
+# Tylko marketplace sitemap (brak fallback)
+try:
+    response = requests.get(sitemap_url, timeout=10)
+    if response.status_code == 200:
+        sitemap = ET.fromstring(response.content)
+        print(f"Użyto sitemap: {sitemap_url}")
+except Exception as e:
+    print(f"Błąd pobierania sitemap: {e}")
 
 if sitemap is None:
     raise Exception("Nie udało się pobrać sitemap")
