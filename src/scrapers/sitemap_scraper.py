@@ -485,15 +485,17 @@ class SitemapScraper:
     def filter_urls_by_type(
         self, parsed_sitemap: Dict[str, any], product_types: Optional[List[str]] = None
     ) -> List[str]:
-        """Filter product URLs by type.
+        """Filter product URLs by type and remove duplicates.
 
         Args:
             parsed_sitemap: Parsed sitemap dictionary
             product_types: List of product types to include (defaults to settings)
 
         Returns:
-            List of product URLs matching the specified types
+            List of unique product URLs matching the specified types
         """
+        from urllib.parse import urlparse
+
         if product_types is None:
             product_types = settings.get_product_types()
 
@@ -519,8 +521,35 @@ class SitemapScraper:
                     elif isinstance(type_urls, str):
                         urls.append(type_urls)
 
-        logger.info("urls_filtered", count=len(urls), types=product_types)
-        return urls
+        # Deduplicate by product_id extracted from URL
+        # Same product_id can appear in different paths (e.g., /templates/ripple/ and /components/tags/ripple/)
+        seen_product_ids = set()
+        unique_urls = []
+        duplicates_removed = 0
+
+        for url in urls:
+            # Extract product_id from URL (last segment before trailing slash)
+            parsed = urlparse(url)
+            path = parsed.path.rstrip("/")
+            segments = [s for s in path.split("/") if s]
+            if segments:
+                product_id = segments[-1]
+                if product_id not in seen_product_ids:
+                    seen_product_ids.add(product_id)
+                    unique_urls.append(url)
+                else:
+                    duplicates_removed += 1
+
+        if duplicates_removed > 0:
+            logger.info(
+                "duplicates_removed",
+                count=duplicates_removed,
+                total_before=len(urls),
+                total_after=len(unique_urls),
+            )
+
+        logger.info("urls_filtered", count=len(unique_urls), types=product_types)
+        return unique_urls
 
     async def scrape(self) -> tuple[Dict[str, List[str]], bool, float]:
         """Main method to scrape sitemap.
