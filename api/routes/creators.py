@@ -135,18 +135,20 @@ async def get_creators(
     }
     sort_column = sort_column_map.get(sort, "username")
 
+    # Validate order (whitelist for security)
+    order_upper = order.upper()
+    if order_upper not in ["ASC", "DESC"]:
+        order_upper = "ASC"
+
     # Get total count
     count_query = "SELECT COUNT(*) as total FROM creators"
     count_result = execute_query_one(count_query)
     total = count_result["total"] if count_result else 0
 
-    # Get creators - LIMIT and OFFSET are safe to format directly (they're integers)
-    query = f"""
-        SELECT * FROM creators
-        ORDER BY {sort_column} {order.upper()}
-        LIMIT {limit} OFFSET {offset}
-    """
-    params = {}
+    # Get creators using prepared statements
+    # Note: ORDER BY column name must use whitelist (cannot be parameterized)
+    query = f"SELECT * FROM creators ORDER BY {sort_column} {order_upper} LIMIT :limit OFFSET :offset"
+    params = {"limit": limit, "offset": offset}
 
     rows = execute_query(query, params)
     if rows is None:
@@ -264,18 +266,16 @@ async def get_creator_products(
         where_clause += " AND type = :type"
         params["type"] = type
 
-    # Get total count
-    count_query = f"SELECT COUNT(*) as total FROM products {where_clause}"
+    # Get total count using prepared statement
+    count_query = "SELECT COUNT(*) as total FROM products " + where_clause
     count_result = execute_query_one(count_query, params)
     total = count_result["total"] if count_result else 0
 
-    # Get products
-    query = f"""
-        SELECT * FROM products
-        {where_clause}
-        ORDER BY created_at DESC
-        LIMIT {limit} OFFSET {offset}
-    """
+    # Get products using prepared statements
+    # Note: LIMIT and OFFSET use parameters (prepared statements)
+    query = "SELECT * FROM products " + where_clause + " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    params["limit"] = limit
+    params["offset"] = offset
 
     rows = execute_query(query, params)
     if rows is None:
