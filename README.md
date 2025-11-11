@@ -146,6 +146,7 @@ Po kilku dniach scrapowania możesz porównywać zmiany w czasie przez API (zoba
 - **tenacity** - retry logic z exponential backoff + jitter (5 retry, max 5 min)
 - **fake-useragent** - rotacja User-Agent headers
 - **tqdm** - progress bars
+- **cachetools** - API caching (TTLCache)
 
 ### Deployment & Automation
 - **GitHub Actions** - automatyczne scrapowanie (scheduled)
@@ -156,6 +157,9 @@ Po kilku dniach scrapowania możesz porównywać zmiany w czasie przez API (zoba
 ### Storage
 - **JSON/CSV** - podstawowe (zalecane na start)
 - **PostgreSQL** - dla większych projektów
+  - Tabela `products` - najnowsze wersje produktów
+  - Tabela `product_history` - pełna historia zmian produktów (każdy scrap tworzy nowy wpis)
+  - Tabela `creators` - dane twórców
 - **GitHub Artifacts** - backup danych
 
 ## 📋 Funkcjonalności
@@ -175,6 +179,11 @@ Po kilku dniach scrapowania możesz porównywać zmiany w czasie przez API (zoba
 - [x] Monitoring i logowanie (structlog)
 - [x] Normalizacja danych (Opcja B - raw + normalized)
 - [x] Obsługa różnych typów produktów (różne statystyki i pola)
+- [x] Historia produktów w bazie danych (`product_history` table)
+- [x] Automatyczne zapisywanie historii przy każdym scrapie
+- [x] Optymalizacja batch operations (transakcje, chunking)
+- [x] API caching (cachetools) dla szybkich odpowiedzi
+- [x] Prepared statements dla bezpiecznych zapytań SQL
 
 ### ✅ API Endpoints (FastAPI)
 
@@ -194,11 +203,38 @@ GET /api/products/categories/comparison?category=Agency
 ```
 Porównuje łączną liczbę wyświetleń kategorii między scrapami z procentowym wzrostem/spadkiem.
 
+**Monitoring i metryki:**
+```bash
+GET /api/metrics/summary
+```
+Zwraca aktualne metryki scrapera (liczba scrapowanych produktów, czas, success rate).
+
+```bash
+GET /api/metrics/history?limit=50&offset=0
+```
+Zwraca historyczne metryki z pliku `metrics.log` z paginacją.
+
+```bash
+GET /api/metrics/stats
+```
+Zwraca połączone statystyki: metryki scrapera, cache stats i statystyki bazy danych.
+
+**Zarządzanie cache:**
+```bash
+GET /cache/stats
+```
+Zwraca statystyki cache (rozmiar, TTL, hit rate).
+
+```bash
+POST /cache/invalidate?type=product|creator|all
+```
+Czyści cache (product, creator lub wszystkie).
+
 **Inne endpointy:**
-- `GET /api/products` - lista produktów
-- `GET /api/products/{id}` - pojedynczy produkt
-- `GET /api/creators` - lista twórców
-- `GET /api/creators/{username}` - pojedynczy twórca
+- `GET /api/products` - lista produktów (z cache, prepared statements)
+- `GET /api/products/{id}` - pojedynczy produkt (z cache)
+- `GET /api/creators` - lista twórców (z cache, prepared statements)
+- `GET /api/creators/{username}` - pojedynczy twórca (z cache)
 
 ### 🔮 Opcjonalne (Faza 2+)
 
@@ -269,6 +305,28 @@ Każdy typ produktu ma unikalne pola i statystyki:
 - **Plugins**: Version + Users + Changelog
 - **Components**: Installs (wyciągane z JSON danych Next.js lub HTML tekstu)
 - **Vectors**: Users + Views + Vectors (count)
+
+### Historia Produktów (Product History)
+Scraper automatycznie zapisuje pełną historię zmian produktów do tabeli `product_history` w bazie danych:
+- **Każdy scrap tworzy nowy wpis** - nigdy nie nadpisuje istniejących danych
+- **Timestamp `scraped_at`** - pozwala śledzić zmiany w czasie
+- **Pełne dane produktu** - wszystkie pola (statystyki, cena, metadane) są zapisywane
+- **Analiza trendów** - możesz porównywać dane z różnych dat przez API (`/api/products/{id}/changes`)
+- **Automatyczne zapisywanie** - działa przy każdym scrapowaniu (single i batch)
+
+### API Caching
+API używa cache (cachetools) dla szybkich odpowiedzi:
+- **TTL: 5 minut** - domyślny czas życia cache
+- **Osobne cache** - dla produktów i twórców
+- **Automatyczne invalidation** - możesz wyczyścić cache przez endpoint
+- **Statystyki** - dostępne przez `/cache/stats`
+
+### Optymalizacja Batch Operations
+Zapisywanie wielu produktów/twórców jest zoptymalizowane:
+- **Transakcje SQL** - wszystkie operacje w jednej transakcji
+- **Chunking** - duże batchy (>1000) są dzielone na mniejsze części
+- **Prepared statements** - bezpieczne zapytania SQL (ochrona przed SQL injection)
+- **Automatyczne zapisywanie historii** - każdy produkt w batch jest zapisywany do `product_history`
 
 ## 📊 Przykładowe Komendy
 
@@ -364,4 +422,42 @@ Projekt jest w fazie rozwoju. Wszelkie sugestie i PR-y są mile widziane!
 ---
 
 *Ostatnia aktualizacja: 2024-12-19*
+
+---
+
+## 📊 Historia Produktów i Analiza Trendów
+
+### Jak działa Product History
+
+Scraper automatycznie zapisuje każdą wersję produktu do tabeli `product_history` w bazie danych PostgreSQL. Dzięki temu możesz:
+
+1. **Śledzić zmiany w czasie** - każdy scrap tworzy nowy wpis z timestampem `scraped_at`
+2. **Analizować trendy** - porównywać statystyki (views, pages, users, installs) między scrapami
+3. **Wykrywać wzrosty/spadki** - zobacz jak zmienia się popularność produktów i kategorii
+
+### Przykładowe użycie
+
+```bash
+# Sprawdź zmiany produktu w czasie
+GET /api/products/{product_id}/changes
+
+# Porównaj trendy kategorii
+GET /api/products/categories/comparison?category=Agency
+
+# Sprawdź metryki scrapera
+GET /api/metrics/stats
+```
+
+### Synchronizacja istniejących danych
+
+Jeśli masz już produkty w tabeli `products`, możesz zsynchronizować je do `product_history`:
+
+```bash
+python scripts/sync_existing_to_history.py
+```
+
+Ten skrypt:
+- Ładuje wszystkie produkty z tabeli `products`
+- Wstawia je do `product_history` z aktualnym timestampem
+- Pomija duplikaty (na podstawie `product_id` i `scraped_at`)
 

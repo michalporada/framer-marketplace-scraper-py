@@ -9,6 +9,13 @@
 - Dane historyczne NIE powinny być modyfikowane
 - Każdy scrap tworzy nową wersję danych
 - Zachowaj pełną historię zmian
+- **Product History Table (`product_history`):**
+  - Tabela w PostgreSQL przechowująca pełną historię zmian produktów
+  - Każdy scrap tworzy nowy wpis (INSERT only, nigdy UPDATE)
+  - Timestamp `scraped_at` pozwala śledzić zmiany w czasie
+  - Automatyczne zapisywanie przez `save_product_history_db()` przy każdym scrapowaniu
+  - Umożliwia analizę trendów i porównywanie danych między scrapami
+  - Endpoint `/api/products/{id}/changes` używa tej tabeli (priorytet)
 
 ### 2. Data Validation
 
@@ -57,6 +64,10 @@
 - Wszystkie pliki z `data/categories/` (jeśli dostępne)
 - Checkpoint file (`data/checkpoint.json`)
 - Exports (`data/exports/`)
+- **Database backup:**
+  - Tabela `products` - najnowsze wersje
+  - Tabela `product_history` - pełna historia zmian (WAŻNE!)
+  - Tabela `creators` - dane twórców
 
 ## Checkpoint System
 
@@ -189,6 +200,20 @@ data/
 └── checkpoint.json    # Checkpoint file
 ```
 
+### Database Organization
+
+```
+PostgreSQL Tables:
+├── products           # Najnowsze wersje produktów (UPSERT)
+├── product_history    # Pełna historia zmian (INSERT only)
+│   ├── id (SERIAL PRIMARY KEY)
+│   ├── product_id (VARCHAR)
+│   ├── scraped_at (TIMESTAMP) - kluczowy dla analizy trendów
+│   ├── views_normalized, pages_normalized, users_normalized, etc.
+│   └── Indexes: product_id, scraped_at, (product_id, scraped_at)
+└── creators           # Dane twórców
+```
+
 ### File Naming
 
 1. **Products**
@@ -304,7 +329,9 @@ data/
 
 - [ ] Checkpoint zaktualizowany
 - [ ] Wszystkie dane zwalidowane
-- [ ] Backup wykonany
+- [ ] Produkty zapisane do `products` table
+- [ ] Produkty zapisane do `product_history` table (automatycznie)
+- [ ] Backup wykonany (w tym `product_history`!)
 - [ ] Data integrity checked
 - [ ] Metrics logged
 

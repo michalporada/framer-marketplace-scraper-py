@@ -17,12 +17,14 @@
 api/
 ├── __init__.py
 ├── main.py              # FastAPI app
+├── cache.py             # Cache implementation (cachetools)
 ├── routes/
 │   ├── __init__.py
 │   ├── products.py      # Endpointy produktów
 │   ├── creators.py      # Endpointy twórców
 │   ├── categories.py    # Endpointy kategorii
-│   └── reviews.py       # Endpointy recenzji
+│   ├── reviews.py       # Endpointy recenzji
+│   └── metrics.py       # Endpointy metryk i monitoringu
 ├── dependencies.py      # Shared dependencies
 └── models.py           # API response models
 ```
@@ -111,6 +113,55 @@ GET /api/categories/{category_name}/products
   - Response: List[ProductResponse]
 ```
 
+#### Products - History & Trends
+
+```
+GET /api/products/{product_id}/changes
+  - Response: ProductChangesResponse
+  - Description: Porównuje dane produktu między różnymi scrapami
+  - Data source: product_history table (priorytet), JSON files (fallback)
+
+GET /api/products/categories/comparison
+  - Query params:
+    - product_type: template | component | vector | plugin (opcjonalnie)
+    - category: string (opcjonalnie, nazwa kategorii)
+  - Response: CategoryComparisonResponse
+  - Description: Porównuje trendy kategorii między scrapami
+```
+
+#### Metrics & Monitoring
+
+```
+GET /api/metrics/summary
+  - Response: MetricsSummaryResponse
+  - Description: Aktualne metryki scrapera (liczba scrapowanych produktów, czas, success rate)
+
+GET /api/metrics/history
+  - Query params:
+    - limit: int (default: 50, max: 1000)
+    - offset: int (default: 0)
+  - Response: MetricsHistoryResponse
+  - Description: Historyczne metryki z pliku metrics.log
+
+GET /api/metrics/stats
+  - Response: CombinedStatsResponse
+  - Description: Połączone statystyki: scraper metrics, cache stats, database stats
+```
+
+#### Cache Management
+
+```
+GET /cache/stats
+  - Response: CacheStatsResponse
+  - Description: Statystyki cache (rozmiar, TTL, hit rate)
+
+POST /cache/invalidate
+  - Query params:
+    - type: product | creator | all (default: all)
+  - Response: CacheInvalidateResponse
+  - Description: Czyści cache (product, creator lub wszystkie)
+```
+
 ## Response Models
 
 ### Zasady
@@ -171,6 +222,15 @@ GET /api/categories/{category_name}/products
    - Opcjonalne dla większych projektów
    - Używaj SQLAlchemy ORM
    - Migracje przez Alembic
+   - **Tabele:**
+     - `products` - najnowsze wersje produktów (UPSERT)
+     - `product_history` - pełna historia zmian (INSERT only, nigdy UPDATE)
+     - `creators` - dane twórców
+   - **Product History:**
+     - Każdy scrap tworzy nowy wpis w `product_history`
+     - Timestamp `scraped_at` pozwala śledzić zmiany w czasie
+     - Endpoint `/api/products/{id}/changes` używa `product_history` (priorytet)
+     - Fallback do JSON files jeśli brak danych w bazie
 
 3. **Hybrid**
    - JSON jako primary source
@@ -185,9 +245,14 @@ GET /api/categories/{category_name}/products
    - Cache invalidation po nowym scrapowaniu
 
 2. **Implementacja**
-   - Używaj FastAPI cache (cachetools lub redis)
-   - Cache key: endpoint + query params
-   - Loguj cache hits/misses
+   - Używaj `cachetools.TTLCache` (zaimplementowane w `api/cache.py`)
+   - Osobne cache dla produktów i twórców
+   - Cache key: MD5 hash z funkcji + args + kwargs
+   - TTL: 5 minut (domyślnie, konfigurowalne przez `API_CACHE_TTL`)
+   - Decorator `@cached(ttl=300, cache_type="product|creator")`
+   - Loguj cache hits/misses (DEBUG level)
+   - **Ważne:** Cache nie przechowuje `None` - tylko poprawne odpowiedzi są cachowane
+   - Endpointy cache management: `/cache/stats`, `/cache/invalidate`
 
 ## Performance
 
@@ -207,9 +272,19 @@ GET /api/categories/{category_name}/products
 ### Query Optimization
 
 1. **Database Queries**
-   - Używaj indeksów (product_id, username, type)
+   - Używaj indeksów (product_id, username, type, scraped_at)
    - Unikaj N+1 queries
    - Używaj eager loading dla relacji
+   - **Prepared Statements (OBOWIĄZKOWE):**
+     - Zawsze używaj parametrów w zapytaniach SQL
+     - NIE używaj string formatting dla wartości (`f"SELECT * FROM products WHERE id = '{id}'"` ❌)
+     - Używaj `:param` syntax z SQLAlchemy `text()` i `execute(query, params)`
+     - Dla `ORDER BY` - whitelist dozwolonych kolumn (nie parametr, ale walidacja)
+     - Przykład:
+       ```python
+       query = text("SELECT * FROM products WHERE type = :type LIMIT :limit OFFSET :offset")
+       result = conn.execute(query, {"type": type, "limit": limit, "offset": offset})
+       ```
 
 2. **File-based Queries**
    - Cache lista plików
