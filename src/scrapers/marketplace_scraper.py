@@ -161,19 +161,17 @@ class MarketplaceScraper:
                         if creator.stats:
                             product.creator.stats = creator.stats
 
-            # Deduplication check
+            # Track seen URLs for refresh sitemap deduplication
+            # Main deduplication happens in filter_urls_by_type, but we still track
+            # for refresh sitemap which may add new URLs during scraping
             is_duplicate = False
-            if product.id in self.seen_product_ids:
-                logger.warning("duplicate_product_id", product_id=product.id, url=url)
-                is_duplicate = True
-                self.duplicate_count += 1
-            elif product.url in self.seen_product_urls:
+            if product.url in self.seen_product_urls:
                 logger.warning("duplicate_product_url", product_id=product.id, url=url)
                 is_duplicate = True
                 self.duplicate_count += 1
             else:
-                self.seen_product_ids.add(product.id)
                 self.seen_product_urls.add(product.url)
+                self.seen_product_ids.add(product.id)
 
             # Log record count before save
             logger.debug(
@@ -186,8 +184,8 @@ class MarketplaceScraper:
             # Save product
             success = await self.storage.save_product_json(product)
 
-            # Save product to database only if not duplicate
-            # Note: products_scraped check happens at end of scraping in main()
+            # Save product to database (duplicates already filtered in filter_urls_by_type)
+            # Only skip if this is a duplicate from refresh sitemap
             if not is_duplicate:
                 await self.db_storage.save_product_db(product)
             else:
@@ -770,7 +768,10 @@ class MarketplaceScraper:
 
         # Check elapsed time
         elapsed = time.time() - start_time
-        if elapsed > settings.global_scraping_timeout * 0.8:  # Warn if > 80% of timeout
+        if (
+            settings.global_scraping_timeout > 0
+            and elapsed > settings.global_scraping_timeout * 0.8
+        ):  # Warn if > 80% of timeout
             logger.warning(
                 "scraping_approaching_timeout",
                 elapsed=round(elapsed, 2),

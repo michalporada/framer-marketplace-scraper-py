@@ -334,7 +334,7 @@ class DatabaseStorage:
                     scraped_at, created_at, updated_at
                 ) VALUES (
                     :username, :name, :profile_url, :avatar_url, :bio, :website,
-                    :social_media::jsonb, :total_products, :templates_count, :components_count,
+                    CAST(:social_media AS jsonb), :total_products, :templates_count, :components_count,
                     :vectors_count, :plugins_count, :total_sales,
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
@@ -344,7 +344,7 @@ class DatabaseStorage:
                     avatar_url = EXCLUDED.avatar_url,
                     bio = EXCLUDED.bio,
                     website = EXCLUDED.website,
-                    social_media = EXCLUDED.social_media::jsonb,
+                    social_media = CAST(EXCLUDED.social_media AS jsonb),
                     total_products = EXCLUDED.total_products,
                     templates_count = EXCLUDED.templates_count,
                     components_count = EXCLUDED.components_count,
@@ -425,7 +425,7 @@ class DatabaseStorage:
                     scraped_at, created_at, updated_at
                 ) VALUES (
                     :slug, :name, :url, :description, :product_count,
-                    :product_types::jsonb, :parent_category, :subcategories::jsonb,
+                    CAST(:product_types AS jsonb), :parent_category, CAST(:subcategories AS jsonb),
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 ON CONFLICT (slug) DO UPDATE SET
@@ -433,9 +433,9 @@ class DatabaseStorage:
                     url = EXCLUDED.url,
                     description = EXCLUDED.description,
                     product_count = EXCLUDED.product_count,
-                    product_types = EXCLUDED.product_types::jsonb,
+                    product_types = CAST(EXCLUDED.product_types AS jsonb),
                     parent_category = EXCLUDED.parent_category,
-                    subcategories = EXCLUDED.subcategories::jsonb,
+                    subcategories = CAST(EXCLUDED.subcategories AS jsonb),
                     updated_at = CURRENT_TIMESTAMP
             """)
 
