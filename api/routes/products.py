@@ -242,14 +242,7 @@ async def get_products(
             },
         )
 
-    # Build query
-    where_clause = ""
-    params = {}
-    if type:
-        # Use direct formatting for type (it's validated, safe)
-        where_clause = f"WHERE type = '{type}'"
-
-    # Map sort field to database column
+    # Map sort field to database column (whitelist for security)
     sort_column_map = {
         "created_at": "created_at",
         "updated_at": "updated_at",
@@ -258,22 +251,38 @@ async def get_products(
         "name": "name",
     }
     sort_column = sort_column_map.get(sort, "created_at")
+    
+    # Validate order (whitelist for security)
+    order_upper = order.upper()
+    if order_upper not in ["ASC", "DESC"]:
+        order_upper = "DESC"
 
-    # Get total count
-    count_query = f"SELECT COUNT(*) as total FROM products {where_clause}"
-    count_result = execute_query_one(count_query)
+    # Build query with prepared statements
+    params = {}
+    where_clause = ""
+    if type:
+        # Use prepared statement parameter (validated, safe)
+        where_clause = "WHERE type = :type"
+        params["type"] = type
+
+    # Get total count using prepared statement
+    count_query = "SELECT COUNT(*) as total FROM products"
+    if where_clause:
+        count_query += " " + where_clause
+    count_result = execute_query_one(count_query, params)
     total = count_result["total"] if count_result else 0
 
-    # Get products - LIMIT and OFFSET are safe to format directly (they're integers)
-    query_parts = ["SELECT * FROM products"]
+    # Build main query with prepared statements
+    # Note: ORDER BY column name and LIMIT/OFFSET must use whitelist (cannot be parameterized)
+    query = "SELECT * FROM products"
     if where_clause:
-        query_parts.append(where_clause)
-    query_parts.append(f"ORDER BY {sort_column} {order.upper()}")
-    query_parts.append(f"LIMIT {limit} OFFSET {offset}")
-    
-    query = " ".join(query_parts)
+        query += " " + where_clause
+    query += f" ORDER BY {sort_column} {order_upper}"
+    query += " LIMIT :limit OFFSET :offset"
+    params["limit"] = limit
+    params["offset"] = offset
 
-    rows = execute_query(query)
+    rows = execute_query(query, params)
     if rows is None:
         # Log the query for debugging
         import logging
