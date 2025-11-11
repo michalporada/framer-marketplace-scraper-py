@@ -555,7 +555,6 @@ class DatabaseStorage:
                 screenshots_count = EXCLUDED.screenshots_count,
                 updated_at = CURRENT_TIMESTAMP
         """)
->>>>>>> feature/optimize-batch-operations
 
     def _prepare_product_data(self, product: Product) -> dict:
         """Prepare product data for database insertion.
