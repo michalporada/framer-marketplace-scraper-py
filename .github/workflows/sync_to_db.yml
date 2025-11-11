@@ -61,6 +61,26 @@ jobs:
         id: check-download
         run: |
           if [ "${{ steps.download-artifacts.outcome }}" == "success" ]; then
+            echo "🔍 Checking artifact structure..."
+            echo "Contents of data/ directory:"
+            ls -la data/ 2>/dev/null || echo "data/ not found"
+            echo ""
+            echo "Looking for products directory..."
+            if [ -d "data/products" ]; then
+              echo "✅ Found data/products/"
+              ls -la data/products/ | head -10
+            elif [ -d "data/data/products" ]; then
+              echo "✅ Found data/data/products/ (nested structure)"
+              # Move nested structure to expected location
+              mv data/data/* data/ 2>/dev/null || true
+              rm -rf data/data 2>/dev/null || true
+            else
+              echo "⚠️ Neither data/products nor data/data/products found"
+              echo "Searching for JSON files..."
+              find data/ -name "*.json" -type f 2>/dev/null | head -10 || echo "No JSON files found"
+            fi
+            
+            # Check if products directory exists now
             if [ -d "data/products" ] && [ -n "$(ls -A data/products/*/*.json 2>/dev/null)" ]; then
               echo "✅ Artifact downloaded and extracted successfully"
               echo "downloaded=true" >> $GITHUB_OUTPUT
