@@ -307,6 +307,82 @@ class DatabaseStorage:
             )
             return False
 
+    def _get_product_insert_sql(self) -> text:
+        """Get reusable SQL for product batch insert.
+        
+        Returns:
+            SQLAlchemy text object with INSERT ... ON CONFLICT statement
+        """
+        return text("""
+            INSERT INTO products (
+                id, name, type, category, url, price, currency, is_free,
+                description, short_description,
+                creator_username, creator_name, creator_url,
+                views_raw, views_normalized,
+                pages_raw, pages_normalized,
+                users_raw, users_normalized,
+                installs_raw, installs_normalized,
+                vectors_raw, vectors_normalized,
+                published_date_raw, published_date_normalized,
+                last_updated_raw, last_updated_normalized,
+                version, features_list,
+                is_responsive, has_animations, cms_integration,
+                pages_count, thumbnail_url, screenshots_count,
+                scraped_at, created_at, updated_at
+            ) VALUES (
+                :id, :name, :type, :category, :url, :price, :currency, :is_free,
+                :description, :short_description,
+                :creator_username, :creator_name, :creator_url,
+                :views_raw, :views_normalized,
+                :pages_raw, :pages_normalized,
+                :users_raw, :users_normalized,
+                :installs_raw, :installs_normalized,
+                :vectors_raw, :vectors_normalized,
+                :published_date_raw, :published_date_normalized,
+                :last_updated_raw, :last_updated_normalized,
+                :version, :features_list,
+                :is_responsive, :has_animations, :cms_integration,
+                :pages_count, :thumbnail_url, :screenshots_count,
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                type = EXCLUDED.type,
+                category = EXCLUDED.category,
+                url = EXCLUDED.url,
+                price = EXCLUDED.price,
+                currency = EXCLUDED.currency,
+                is_free = EXCLUDED.is_free,
+                description = EXCLUDED.description,
+                short_description = EXCLUDED.short_description,
+                creator_username = EXCLUDED.creator_username,
+                creator_name = EXCLUDED.creator_name,
+                creator_url = EXCLUDED.creator_url,
+                views_raw = EXCLUDED.views_raw,
+                views_normalized = EXCLUDED.views_normalized,
+                pages_raw = EXCLUDED.pages_raw,
+                pages_normalized = EXCLUDED.pages_normalized,
+                users_raw = EXCLUDED.users_raw,
+                users_normalized = EXCLUDED.users_normalized,
+                installs_raw = EXCLUDED.installs_raw,
+                installs_normalized = EXCLUDED.installs_normalized,
+                vectors_raw = EXCLUDED.vectors_raw,
+                vectors_normalized = EXCLUDED.vectors_normalized,
+                published_date_raw = EXCLUDED.published_date_raw,
+                published_date_normalized = EXCLUDED.published_date_normalized,
+                last_updated_raw = EXCLUDED.last_updated_raw,
+                last_updated_normalized = EXCLUDED.last_updated_normalized,
+                version = EXCLUDED.version,
+                features_list = EXCLUDED.features_list,
+                is_responsive = EXCLUDED.is_responsive,
+                has_animations = EXCLUDED.has_animations,
+                cms_integration = EXCLUDED.cms_integration,
+                pages_count = EXCLUDED.pages_count,
+                thumbnail_url = EXCLUDED.thumbnail_url,
+                screenshots_count = EXCLUDED.screenshots_count,
+                updated_at = CURRENT_TIMESTAMP
+        """)
+
     def _prepare_product_data(self, product: Product) -> dict:
         """Prepare product data for database insertion.
         
@@ -476,79 +552,13 @@ class DatabaseStorage:
             # Prepare all product data
             products_data = [self._prepare_product_data(p) for p in valid_products]
 
-            insert_sql = text("""
-                INSERT INTO products (
-                    id, name, type, category, url, price, currency, is_free,
-                    description, short_description,
-                    creator_username, creator_name, creator_url,
-                    views_raw, views_normalized,
-                    pages_raw, pages_normalized,
-                    users_raw, users_normalized,
-                    installs_raw, installs_normalized,
-                    vectors_raw, vectors_normalized,
-                    published_date_raw, published_date_normalized,
-                    last_updated_raw, last_updated_normalized,
-                    version, features_list,
-                    is_responsive, has_animations, cms_integration,
-                    pages_count, thumbnail_url, screenshots_count,
-                    scraped_at, created_at, updated_at
-                ) VALUES (
-                    :id, :name, :type, :category, :url, :price, :currency, :is_free,
-                    :description, :short_description,
-                    :creator_username, :creator_name, :creator_url,
-                    :views_raw, :views_normalized,
-                    :pages_raw, :pages_normalized,
-                    :users_raw, :users_normalized,
-                    :installs_raw, :installs_normalized,
-                    :vectors_raw, :vectors_normalized,
-                    :published_date_raw, :published_date_normalized,
-                    :last_updated_raw, :last_updated_normalized,
-                    :version, :features_list,
-                    :is_responsive, :has_animations, :cms_integration,
-                    :pages_count, :thumbnail_url, :screenshots_count,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-                ON CONFLICT (id) DO UPDATE SET
-                    name = EXCLUDED.name,
-                    type = EXCLUDED.type,
-                    category = EXCLUDED.category,
-                    url = EXCLUDED.url,
-                    price = EXCLUDED.price,
-                    currency = EXCLUDED.currency,
-                    is_free = EXCLUDED.is_free,
-                    description = EXCLUDED.description,
-                    short_description = EXCLUDED.short_description,
-                    creator_username = EXCLUDED.creator_username,
-                    creator_name = EXCLUDED.creator_name,
-                    creator_url = EXCLUDED.creator_url,
-                    views_raw = EXCLUDED.views_raw,
-                    views_normalized = EXCLUDED.views_normalized,
-                    pages_raw = EXCLUDED.pages_raw,
-                    pages_normalized = EXCLUDED.pages_normalized,
-                    users_raw = EXCLUDED.users_raw,
-                    users_normalized = EXCLUDED.users_normalized,
-                    installs_raw = EXCLUDED.installs_raw,
-                    installs_normalized = EXCLUDED.installs_normalized,
-                    vectors_raw = EXCLUDED.vectors_raw,
-                    vectors_normalized = EXCLUDED.vectors_normalized,
-                    published_date_raw = EXCLUDED.published_date_raw,
-                    published_date_normalized = EXCLUDED.published_date_normalized,
-                    last_updated_raw = EXCLUDED.last_updated_raw,
-                    last_updated_normalized = EXCLUDED.last_updated_normalized,
-                    version = EXCLUDED.version,
-                    features_list = EXCLUDED.features_list,
-                    is_responsive = EXCLUDED.is_responsive,
-                    has_animations = EXCLUDED.has_animations,
-                    cms_integration = EXCLUDED.cms_integration,
-                    pages_count = EXCLUDED.pages_count,
-                    thumbnail_url = EXCLUDED.thumbnail_url,
-                    screenshots_count = EXCLUDED.screenshots_count,
-                    updated_at = CURRENT_TIMESTAMP
-            """)
+            # Get reusable SQL
+            insert_sql = self._get_product_insert_sql()
 
-            with self.engine.connect() as conn:
+            # Use transaction for better performance and atomicity
+            with self.engine.begin() as conn:
+                # Execute batch insert in single transaction
                 conn.execute(insert_sql, products_data)
-                conn.commit()
 
             logger.debug("products_batch_saved_to_db", count=len(valid_products))
             return len(valid_products)
@@ -564,6 +574,47 @@ class DatabaseStorage:
         except Exception as e:
             logger.error(
                 "products_batch_db_save_unexpected_error",
+                count=len(valid_products),
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return 0
+
+    async def _save_products_batch_chunk(self, valid_products: List[Product]) -> int:
+        """Save a chunk of products to database (internal helper).
+        
+        Args:
+            valid_products: List of valid Product models (already filtered)
+            
+        Returns:
+            Number of successfully saved products
+        """
+        try:
+            # Prepare all product data
+            products_data = [self._prepare_product_data(p) for p in valid_products]
+            
+            # Get reusable SQL
+            insert_sql = self._get_product_insert_sql()
+            
+            # Use transaction for better performance and atomicity
+            with self.engine.begin() as conn:
+                # Execute batch insert in single transaction
+                conn.execute(insert_sql, products_data)
+            
+            logger.debug("products_batch_chunk_saved_to_db", count=len(valid_products))
+            return len(valid_products)
+            
+        except SQLAlchemyError as e:
+            logger.error(
+                "products_batch_chunk_db_save_error",
+                count=len(valid_products),
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return 0
+        except Exception as e:
+            logger.error(
+                "products_batch_chunk_db_save_unexpected_error",
                 count=len(valid_products),
                 error=str(e),
                 error_type=type(e).__name__,
@@ -775,9 +826,10 @@ class DatabaseStorage:
             """
             insert_sql = text(sql_base + values_clause + sql_conflict)
 
-            with self.engine.connect() as conn:
+            # Use transaction for better performance and atomicity
+            with self.engine.begin() as conn:
+                # Execute batch insert in single transaction
                 conn.execute(insert_sql, params)
-                conn.commit()
 
             logger.debug("creators_batch_saved_to_db", count=len(valid_creators))
             return len(valid_creators)
