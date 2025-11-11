@@ -864,7 +864,10 @@ async def get_category_comparison(
             detail={
                 "error": {
                     "code": "INVALID_PRODUCT_TYPE",
-                    "message": "Invalid product type. Must be one of: template, component, vector, plugin",
+                    "message": (
+                        "Invalid product type. "
+                        "Must be one of: template, component, vector, plugin"
+                    ),
                     "details": {"type": product_type},
                 }
             },
