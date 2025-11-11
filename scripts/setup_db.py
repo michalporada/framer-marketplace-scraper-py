@@ -105,12 +105,59 @@ def setup_postgresql():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
+        -- Product history table (for tracking changes over time)
+        CREATE TABLE IF NOT EXISTS product_history (
+            id SERIAL PRIMARY KEY,
+            product_id VARCHAR(255) NOT NULL,
+            scraped_at TIMESTAMP NOT NULL,
+            name VARCHAR(500) NOT NULL,
+            type VARCHAR(50) NOT NULL,
+            category VARCHAR(255),
+            url TEXT NOT NULL,
+            price DECIMAL(10, 2),
+            currency VARCHAR(10) DEFAULT 'USD',
+            is_free BOOLEAN DEFAULT FALSE,
+            description TEXT,
+            short_description TEXT,
+            creator_username VARCHAR(255),
+            creator_name VARCHAR(255),
+            creator_url TEXT,
+            views_raw VARCHAR(50),
+            views_normalized INTEGER,
+            pages_raw VARCHAR(50),
+            pages_normalized INTEGER,
+            users_raw VARCHAR(50),
+            users_normalized INTEGER,
+            installs_raw VARCHAR(50),
+            installs_normalized INTEGER,
+            vectors_raw VARCHAR(50),
+            vectors_normalized INTEGER,
+            published_date_raw VARCHAR(100),
+            published_date_normalized TIMESTAMP,
+            last_updated_raw VARCHAR(100),
+            last_updated_normalized TIMESTAMP,
+            version VARCHAR(50),
+            features_list TEXT,
+            is_responsive BOOLEAN,
+            has_animations BOOLEAN,
+            cms_integration BOOLEAN,
+            pages_count INTEGER,
+            thumbnail_url TEXT,
+            screenshots_count INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
         -- Indexes
         CREATE INDEX IF NOT EXISTS idx_products_type ON products(type);
         CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
         CREATE INDEX IF NOT EXISTS idx_products_creator ON products(creator_username);
         CREATE INDEX IF NOT EXISTS idx_products_scraped_at ON products(scraped_at);
         CREATE INDEX IF NOT EXISTS idx_creators_scraped_at ON creators(scraped_at);
+        
+        -- Indexes for product_history
+        CREATE INDEX IF NOT EXISTS idx_product_history_product_id ON product_history(product_id);
+        CREATE INDEX IF NOT EXISTS idx_product_history_scraped_at ON product_history(scraped_at);
+        CREATE INDEX IF NOT EXISTS idx_product_history_product_scraped ON product_history(product_id, scraped_at);
         """
         with engine.connect() as conn:
             conn.execute(text(schema_sql))
