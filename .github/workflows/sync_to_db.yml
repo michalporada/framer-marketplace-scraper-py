@@ -26,37 +26,56 @@ jobs:
       
       - name: Download artifacts (if available)
         id: download-artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: scraped-data-latest
           path: data/
-          if-no-files-found: continue
       
       - name: Check if artifact was downloaded
         run: |
           if [ "${{ steps.download-artifacts.outcome }}" != "success" ]; then
-            echo "⚠️ Artifact 'scraped-data-latest' not found or empty"
+            echo "⚠️ Artifact 'scraped-data-latest' not found or download failed"
             echo "This may happen if:"
             echo "  - Scrape workflow hasn't run yet"
             echo "  - Scrape workflow failed"
             echo "  - Artifact expired (retention: 7 days)"
-            exit 1
+            echo ""
+            echo "Checking if data/ directory exists locally..."
+            if [ -d "data/products" ] && [ -n "$(ls -A data/products/*/*.json 2>/dev/null)" ]; then
+              echo "✅ Found local data files - will use them instead"
+            else
+              echo "❌ No data found. Cannot proceed with sync."
+              exit 1
+            fi
           else
             echo "✅ Artifact downloaded successfully"
           fi
       
       - name: Check if data exists
         run: |
-          if [ ! -d "data/products" ] || [ -z "$(ls -A data/products/*/*.json 2>/dev/null)" ]; then
-            echo "⚠️ No JSON data found in artifact. Make sure data/ directory exists with scraped data."
+          if [ ! -d "data/products" ]; then
+            echo "❌ data/products directory not found"
             echo "Available directories:"
             ls -la data/ 2>/dev/null || echo "data/ directory not found"
+            exit 1
+          fi
+          
+          json_count=$(find data/products -name "*.json" -type f 2>/dev/null | wc -l)
+          if [ "$json_count" -eq 0 ]; then
+            echo "❌ No JSON data files found in data/products/"
             echo "Checking for product files:"
             find data/ -name "*.json" -type f 2>/dev/null | head -10 || echo "No JSON files found"
             exit 1
           else
-            echo "✅ Found JSON data files"
-            find data/products -name "*.json" | wc -l | xargs echo "Total product files:"
+            echo "✅ Found $json_count JSON data files"
+            echo "Product types:"
+            for type in templates components vectors plugins; do
+              count=$(find data/products/$type -name "*.json" -type f 2>/dev/null | wc -l)
+              if [ "$count" -gt 0 ]; then
+                echo "  - $type: $count files"
+              fi
+            done
           fi
       
       - name: Sync JSON to Database
