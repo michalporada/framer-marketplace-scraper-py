@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     scrape_vectors: bool = True
     scrape_plugins: bool = True  # New product type
     scrape_categories: bool = True  # Optional
-    scrape_profiles: bool = False  # Optional
+    scrape_profiles: bool = True  # Optional
 
     # Data validation thresholds
     min_urls_threshold: int = 50  # Minimum URLs required from sitemap to proceed
