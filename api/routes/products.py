@@ -600,8 +600,6 @@ def find_all_product_versions(product_id: str) -> List[Dict]:
 
     return versions
 
-    return versions
-
 
 class ProductChange(BaseModel):
     """Model for a single field change."""
