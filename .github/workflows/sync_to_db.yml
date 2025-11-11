@@ -24,17 +24,65 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: Download artifacts (if available)
+      - name: Find and download latest scrape artifacts
         id: download-artifacts
         continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: scraped-data-latest
-          path: data/
+        run: |
+          echo "🔍 Looking for latest successful 'Daily Scrape' workflow run..."
+          
+          # Get latest successful run of scrape workflow
+          RUN_ID=$(gh run list --workflow=scrape.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || echo "")
+          
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
+            echo "⚠️ No successful scrape workflow run found"
+            echo "downloaded=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "✅ Found scrape workflow run: $RUN_ID"
+          
+          # List artifacts from this run
+          ARTIFACT_ID=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts --jq '.artifacts[] | select(.name=="scraped-data-latest") | .id' 2>/dev/null || echo "")
+          
+          if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" == "null" ]; then
+            echo "⚠️ Artifact 'scraped-data-latest' not found in run $RUN_ID"
+            echo "downloaded=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "✅ Found artifact ID: $ARTIFACT_ID"
+          
+          # Create data directory
+          mkdir -p data
+          
+          # Download artifact using GitHub API
+          echo "📥 Downloading artifact..."
+          gh api repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip -o /tmp/artifact.zip 2>/dev/null
+          
+          if [ $? -eq 0 ] && [ -f /tmp/artifact.zip ]; then
+            echo "📦 Extracting artifact..."
+            # Install unzip if not available (should be available by default)
+            which unzip || (apt-get update && apt-get install -y unzip)
+            unzip -q -o /tmp/artifact.zip -d data/ 2>/dev/null
+            rm -f /tmp/artifact.zip
+            
+            if [ -d "data/products" ] && [ -n "$(ls -A data/products/*/*.json 2>/dev/null)" ]; then
+              echo "✅ Artifact downloaded and extracted successfully"
+              echo "downloaded=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Artifact extracted but no product files found"
+              echo "downloaded=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Failed to download artifact"
+            echo "downloaded=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
       
       - name: Check if artifact was downloaded
         run: |
-          if [ "${{ steps.download-artifacts.outcome }}" != "success" ]; then
+          if [ "${{ steps.download-artifacts.outputs.downloaded }}" != "true" ]; then
             echo "⚠️ Artifact 'scraped-data-latest' not found or download failed"
             echo "This may happen if:"
             echo "  - Scrape workflow hasn't run yet"
