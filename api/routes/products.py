@@ -9,7 +9,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from api.dependencies import execute_query, execute_query_one
+from api.dependencies import execute_query, execute_query_one, get_db_engine
+from sqlalchemy import text
 from src.config.settings import settings
 from src.models.creator import Creator
 from src.models.product import (
@@ -380,8 +381,145 @@ def load_product_from_json(product_id: str, base_path: Path) -> Optional[Dict]:
     return None
 
 
+def find_product_versions_from_db(product_id: str) -> List[Dict]:
+    """Find all versions of a product from product_history table.
+    
+    Args:
+        product_id: Product identifier
+    
+    Returns:
+        List of product data dicts from database
+    """
+    engine = get_db_engine()
+    if not engine:
+        return []
+    
+    try:
+        query = text("""
+            SELECT 
+                product_id, scraped_at,
+                name, type, category, url, price, currency, is_free,
+                description, short_description,
+                creator_username, creator_name, creator_url,
+                views_raw, views_normalized,
+                pages_raw, pages_normalized,
+                users_raw, users_normalized,
+                installs_raw, installs_normalized,
+                vectors_raw, vectors_normalized,
+                published_date_raw, published_date_normalized,
+                last_updated_raw, last_updated_normalized,
+                version, features_list,
+                is_responsive, has_animations, cms_integration,
+                pages_count, thumbnail_url, screenshots_count
+            FROM product_history
+            WHERE product_id = :product_id
+            ORDER BY scraped_at DESC
+        """)
+        
+        with engine.connect() as conn:
+            result = conn.execute(query, {"product_id": product_id})
+            rows = result.fetchall()
+        
+        versions = []
+        for row in rows:
+            row_dict = dict(row._mapping)
+            
+            # Convert to format expected by comparison logic
+            version_dict = {
+                "id": row_dict["product_id"],
+                "scraped_at": row_dict["scraped_at"].isoformat() + "Z" if row_dict["scraped_at"] else None,
+                "source_path": "database",
+                "name": row_dict["name"],
+                "type": row_dict["type"],
+                "category": row_dict.get("category"),
+                "url": row_dict["url"],
+                "price": float(row_dict["price"]) if row_dict.get("price") else None,
+                "currency": row_dict.get("currency", "USD"),
+                "is_free": row_dict.get("is_free", False),
+                "description": row_dict.get("description"),
+                "short_description": row_dict.get("short_description"),
+                "stats": {},
+                "metadata": {},
+            }
+            
+            # Build stats
+            stats = {}
+            if row_dict.get("views_raw") or row_dict.get("views_normalized") is not None:
+                stats["views"] = {
+                    "raw": row_dict.get("views_raw", ""),
+                    "normalized": row_dict.get("views_normalized"),
+                }
+            if row_dict.get("pages_raw") or row_dict.get("pages_normalized") is not None:
+                stats["pages"] = {
+                    "raw": row_dict.get("pages_raw", ""),
+                    "normalized": row_dict.get("pages_normalized"),
+                }
+            if row_dict.get("users_raw") or row_dict.get("users_normalized") is not None:
+                stats["users"] = {
+                    "raw": row_dict.get("users_raw", ""),
+                    "normalized": row_dict.get("users_normalized"),
+                }
+            if row_dict.get("installs_raw") or row_dict.get("installs_normalized") is not None:
+                stats["installs"] = {
+                    "raw": row_dict.get("installs_raw", ""),
+                    "normalized": row_dict.get("installs_normalized"),
+                }
+            if row_dict.get("vectors_raw") or row_dict.get("vectors_normalized") is not None:
+                stats["vectors"] = {
+                    "raw": row_dict.get("vectors_raw", ""),
+                    "normalized": row_dict.get("vectors_normalized"),
+                }
+            version_dict["stats"] = stats
+            
+            # Build metadata
+            metadata = {}
+            if row_dict.get("version"):
+                metadata["version"] = row_dict["version"]
+            if row_dict.get("published_date_raw") or row_dict.get("published_date_normalized"):
+                published_date = {}
+                if row_dict.get("published_date_raw"):
+                    published_date["raw"] = row_dict["published_date_raw"]
+                if row_dict.get("published_date_normalized"):
+                    if isinstance(row_dict["published_date_normalized"], datetime):
+                        published_date["normalized"] = row_dict["published_date_normalized"].isoformat() + "Z"
+                    else:
+                        published_date["normalized"] = row_dict["published_date_normalized"]
+                metadata["published_date"] = published_date
+            if row_dict.get("last_updated_raw") or row_dict.get("last_updated_normalized"):
+                last_updated = {}
+                if row_dict.get("last_updated_raw"):
+                    last_updated["raw"] = row_dict["last_updated_raw"]
+                if row_dict.get("last_updated_normalized"):
+                    if isinstance(row_dict["last_updated_normalized"], datetime):
+                        last_updated["normalized"] = row_dict["last_updated_normalized"].isoformat() + "Z"
+                    else:
+                        last_updated["normalized"] = row_dict["last_updated_normalized"]
+                metadata["last_updated"] = last_updated
+            version_dict["metadata"] = metadata
+            
+            # Build creator
+            if row_dict.get("creator_username"):
+                version_dict["creator"] = {
+                    "username": row_dict["creator_username"],
+                    "name": row_dict.get("creator_name"),
+                    "profile_url": row_dict.get("creator_url"),
+                }
+            
+            versions.append(version_dict)
+        
+        return versions
+    
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching product versions from DB: {type(e).__name__}: {str(e)}")
+        return []
+
+
 def find_all_product_versions(product_id: str) -> List[Dict]:
-    """Find all versions of a product across different scrape directories.
+    """Find all versions of a product from database and JSON files.
+    
+    Priority: Database (product_history) first, then JSON files as fallback.
     
     Args:
         product_id: Product identifier
@@ -390,21 +528,31 @@ def find_all_product_versions(product_id: str) -> List[Dict]:
         List of product data dicts, each with a 'source_path' key
     """
     versions = []
+    
+    # First, try database (product_history table)
+    db_versions = find_product_versions_from_db(product_id)
+    versions.extend(db_versions)
+    
+    # Then, check JSON files as fallback (for older scrapes not in DB)
     data_path = Path(settings.data_path)
     
     # Check main data directory
     main_data = load_product_from_json(product_id, data_path)
     if main_data:
-        main_data["source_path"] = str(data_path)
-        versions.append(main_data)
+        # Only add if not already in DB versions (avoid duplicates)
+        if not any(v.get("scraped_at") == main_data.get("scraped_at") for v in db_versions):
+            main_data["source_path"] = str(data_path)
+            versions.append(main_data)
     
     # Check scraped-data (2) directory (legacy)
     scraped_data_2 = data_path.parent / "scraped-data (2)" / "data"
     if scraped_data_2.exists():
         version_2 = load_product_from_json(product_id, scraped_data_2)
         if version_2:
-            version_2["source_path"] = str(scraped_data_2)
-            versions.append(version_2)
+            # Only add if not already in versions
+            if not any(v.get("scraped_at") == version_2.get("scraped_at") for v in versions):
+                version_2["source_path"] = str(scraped_data_2)
+                versions.append(version_2)
     
     # Check for dated scrape directories (scraped-data-YYYY-MM-DD)
     for scrape_dir in data_path.parent.glob("scraped-data-*"):
@@ -417,8 +565,13 @@ def find_all_product_versions(product_id: str) -> List[Dict]:
             if scrape_data.exists():
                 version = load_product_from_json(product_id, scrape_data)
                 if version:
-                    version["source_path"] = str(scrape_data)
-                    versions.append(version)
+                    # Only add if not already in versions
+                    if not any(v.get("scraped_at") == version.get("scraped_at") for v in versions):
+                        version["source_path"] = str(scraped_data)
+                        versions.append(version)
+    
+    return versions
+
     
     return versions
 
