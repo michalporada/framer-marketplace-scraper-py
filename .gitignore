@@ -42,6 +42,7 @@ data/
 !data/.gitkeep
 !data/**/.gitkeep
 logs/
+logs_*/
 *.log
 logs.*.json
 
