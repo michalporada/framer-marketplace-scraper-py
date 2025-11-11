@@ -595,7 +595,7 @@ def find_all_product_versions(product_id: str) -> List[Dict]:
                 if version:
                     # Only add if not already in versions
                     if not any(v.get("scraped_at") == version.get("scraped_at") for v in versions):
-                        version["source_path"] = str(scraped_data)
+                        version["source_path"] = str(scrape_data)
                         versions.append(version)
 
     return versions
