@@ -712,23 +712,27 @@ class DatabaseStorage:
 
         try:
             # Prepare all creator data
-            creators_data_list = [self._prepare_creator_data(c) for c in valid_creators]
-            
+            creators_data_list = [
+                self._prepare_creator_data(c) for c in valid_creators
+            ]
+
             # Build batch INSERT with multiple VALUES for better performance
             # This is faster than executemany() which executes multiple individual INSERTs
             values_parts = []
             params = {}
-            
+
             for idx, creator_data in enumerate(creators_data_list):
                 # Create unique parameter names for each creator
                 values_parts.append(
-                    f"(:username_{idx}, :name_{idx}, :profile_url_{idx}, :avatar_url_{idx}, "
-                    f":bio_{idx}, :website_{idx}, CAST(:social_media_{idx} AS jsonb), "
-                    f":total_products_{idx}, :templates_count_{idx}, :components_count_{idx}, "
-                    f":vectors_count_{idx}, :plugins_count_{idx}, :total_sales_{idx}, "
-                    f"CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    f"(:username_{idx}, :name_{idx}, :profile_url_{idx}, "
+                    f":avatar_url_{idx}, :bio_{idx}, :website_{idx}, "
+                    f"CAST(:social_media_{idx} AS jsonb), :total_products_{idx}, "
+                    f":templates_count_{idx}, :components_count_{idx}, "
+                    f":vectors_count_{idx}, :plugins_count_{idx}, "
+                    f":total_sales_{idx}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "
+                    f"CURRENT_TIMESTAMP)"
                 )
-                
+
                 # Add parameters with unique names
                 params[f"username_{idx}"] = creator_data["username"]
                 params[f"name_{idx}"] = creator_data["name"]
@@ -745,8 +749,8 @@ class DatabaseStorage:
                 params[f"total_sales_{idx}"] = creator_data["total_sales"]
 
             values_clause = ",\n                    ".join(values_parts)
-            
-            insert_sql = text(f"""
+
+            sql_template = """
                 INSERT INTO creators (
                     username, name, profile_url, avatar_url, bio, website,
                     social_media, total_products, templates_count, components_count,
@@ -767,7 +771,8 @@ class DatabaseStorage:
                     plugins_count = EXCLUDED.plugins_count,
                     total_sales = EXCLUDED.total_sales,
                     updated_at = CURRENT_TIMESTAMP
-            """)
+            """
+            insert_sql = text(sql_template.format(values_clause=values_clause))
 
             with self.engine.connect() as conn:
                 conn.execute(insert_sql, params)
