@@ -648,6 +648,11 @@ class DatabaseStorage:
                 conn.commit()
 
             logger.debug("products_batch_saved_to_db", count=len(valid_products))
+            
+            # Also save to history table
+            for product in valid_products:
+                await self.save_product_history_db(product)
+            
             return len(valid_products)
 
         except SQLAlchemyError as e:
