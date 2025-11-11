@@ -724,13 +724,15 @@ class DatabaseStorage:
             for idx, creator_data in enumerate(creators_data_list):
                 # Create unique parameter names for each creator
                 values_parts.append(
-                    f"(:username_{idx}, :name_{idx}, :profile_url_{idx}, "
-                    f":avatar_url_{idx}, :bio_{idx}, :website_{idx}, "
-                    f"CAST(:social_media_{idx} AS jsonb), :total_products_{idx}, "
-                    f":templates_count_{idx}, :components_count_{idx}, "
-                    f":vectors_count_{idx}, :plugins_count_{idx}, "
-                    f":total_sales_{idx}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "
-                    f"CURRENT_TIMESTAMP)"
+                    (
+                        f"(:username_{idx}, :name_{idx}, :profile_url_{idx}, "
+                        f":avatar_url_{idx}, :bio_{idx}, :website_{idx}, "
+                        f"CAST(:social_media_{idx} AS jsonb), :total_products_{idx}, "
+                        f":templates_count_{idx}, :components_count_{idx}, "
+                        f":vectors_count_{idx}, :plugins_count_{idx}, "
+                        f":total_sales_{idx}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, "
+                        f"CURRENT_TIMESTAMP)"
+                    )
                 )
 
                 # Add parameters with unique names
@@ -750,14 +752,14 @@ class DatabaseStorage:
 
             values_clause = ",\n                    ".join(values_parts)
 
-            insert_sql = text(
-                f"""
+            sql_base = """
                 INSERT INTO creators (
                     username, name, profile_url, avatar_url, bio, website,
                     social_media, total_products, templates_count, components_count,
                     vectors_count, plugins_count, total_sales,
                     scraped_at, created_at, updated_at
-                ) VALUES {values_clause}
+                ) VALUES """
+            sql_conflict = """
                 ON CONFLICT (username) DO UPDATE SET
                     name = EXCLUDED.name,
                     profile_url = EXCLUDED.profile_url,
@@ -773,7 +775,7 @@ class DatabaseStorage:
                     total_sales = EXCLUDED.total_sales,
                     updated_at = CURRENT_TIMESTAMP
             """
-            )
+            insert_sql = text(sql_base + values_clause + sql_conflict)
 
             with self.engine.connect() as conn:
                 conn.execute(insert_sql, params)
