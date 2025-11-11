@@ -83,11 +83,12 @@ async def health():
 
 
 # Import routes
-from api.routes import creators, products
+from api.routes import creators, products, metrics
 
 # Include routers
 app.include_router(products.router)
 app.include_router(creators.router)
+app.include_router(metrics.router)
 
 if __name__ == "__main__":
     import uvicorn
