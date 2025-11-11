@@ -2,10 +2,14 @@
 
 import os
 from typing import Optional
+from dotenv import load_dotenv
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import NullPool
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Global database engine (singleton)
 _db_engine: Optional[object] = None
