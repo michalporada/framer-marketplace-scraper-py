@@ -84,12 +84,13 @@ async def health():
 
 
 # Import routes
-from api.routes import creators, products
+from api.routes import creators, products, metrics
 from api.cache import get_cache_stats, invalidate_all_cache, invalidate_product_cache, invalidate_creator_cache
 
 # Include routers
 app.include_router(products.router)
 app.include_router(creators.router)
+app.include_router(metrics.router)
 
 
 @app.get("/cache/stats")

@@ -479,6 +479,8 @@ class DatabaseStorage:
                 error_type=type(e).__name__,
             )
             return False
+
+    def _get_product_insert_sql(self) -> text:
         """Get reusable SQL for product batch insert.
         
         Returns:
