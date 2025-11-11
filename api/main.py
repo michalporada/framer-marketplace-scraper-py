@@ -1,4 +1,5 @@
 """FastAPI application for Framer Marketplace Scraper API."""
+
 import os
 from typing import Optional
 
@@ -108,7 +109,7 @@ async def cache_stats():
 async def cache_invalidate(
     cache_type: Optional[str] = Query(
         None, description="Cache type: product, creator, or None for all"
-    )
+    ),
 ):
     """Invalidate cache.
 

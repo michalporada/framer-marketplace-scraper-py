@@ -64,9 +64,7 @@ class Settings(BaseSettings):
         21600  # 6 hours for 502 errors (to avoid missing new products)
     )
     use_cache_on_502: bool = True  # Use cache even for 502 errors (CloudFront problem, not origin)
-    fail_on_stale_cache_502: bool = (
-        False  # If True: fail on stale cache (>6h). If False: use cache with warning (better than missing entire scrape)
-    )
+    fail_on_stale_cache_502: bool = False  # If True: fail on stale cache (>6h). If False: use cache with warning (better than missing entire scrape)
 
     # GitHub Actions
     github_actions: bool = False

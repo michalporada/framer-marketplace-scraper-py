@@ -245,8 +245,7 @@ async def get_creator_products(
                 "error": {
                     "code": "INVALID_PRODUCT_TYPE",
                     "message": (
-                        "Invalid product type. "
-                        "Must be one of: template, component, vector, plugin"
+                        "Invalid product type. Must be one of: template, component, vector, plugin"
                     ),
                     "details": {"type": type},
                 }
