@@ -155,7 +155,7 @@ async def sync_creators(db_storage: DatabaseStorage, data_dir: Path) -> dict:
             if saved_count < len(batch):
                 stats["failed"] += len(batch) - saved_count
             
-            if stats["success"] % 100 == 0:
+            if stats["success"] % 50 == 0:
                 logger.info("sync_progress", creators_synced=stats["success"], total=stats["total"])
             
             batch = []

@@ -693,6 +693,8 @@ class DatabaseStorage:
     async def save_creators_batch_db(self, creators: List[Creator]) -> int:
         """Save multiple creators to database in a single batch operation.
         
+        Uses true batch INSERT with multiple VALUES for better performance.
+        
         Args:
             creators: List of Creator models
             
@@ -710,20 +712,47 @@ class DatabaseStorage:
 
         try:
             # Prepare all creator data
-            creators_data = [self._prepare_creator_data(c) for c in valid_creators]
+            creators_data_list = [self._prepare_creator_data(c) for c in valid_creators]
+            
+            # Build batch INSERT with multiple VALUES for better performance
+            # This is faster than executemany() which executes multiple individual INSERTs
+            values_parts = []
+            params = {}
+            
+            for idx, creator_data in enumerate(creators_data_list):
+                # Create unique parameter names for each creator
+                values_parts.append(
+                    f"(:username_{idx}, :name_{idx}, :profile_url_{idx}, :avatar_url_{idx}, "
+                    f":bio_{idx}, :website_{idx}, CAST(:social_media_{idx} AS jsonb), "
+                    f":total_products_{idx}, :templates_count_{idx}, :components_count_{idx}, "
+                    f":vectors_count_{idx}, :plugins_count_{idx}, :total_sales_{idx}, "
+                    f"CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                )
+                
+                # Add parameters with unique names
+                params[f"username_{idx}"] = creator_data["username"]
+                params[f"name_{idx}"] = creator_data["name"]
+                params[f"profile_url_{idx}"] = creator_data["profile_url"]
+                params[f"avatar_url_{idx}"] = creator_data["avatar_url"]
+                params[f"bio_{idx}"] = creator_data["bio"]
+                params[f"website_{idx}"] = creator_data["website"]
+                params[f"social_media_{idx}"] = creator_data["social_media"]
+                params[f"total_products_{idx}"] = creator_data["total_products"]
+                params[f"templates_count_{idx}"] = creator_data["templates_count"]
+                params[f"components_count_{idx}"] = creator_data["components_count"]
+                params[f"vectors_count_{idx}"] = creator_data["vectors_count"]
+                params[f"plugins_count_{idx}"] = creator_data["plugins_count"]
+                params[f"total_sales_{idx}"] = creator_data["total_sales"]
 
-            insert_sql = text("""
+            values_clause = ",\n                    ".join(values_parts)
+            
+            insert_sql = text(f"""
                 INSERT INTO creators (
                     username, name, profile_url, avatar_url, bio, website,
                     social_media, total_products, templates_count, components_count,
                     vectors_count, plugins_count, total_sales,
                     scraped_at, created_at, updated_at
-                ) VALUES (
-                    :username, :name, :profile_url, :avatar_url, :bio, :website,
-                    CAST(:social_media AS jsonb), :total_products, :templates_count, :components_count,
-                    :vectors_count, :plugins_count, :total_sales,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
+                ) VALUES {values_clause}
                 ON CONFLICT (username) DO UPDATE SET
                     name = EXCLUDED.name,
                     profile_url = EXCLUDED.profile_url,
@@ -741,7 +770,7 @@ class DatabaseStorage:
             """)
 
             with self.engine.connect() as conn:
-                conn.execute(insert_sql, creators_data)
+                conn.execute(insert_sql, params)
                 conn.commit()
 
             logger.debug("creators_batch_saved_to_db", count=len(valid_creators))
