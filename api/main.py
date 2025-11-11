@@ -1,7 +1,8 @@
 """FastAPI application for Framer Marketplace Scraper API."""
 import os
+from typing import Optional
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -84,10 +85,44 @@ async def health():
 
 # Import routes
 from api.routes import creators, products
+from api.cache import get_cache_stats, invalidate_all_cache, invalidate_product_cache, invalidate_creator_cache
 
 # Include routers
 app.include_router(products.router)
 app.include_router(creators.router)
+
+
+@app.get("/cache/stats")
+async def cache_stats():
+    """Get cache statistics.
+    
+    Returns:
+        Dictionary with cache statistics
+    """
+    return get_cache_stats()
+
+
+@app.post("/cache/invalidate")
+async def cache_invalidate(
+    cache_type: Optional[str] = Query(None, description="Cache type: product, creator, or None for all")
+):
+    """Invalidate cache.
+    
+    Args:
+        cache_type: Type of cache to invalidate ("product", "creator", or None for all)
+    
+    Returns:
+        Success message
+    """
+    if cache_type == "product":
+        invalidate_product_cache()
+        return {"message": "Product cache invalidated", "cache_type": "product"}
+    elif cache_type == "creator":
+        invalidate_creator_cache()
+        return {"message": "Creator cache invalidated", "cache_type": "creator"}
+    else:
+        invalidate_all_cache()
+        return {"message": "All cache invalidated"}
 
 if __name__ == "__main__":
     import uvicorn
