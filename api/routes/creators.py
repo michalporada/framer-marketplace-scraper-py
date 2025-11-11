@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from api.dependencies import execute_query, execute_query_one
+from api.cache import cached, invalidate_creator_cache
 from src.models.creator import Creator, CreatorStats
 
 router = APIRouter(prefix="/api/creators", tags=["creators"])
@@ -83,6 +84,7 @@ class CreatorResponse(BaseModel):
 
 
 @router.get("", response_model=CreatorListResponse)
+@cached(ttl=300, cache_type="creator")  # Cache for 5 minutes
 async def get_creators(
     limit: int = Query(100, ge=1, le=1000, description="Number of creators to return"),
     offset: int = Query(0, ge=0, description="Number of creators to skip"),
@@ -178,6 +180,7 @@ async def get_creators(
 
 
 @router.get("/{username}", response_model=CreatorResponse)
+@cached(ttl=300, cache_type="creator")  # Cache for 5 minutes
 async def get_creator(username: str):
     """Get single creator by username.
 
@@ -214,6 +217,7 @@ async def get_creator(username: str):
 
 
 @router.get("/{username}/products", response_model=dict)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
 async def get_creator_products(
     username: str,
     type: Optional[str] = Query(None, description="Product type: template, component, vector, plugin"),

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from api.dependencies import execute_query, execute_query_one, get_db_engine
+from api.cache import cached, invalidate_product_cache
 from sqlalchemy import text
 from src.config.settings import settings
 from src.models.creator import Creator
@@ -184,6 +185,7 @@ class ErrorResponse(BaseModel):
 
 
 @router.get("", response_model=ProductListResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
 async def get_products(
     type: Optional[str] = Query(None, description="Product type: template, component, vector, plugin"),
     limit: int = Query(100, ge=1, le=1000, description="Number of products to return"),
@@ -325,6 +327,7 @@ async def get_products(
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
 async def get_product(product_id: str):
     """Get single product by ID.
 
@@ -606,6 +609,7 @@ class ProductChangesResponse(BaseModel):
 
 
 @router.get("/{product_id}/changes", response_model=ProductChangesResponse)
+@cached(ttl=600, cache_type="product")  # Cache for 10 minutes (changes don't update frequently)
 async def get_product_changes(product_id: str):
     """Get changes in product data across different scrapes.
     
