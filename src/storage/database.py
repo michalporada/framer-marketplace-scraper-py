@@ -288,6 +288,10 @@ class DatabaseStorage:
                 conn.commit()
 
             logger.debug("product_saved_to_db", product_id=product.id)
+            
+            # Also save to history table
+            await self.save_product_history_db(product)
+            
             return True
 
         except SQLAlchemyError as e:
@@ -301,6 +305,99 @@ class DatabaseStorage:
         except Exception as e:
             logger.error(
                 "product_db_save_unexpected_error",
+                product_id=product.id if product else "unknown",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return False
+
+    async def save_product_history_db(self, product: Product) -> bool:
+        """Save product version to history table.
+        
+        This method always inserts a new record (never updates) to maintain
+        complete history of all product versions over time.
+        
+        Args:
+            product: Product model
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.is_available():
+            return False
+
+        try:
+            # Use the same data preparation as main table
+            product_data = self._prepare_product_data(product)
+            
+            # Add scraped_at from product model (use current time if not set)
+            scraped_at = product.scraped_at if product.scraped_at else datetime.utcnow()
+            if isinstance(scraped_at, str):
+                try:
+                    scraped_at = datetime.fromisoformat(scraped_at.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    scraped_at = datetime.utcnow()
+            
+            # Insert into history table (always insert, never update)
+            insert_sql = text("""
+                INSERT INTO product_history (
+                    product_id, scraped_at,
+                    name, type, category, url, price, currency, is_free,
+                    description, short_description,
+                    creator_username, creator_name, creator_url,
+                    views_raw, views_normalized,
+                    pages_raw, pages_normalized,
+                    users_raw, users_normalized,
+                    installs_raw, installs_normalized,
+                    vectors_raw, vectors_normalized,
+                    published_date_raw, published_date_normalized,
+                    last_updated_raw, last_updated_normalized,
+                    version, features_list,
+                    is_responsive, has_animations, cms_integration,
+                    pages_count, thumbnail_url, screenshots_count
+                ) VALUES (
+                    :product_id, :scraped_at,
+                    :name, :type, :category, :url, :price, :currency, :is_free,
+                    :description, :short_description,
+                    :creator_username, :creator_name, :creator_url,
+                    :views_raw, :views_normalized,
+                    :pages_raw, :pages_normalized,
+                    :users_raw, :users_normalized,
+                    :installs_raw, :installs_normalized,
+                    :vectors_raw, :vectors_normalized,
+                    :published_date_raw, :published_date_normalized,
+                    :last_updated_raw, :last_updated_normalized,
+                    :version, :features_list,
+                    :is_responsive, :has_animations, :cms_integration,
+                    :pages_count, :thumbnail_url, :screenshots_count
+                )
+            """)
+
+            with self.engine.connect() as conn:
+                conn.execute(
+                    insert_sql,
+                    {
+                        "product_id": product_data["id"],
+                        "scraped_at": scraped_at,
+                        **product_data,
+                    },
+                )
+                conn.commit()
+
+            logger.debug("product_history_saved", product_id=product.id, scraped_at=scraped_at)
+            return True
+
+        except SQLAlchemyError as e:
+            logger.error(
+                "product_history_save_error",
+                product_id=product.id if product else "unknown",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return False
+        except Exception as e:
+            logger.error(
+                "product_history_save_unexpected_error",
                 product_id=product.id if product else "unknown",
                 error=str(e),
                 error_type=type(e).__name__,
