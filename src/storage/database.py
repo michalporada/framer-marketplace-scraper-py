@@ -750,7 +750,8 @@ class DatabaseStorage:
 
             values_clause = ",\n                    ".join(values_parts)
 
-            sql_template = """
+            insert_sql = text(
+                f"""
                 INSERT INTO creators (
                     username, name, profile_url, avatar_url, bio, website,
                     social_media, total_products, templates_count, components_count,
@@ -772,7 +773,7 @@ class DatabaseStorage:
                     total_sales = EXCLUDED.total_sales,
                     updated_at = CURRENT_TIMESTAMP
             """
-            insert_sql = text(sql_template.format(values_clause=values_clause))
+            )
 
             with self.engine.connect() as conn:
                 conn.execute(insert_sql, params)
