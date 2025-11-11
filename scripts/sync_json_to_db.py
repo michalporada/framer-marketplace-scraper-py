@@ -60,7 +60,7 @@ def load_creator_from_json(filepath: Path) -> Optional[Creator]:
 
 
 async def sync_products(db_storage: DatabaseStorage, data_dir: Path) -> dict:
-    """Sync all products from JSON files to database.
+    """Sync all products from JSON files to database using batch inserts.
 
     Args:
         db_storage: DatabaseStorage instance
@@ -71,6 +71,7 @@ async def sync_products(db_storage: DatabaseStorage, data_dir: Path) -> dict:
     """
     product_types = ["templates", "components", "vectors", "plugins"]
     stats = {"total": 0, "success": 0, "failed": 0, "skipped": 0}
+    BATCH_SIZE = 100  # Number of products to insert in one batch
 
     for product_type in product_types:
         product_dir = data_dir / "products" / product_type
@@ -81,6 +82,8 @@ async def sync_products(db_storage: DatabaseStorage, data_dir: Path) -> dict:
         json_files = list(product_dir.glob("*.json"))
         logger.info("syncing_products", product_type=product_type, count=len(json_files))
 
+        # Collect products in batches
+        batch = []
         for json_file in json_files:
             stats["total"] += 1
             product = load_product_from_json(json_file)
@@ -89,20 +92,32 @@ async def sync_products(db_storage: DatabaseStorage, data_dir: Path) -> dict:
                 stats["failed"] += 1
                 continue
 
-            # Save to database
-            success = await db_storage.save_product_db(product)
-            if success:
-                stats["success"] += 1
-                if stats["success"] % 100 == 0:
+            batch.append(product)
+
+            # Save batch when it reaches BATCH_SIZE
+            if len(batch) >= BATCH_SIZE:
+                saved_count = await db_storage.save_products_batch_db(batch)
+                stats["success"] += saved_count
+                if saved_count < len(batch):
+                    stats["failed"] += len(batch) - saved_count
+                
+                if stats["success"] % 500 == 0:
                     logger.info("sync_progress", products_synced=stats["success"], total=stats["total"])
-            else:
-                stats["failed"] += 1
+                
+                batch = []
+
+        # Save remaining products in batch
+        if batch:
+            saved_count = await db_storage.save_products_batch_db(batch)
+            stats["success"] += saved_count
+            if saved_count < len(batch):
+                stats["failed"] += len(batch) - saved_count
 
     return stats
 
 
 async def sync_creators(db_storage: DatabaseStorage, data_dir: Path) -> dict:
-    """Sync all creators from JSON files to database.
+    """Sync all creators from JSON files to database using batch inserts.
 
     Args:
         db_storage: DatabaseStorage instance
@@ -120,7 +135,10 @@ async def sync_creators(db_storage: DatabaseStorage, data_dir: Path) -> dict:
     logger.info("syncing_creators", count=len(json_files))
 
     stats = {"total": len(json_files), "success": 0, "failed": 0}
+    BATCH_SIZE = 50  # Number of creators to insert in one batch
 
+    # Collect creators in batches
+    batch = []
     for json_file in json_files:
         creator = load_creator_from_json(json_file)
 
@@ -128,14 +146,26 @@ async def sync_creators(db_storage: DatabaseStorage, data_dir: Path) -> dict:
             stats["failed"] += 1
             continue
 
-        # Save to database
-        success = await db_storage.save_creator_db(creator)
-        if success:
-            stats["success"] += 1
+        batch.append(creator)
+
+        # Save batch when it reaches BATCH_SIZE
+        if len(batch) >= BATCH_SIZE:
+            saved_count = await db_storage.save_creators_batch_db(batch)
+            stats["success"] += saved_count
+            if saved_count < len(batch):
+                stats["failed"] += len(batch) - saved_count
+            
             if stats["success"] % 50 == 0:
                 logger.info("sync_progress", creators_synced=stats["success"], total=stats["total"])
-        else:
-            stats["failed"] += 1
+            
+            batch = []
+
+    # Save remaining creators in batch
+    if batch:
+        saved_count = await db_storage.save_creators_batch_db(batch)
+        stats["success"] += saved_count
+        if saved_count < len(batch):
+            stats["failed"] += len(batch) - saved_count
 
     return stats
 
