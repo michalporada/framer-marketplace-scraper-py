@@ -55,11 +55,17 @@ jobs:
           # Create data directory
           mkdir -p data
           
-          # Download artifact using GitHub API
+          # Download artifact using GitHub API with curl
           echo "📥 Downloading artifact..."
-          gh api repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip -o /tmp/artifact.zip 2>/dev/null
+          curl -L \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -o /tmp/artifact.zip \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" \
+            2>&1 | tee /tmp/download.log || true
           
-          if [ $? -eq 0 ] && [ -f /tmp/artifact.zip ]; then
+          if [ -f /tmp/artifact.zip ] && [ -s /tmp/artifact.zip ]; then
             echo "📦 Extracting artifact..."
             # Install unzip if not available (should be available by default)
             which unzip || (apt-get update && apt-get install -y unzip)
@@ -75,6 +81,10 @@ jobs:
             fi
           else
             echo "❌ Failed to download artifact"
+            echo "Download log:"
+            cat /tmp/download.log 2>/dev/null || echo "No download log available"
+            echo "File exists: $([ -f /tmp/artifact.zip ] && echo 'yes' || echo 'no')"
+            echo "File size: $([ -f /tmp/artifact.zip ] && du -h /tmp/artifact.zip || echo 'N/A')"
             echo "downloaded=false" >> $GITHUB_OUTPUT
           fi
         env:
