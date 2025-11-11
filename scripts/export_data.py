@@ -29,7 +29,9 @@ def load_products_from_directory(data_dir: Path, product_type: Optional[str] = N
         List of product dictionaries
     """
     products = []
-    product_types = ["templates", "components", "vectors", "plugins"] if not product_type else [product_type]
+    product_types = (
+        ["templates", "components", "vectors", "plugins"] if not product_type else [product_type]
+    )
 
     for ptype in product_types:
         type_dir = data_dir / "products" / ptype
@@ -239,4 +241,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

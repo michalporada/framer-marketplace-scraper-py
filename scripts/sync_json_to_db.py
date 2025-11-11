@@ -9,7 +9,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -100,10 +100,12 @@ async def sync_products(db_storage: DatabaseStorage, data_dir: Path) -> dict:
                 stats["success"] += saved_count
                 if saved_count < len(batch):
                     stats["failed"] += len(batch) - saved_count
-                
+
                 if stats["success"] % 500 == 0:
-                    logger.info("sync_progress", products_synced=stats["success"], total=stats["total"])
-                
+                    logger.info(
+                        "sync_progress", products_synced=stats["success"], total=stats["total"]
+                    )
+
                 batch = []
 
         # Save remaining products in batch
@@ -154,10 +156,10 @@ async def sync_creators(db_storage: DatabaseStorage, data_dir: Path) -> dict:
             stats["success"] += saved_count
             if saved_count < len(batch):
                 stats["failed"] += len(batch) - saved_count
-            
+
             if stats["success"] % 50 == 0:
                 logger.info("sync_progress", creators_synced=stats["success"], total=stats["total"])
-            
+
             batch = []
 
     # Save remaining creators in batch
@@ -183,7 +185,9 @@ async def main():
     # Initialize database storage
     db_storage = DatabaseStorage()
     if not db_storage.is_available():
-        logger.error("database_not_available", message="Database connection failed. Check DATABASE_URL.")
+        logger.error(
+            "database_not_available", message="Database connection failed. Check DATABASE_URL."
+        )
         return
 
     logger.info("sync_started", database_url=settings.database_url[:30] + "...")
@@ -232,4 +236,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

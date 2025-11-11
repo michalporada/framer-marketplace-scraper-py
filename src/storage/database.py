@@ -160,7 +160,8 @@ class DatabaseStorage:
 
             # Use INSERT ... ON CONFLICT to handle duplicates
             # We insert a new record with scraped_at timestamp for history tracking
-            insert_sql = text("""
+            insert_sql = text(
+                """
                 INSERT INTO products (
                     id, name, type, category, url, price, currency, is_free,
                     description, short_description,
@@ -228,7 +229,8 @@ class DatabaseStorage:
                     thumbnail_url = EXCLUDED.thumbnail_url,
                     screenshots_count = EXCLUDED.screenshots_count,
                     updated_at = CURRENT_TIMESTAMP
-            """)
+            """
+            )
 
             with self.engine.connect() as conn:
                 conn.execute(
@@ -288,10 +290,10 @@ class DatabaseStorage:
                 conn.commit()
 
             logger.debug("product_saved_to_db", product_id=product.id)
-            
+
             # Also save to history table
             await self.save_product_history_db(product)
-            
+
             return True
 
         except SQLAlchemyError as e:
@@ -313,11 +315,12 @@ class DatabaseStorage:
 
     def _get_product_insert_sql(self) -> text:
         """Get reusable SQL for product batch insert.
-        
+
         Returns:
             SQLAlchemy text object with INSERT ... ON CONFLICT statement
         """
-        return text("""
+        return text(
+            """
             INSERT INTO products (
                 id, name, type, category, url, price, currency, is_free,
                 description, short_description,
@@ -385,17 +388,18 @@ class DatabaseStorage:
                 thumbnail_url = EXCLUDED.thumbnail_url,
                 screenshots_count = EXCLUDED.screenshots_count,
                 updated_at = CURRENT_TIMESTAMP
-        """)
+        """
+        )
 
     async def save_product_history_db(self, product: Product) -> bool:
         """Save product version to history table.
-        
+
         This method always inserts a new record (never updates) to maintain
         complete history of all product versions over time.
-        
+
         Args:
             product: Product model
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -405,7 +409,7 @@ class DatabaseStorage:
         try:
             # Use the same data preparation as main table
             product_data = self._prepare_product_data(product)
-            
+
             # Add scraped_at from product model (use current time if not set)
             scraped_at = product.scraped_at if product.scraped_at else datetime.utcnow()
             if isinstance(scraped_at, str):
@@ -413,9 +417,10 @@ class DatabaseStorage:
                     scraped_at = datetime.fromisoformat(scraped_at.replace("Z", "+00:00"))
                 except (ValueError, AttributeError):
                     scraped_at = datetime.utcnow()
-            
+
             # Insert into history table (always insert, never update)
-            insert_sql = text("""
+            insert_sql = text(
+                """
                 INSERT INTO product_history (
                     product_id, scraped_at,
                     name, type, category, url, price, currency, is_free,
@@ -447,7 +452,8 @@ class DatabaseStorage:
                     :is_responsive, :has_animations, :cms_integration,
                     :pages_count, :thumbnail_url, :screenshots_count
                 )
-            """)
+            """
+            )
 
             with self.engine.connect() as conn:
                 conn.execute(
@@ -482,11 +488,12 @@ class DatabaseStorage:
 
     def _get_product_insert_sql(self) -> text:
         """Get reusable SQL for product batch insert.
-        
+
         Returns:
             SQLAlchemy text object with INSERT ... ON CONFLICT statement
         """
-        return text("""
+        return text(
+            """
             INSERT INTO products (
                 id, name, type, category, url, price, currency, is_free,
                 description, short_description,
@@ -554,14 +561,15 @@ class DatabaseStorage:
                 thumbnail_url = EXCLUDED.thumbnail_url,
                 screenshots_count = EXCLUDED.screenshots_count,
                 updated_at = CURRENT_TIMESTAMP
-        """)
+        """
+        )
 
     def _prepare_product_data(self, product: Product) -> dict:
         """Prepare product data for database insertion.
-        
+
         Args:
             product: Product model
-            
+
         Returns:
             Dictionary with product data ready for SQL
         """
@@ -582,17 +590,11 @@ class DatabaseStorage:
             product.stats.installs.raw if product.stats and product.stats.installs else None
         )
         installs_normalized = (
-            product.stats.installs.normalized
-            if product.stats and product.stats.installs
-            else None
+            product.stats.installs.normalized if product.stats and product.stats.installs else None
         )
-        vectors_raw = (
-            product.stats.vectors.raw if product.stats and product.stats.vectors else None
-        )
+        vectors_raw = product.stats.vectors.raw if product.stats and product.stats.vectors else None
         vectors_normalized = (
-            product.stats.vectors.normalized
-            if product.stats and product.stats.vectors
-            else None
+            product.stats.vectors.normalized if product.stats and product.stats.vectors else None
         )
 
         published_date_raw = (
@@ -677,34 +679,24 @@ class DatabaseStorage:
             "last_updated_normalized": last_updated_normalized,
             "version": product.metadata.version if product.metadata else None,
             "features_list": features_list,
-            "is_responsive": (
-                product.features.is_responsive if product.features else False
-            ),
-            "has_animations": (
-                product.features.has_animations if product.features else False
-            ),
-            "cms_integration": (
-                product.features.cms_integration if product.features else False
-            ),
+            "is_responsive": (product.features.is_responsive if product.features else False),
+            "has_animations": (product.features.has_animations if product.features else False),
+            "cms_integration": (product.features.cms_integration if product.features else False),
             "pages_count": (product.features.pages_count if product.features else None),
             "thumbnail_url": (
-                str(product.media.thumbnail)
-                if product.media and product.media.thumbnail
-                else None
+                str(product.media.thumbnail) if product.media and product.media.thumbnail else None
             ),
             "screenshots_count": (
-                len(product.media.screenshots)
-                if product.media and product.media.screenshots
-                else 0
+                len(product.media.screenshots) if product.media and product.media.screenshots else 0
             ),
         }
 
     async def save_products_batch_db(self, products: List[Product]) -> int:
         """Save multiple products to database in a single batch operation.
-        
+
         Args:
             products: List of Product models
-            
+
         Returns:
             Number of successfully saved products
         """
@@ -734,11 +726,11 @@ class DatabaseStorage:
                 conn.execute(insert_sql, products_data)
 
             logger.debug("products_batch_saved_to_db", count=len(valid_products))
-            
+
             # Also save to history table
             for product in valid_products:
                 await self.save_product_history_db(product)
-            
+
             return len(valid_products)
 
         except SQLAlchemyError as e:
@@ -760,28 +752,28 @@ class DatabaseStorage:
 
     async def _save_products_batch_chunk(self, valid_products: List[Product]) -> int:
         """Save a chunk of products to database (internal helper).
-        
+
         Args:
             valid_products: List of valid Product models (already filtered)
-            
+
         Returns:
             Number of successfully saved products
         """
         try:
             # Prepare all product data
             products_data = [self._prepare_product_data(p) for p in valid_products]
-            
+
             # Get reusable SQL
             insert_sql = self._get_product_insert_sql()
-            
+
             # Use transaction for better performance and atomicity
             with self.engine.begin() as conn:
                 # Execute batch insert in single transaction
                 conn.execute(insert_sql, products_data)
-            
+
             logger.debug("products_batch_chunk_saved_to_db", count=len(valid_products))
             return len(valid_products)
-            
+
         except SQLAlchemyError as e:
             logger.error(
                 "products_batch_chunk_db_save_error",
@@ -819,7 +811,8 @@ class DatabaseStorage:
                 json_lib.dumps(creator.social_media) if creator.social_media else None
             )
 
-            insert_sql = text("""
+            insert_sql = text(
+                """
                 INSERT INTO creators (
                     username, name, profile_url, avatar_url, bio, website,
                     social_media, total_products, templates_count, components_count,
@@ -845,7 +838,8 @@ class DatabaseStorage:
                     plugins_count = EXCLUDED.plugins_count,
                     total_sales = EXCLUDED.total_sales,
                     updated_at = CURRENT_TIMESTAMP
-            """)
+            """
+            )
 
             with self.engine.connect() as conn:
                 conn.execute(
@@ -890,18 +884,16 @@ class DatabaseStorage:
 
     def _prepare_creator_data(self, creator: Creator) -> dict:
         """Prepare creator data for database insertion.
-        
+
         Args:
             creator: Creator model
-            
+
         Returns:
             Dictionary with creator data ready for SQL
         """
         import json as json_lib
 
-        social_media_json = (
-            json_lib.dumps(creator.social_media) if creator.social_media else None
-        )
+        social_media_json = json_lib.dumps(creator.social_media) if creator.social_media else None
 
         return {
             "username": creator.username,
@@ -921,12 +913,12 @@ class DatabaseStorage:
 
     async def save_creators_batch_db(self, creators: List[Creator]) -> int:
         """Save multiple creators to database in a single batch operation.
-        
+
         Uses true batch INSERT with multiple VALUES for better performance.
-        
+
         Args:
             creators: List of Creator models
-            
+
         Returns:
             Number of successfully saved creators
         """
@@ -941,9 +933,7 @@ class DatabaseStorage:
 
         try:
             # Prepare all creator data
-            creators_data_list = [
-                self._prepare_creator_data(c) for c in valid_creators
-            ]
+            creators_data_list = [self._prepare_creator_data(c) for c in valid_creators]
 
             # Build batch INSERT with multiple VALUES for better performance
             # This is faster than executemany() which executes multiple individual INSERTs
@@ -1052,7 +1042,8 @@ class DatabaseStorage:
                 json_lib.dumps(category.subcategories) if category.subcategories else None
             )
 
-            insert_sql = text("""
+            insert_sql = text(
+                """
                 INSERT INTO categories (
                     slug, name, url, description, product_count,
                     product_types, parent_category, subcategories,
@@ -1071,7 +1062,8 @@ class DatabaseStorage:
                     parent_category = EXCLUDED.parent_category,
                     subcategories = CAST(EXCLUDED.subcategories AS jsonb),
                     updated_at = CURRENT_TIMESTAMP
-            """)
+            """
+            )
 
             with self.engine.connect() as conn:
                 conn.execute(

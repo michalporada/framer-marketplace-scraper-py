@@ -1,10 +1,10 @@
 """FastAPI application for Framer Marketplace Scraper API."""
+
 import os
 from typing import Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 # Load environment variables from .env file
 load_dotenv()
@@ -18,8 +18,7 @@ app = FastAPI(
 
 # CORS Configuration
 cors_origins = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:3000,https://framer-marketplace-scraper-py.vercel.app"
+    "CORS_ORIGINS", "http://localhost:3000,https://framer-marketplace-scraper-py.vercel.app"
 ).split(",")
 
 app.add_middleware(
@@ -44,10 +43,10 @@ async def root():
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    from api.dependencies import get_db_engine, execute_query_one
-    
+    from api.dependencies import get_db_engine
+
     db_status = "configured" if get_db_engine() else "not_configured"
-    
+
     # Test simple query
     test_result = None
     test_error = None
@@ -55,7 +54,7 @@ async def health():
         try:
             from api.dependencies import get_db_engine
             from sqlalchemy import text
-            
+
             engine = get_db_engine()
             if engine:
                 with engine.connect() as conn:
@@ -64,7 +63,9 @@ async def health():
                     if row:
                         # Try to access the result
                         test_value = row[0] if row else None
-                        test_result = f"connected (value: {test_value})" if test_value else "no_value"
+                        test_result = (
+                            f"connected (value: {test_value})" if test_value else "no_value"
+                        )
                     else:
                         test_result = "no_result"
             else:
@@ -72,12 +73,8 @@ async def health():
         except Exception as e:
             test_result = "error"
             test_error = f"{type(e).__name__}: {str(e)[:200]}"  # More details
-    
-    response = {
-        "status": "healthy",
-        "database": db_status,
-        "database_test": test_result
-    }
+
+    response = {"status": "healthy", "database": db_status, "database_test": test_result}
     if test_error:
         response["test_error"] = test_error
     return response
@@ -85,7 +82,12 @@ async def health():
 
 # Import routes
 from api.routes import creators, products, metrics
-from api.cache import get_cache_stats, invalidate_all_cache, invalidate_product_cache, invalidate_creator_cache
+from api.cache import (
+    get_cache_stats,
+    invalidate_all_cache,
+    invalidate_product_cache,
+    invalidate_creator_cache,
+)
 
 # Include routers
 app.include_router(products.router)
@@ -96,7 +98,7 @@ app.include_router(metrics.router)
 @app.get("/cache/stats")
 async def cache_stats():
     """Get cache statistics.
-    
+
     Returns:
         Dictionary with cache statistics
     """
@@ -105,13 +107,15 @@ async def cache_stats():
 
 @app.post("/cache/invalidate")
 async def cache_invalidate(
-    cache_type: Optional[str] = Query(None, description="Cache type: product, creator, or None for all")
+    cache_type: Optional[str] = Query(
+        None, description="Cache type: product, creator, or None for all"
+    )
 ):
     """Invalidate cache.
-    
+
     Args:
         cache_type: Type of cache to invalidate ("product", "creator", or None for all)
-    
+
     Returns:
         Success message
     """
@@ -125,8 +129,9 @@ async def cache_invalidate(
         invalidate_all_cache()
         return {"message": "All cache invalidated"}
 
+
 if __name__ == "__main__":
     import uvicorn
+
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
-

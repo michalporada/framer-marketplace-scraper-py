@@ -86,14 +86,12 @@ def test_endpoint(
             if validate_response:
                 try:
                     validate_response(response_data)
-                    print_success(f"  Response validation passed")
+                    print_success("  Response validation passed")
                 except AssertionError as e:
                     print_error(f"  Response validation failed: {e}")
                     success = False
         else:
-            print_error(
-                f"{description} - Status: {status_code} (expected {expected_status})"
-            )
+            print_error(f"{description} - Status: {status_code} (expected {expected_status})")
             if response_data.get("error"):
                 print_error(f"  Error: {response_data['error']}")
 
@@ -317,9 +315,7 @@ def main():
             results.append(("Creator Detail", success))
             if data and "data" in data:
                 creator = data["data"]
-                print_info(
-                    f"  Creator: {creator.get('name', 'N/A')} (@{creator.get('username')})"
-                )
+                print_info(f"  Creator: {creator.get('name', 'N/A')} (@{creator.get('username')})")
                 print_info(f"  Products: {creator.get('stats', {}).get('total_products', 0)}")
         else:
             print_warning("  No creator username found for detail test")
@@ -416,4 +412,3 @@ def main():
 
 if __name__ == "__main__":
     exit(main())
-

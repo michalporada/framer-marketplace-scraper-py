@@ -40,6 +40,7 @@ def get_db_engine():
         return _db_engine
     except Exception as e:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.error(f"Failed to create database engine: {str(e)}")
         return None
@@ -74,11 +75,13 @@ def execute_query(query: str, params: Optional[dict] = None):
     except SQLAlchemyError as e:
         # Log error for debugging (but don't expose sensitive info)
         import logging
+
         logger = logging.getLogger(__name__)
         logger.error(f"Database query error: {type(e).__name__}: {str(e)}")
         return None
     except Exception as e:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.error(f"Unexpected database error: {type(e).__name__}: {str(e)}")
         return None
@@ -111,12 +114,13 @@ def execute_query_one(query: str, params: Optional[dict] = None):
     except SQLAlchemyError as e:
         # Log error for debugging (but don't expose sensitive info)
         import logging
+
         logger = logging.getLogger(__name__)
         logger.error(f"Database query error: {type(e).__name__}: {str(e)}")
         return None
     except Exception as e:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.error(f"Unexpected database error: {type(e).__name__}: {str(e)}")
         return None
-

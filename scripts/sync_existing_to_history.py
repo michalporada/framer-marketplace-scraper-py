@@ -67,88 +67,87 @@ def db_row_to_product_dict(row: dict) -> dict:
 async def sync_existing_products_to_history():
     """Sync all existing products from products table to product_history."""
     db_storage = DatabaseStorage()
-    
+
     if not db_storage.is_available():
         logger.error("database_not_available")
         print("❌ Database not available")
         return False
-    
+
     engine = get_db_engine()
     if not engine:
         logger.error("database_engine_not_available")
         print("❌ Database engine not available")
         return False
-    
+
     # Get all products from products table
     with engine.connect() as conn:
         result = conn.execute(text("SELECT * FROM products ORDER BY scraped_at DESC"))
         products_rows = result.fetchall()
         products_count = len(products_rows)
-    
+
     if products_count == 0:
         print("ℹ️  No products found in products table")
         return True
-    
+
     print(f"📊 Found {products_count} products to sync to history")
-    
+
     # Check how many are already in history
     with engine.connect() as conn:
         result = conn.execute(text("SELECT COUNT(DISTINCT product_id) FROM product_history"))
         existing_count = result.fetchone()[0]
-    
+
     print(f"📊 Products already in history: {existing_count}")
     print(f"📊 Products to sync: {products_count - existing_count}")
-    
+
     # Ask for confirmation
     response = input("\n⚠️  This will add all products to history. Continue? (y/n): ")
     if response.lower() != "y":
         print("❌ Cancelled")
         return False
-    
+
     # Convert rows to dicts
     products_dicts = [dict(row._mapping) for row in products_rows]
-    
+
     # Load products from JSON files to get full Product models
     # (We need full models because history save uses _prepare_product_data)
     from src.storage.file_storage import FileStorage
     from src.models.product import (
-        Product,
         ProductStats,
         ProductMetadata,
         ProductFeatures,
         ProductMedia,
         NormalizedStatistic,
-        NormalizedDate,
     )
     from src.models.creator import Creator
     from datetime import datetime
-    
+
     file_storage = FileStorage()
     synced_count = 0
     failed_count = 0
-    
+
     print("\n🔄 Syncing products to history...")
-    
+
     for idx, product_dict in enumerate(products_dicts):
         try:
             # Try to load from JSON first (has full data)
             product_id = product_dict["id"]
             product_type = product_dict["type"]
-            
+
             json_file = file_storage.get_product_dir(product_type) / f"{product_id}.json"
-            
+
             if json_file.exists():
                 import json
+
                 with open(json_file, "r") as f:
                     json_data = json.load(f)
-                
+
                 # Create Product from JSON
                 product = Product(**json_data)
             else:
                 # Create Product from DB row (limited data)
                 # This is a fallback - we'll create a minimal Product
                 from pydantic import HttpUrl
-                
+
                 stats = ProductStats()
                 if product_dict.get("views_raw") or product_dict.get("views_normalized"):
                     stats.views = NormalizedStatistic(
@@ -161,27 +160,25 @@ async def sync_existing_products_to_history():
                         normalized=product_dict.get("pages_normalized"),
                     )
                 # ... add other stats similarly
-                
+
                 metadata = ProductMetadata()
                 if product_dict.get("version"):
                     metadata.version = product_dict["version"]
-                
+
                 features = ProductFeatures()
                 if product_dict.get("features_list"):
                     features.features = [
-                        f.strip()
-                        for f in product_dict["features_list"].split(",")
-                        if f.strip()
+                        f.strip() for f in product_dict["features_list"].split(",") if f.strip()
                     ]
                 features.is_responsive = product_dict.get("is_responsive", False)
                 features.has_animations = product_dict.get("has_animations", False)
                 features.cms_integration = product_dict.get("cms_integration", False)
                 features.pages_count = product_dict.get("pages_count")
-                
+
                 media = ProductMedia()
                 if product_dict.get("thumbnail_url"):
                     media.thumbnail = HttpUrl(product_dict["thumbnail_url"])
-                
+
                 creator = None
                 if product_dict.get("creator_username"):
                     creator = Creator(
@@ -189,7 +186,7 @@ async def sync_existing_products_to_history():
                         name=product_dict.get("creator_name"),
                         profile_url=HttpUrl(product_dict.get("creator_url", "")),
                     )
-                
+
                 scraped_at = product_dict.get("scraped_at")
                 if isinstance(scraped_at, str):
                     try:
@@ -198,7 +195,7 @@ async def sync_existing_products_to_history():
                         scraped_at = datetime.utcnow()
                 elif scraped_at is None:
                     scraped_at = datetime.utcnow()
-                
+
                 product = Product(
                     id=product_dict["id"],
                     name=product_dict["name"],
@@ -217,7 +214,7 @@ async def sync_existing_products_to_history():
                     media=media,
                     scraped_at=scraped_at,
                 )
-            
+
             # Save to history
             success = await db_storage.save_product_history_db(product)
             if success:
@@ -227,7 +224,7 @@ async def sync_existing_products_to_history():
             else:
                 failed_count += 1
                 logger.warning("sync_failed", product_id=product_id)
-        
+
         except Exception as e:
             failed_count += 1
             logger.error(
@@ -236,21 +233,20 @@ async def sync_existing_products_to_history():
                 error=str(e),
                 error_type=type(e).__name__,
             )
-    
-    print(f"\n✅ Sync completed!")
+
+    print("\n✅ Sync completed!")
     print(f"   Synced: {synced_count}")
     print(f"   Failed: {failed_count}")
     print(f"   Total: {products_count}")
-    
+
     # Verify
     with engine.connect() as conn:
         result = conn.execute(text("SELECT COUNT(*) FROM product_history"))
         history_count = result.fetchone()[0]
         print(f"\n📊 Total records in product_history: {history_count}")
-    
+
     return True
 
 
 if __name__ == "__main__":
     asyncio.run(sync_existing_products_to_history())
-

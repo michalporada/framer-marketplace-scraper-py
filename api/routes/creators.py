@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from api.dependencies import execute_query, execute_query_one
-from api.cache import cached, invalidate_creator_cache
+from api.cache import cached
 from src.models.creator import Creator, CreatorStats
 
 router = APIRouter(prefix="/api/creators", tags=["creators"])
@@ -78,9 +78,7 @@ class CreatorResponse(BaseModel):
     """Response model for single creator."""
 
     data: Creator
-    meta: dict = Field(
-        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
-    )
+    meta: dict = Field(default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"})
 
 
 @router.get("", response_model=CreatorListResponse)
@@ -149,7 +147,9 @@ async def get_creators(
 
     # Get creators using prepared statements
     # Note: ORDER BY column name must use whitelist (cannot be parameterized)
-    query = f"SELECT * FROM creators ORDER BY {sort_column} {order_upper} LIMIT :limit OFFSET :offset"
+    query = (
+        f"SELECT * FROM creators ORDER BY {sort_column} {order_upper} LIMIT :limit OFFSET :offset"
+    )
     params = {"limit": limit, "offset": offset}
 
     rows = execute_query(query, params)
@@ -220,7 +220,9 @@ async def get_creator(username: str):
 @cached(ttl=300, cache_type="product")  # Cache for 5 minutes
 async def get_creator_products(
     username: str,
-    type: Optional[str] = Query(None, description="Product type: template, component, vector, plugin"),
+    type: Optional[str] = Query(
+        None, description="Product type: template, component, vector, plugin"
+    ),
     limit: int = Query(100, ge=1, le=1000, description="Number of products to return"),
     offset: int = Query(0, ge=0, description="Number of products to skip"),
 ):
@@ -242,7 +244,7 @@ async def get_creator_products(
             detail={
                 "error": {
                     "code": "INVALID_PRODUCT_TYPE",
-                    "message": f"Invalid product type. Must be one of: template, component, vector, plugin",
+                    "message": "Invalid product type. Must be one of: template, component, vector, plugin",
                     "details": {"type": type},
                 }
             },
@@ -277,7 +279,11 @@ async def get_creator_products(
 
     # Get products using prepared statements
     # Note: LIMIT and OFFSET use parameters (prepared statements)
-    query = "SELECT * FROM products " + where_clause + " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    query = (
+        "SELECT * FROM products "
+        + where_clause
+        + " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    )
     params["limit"] = limit
     params["offset"] = offset
 
@@ -309,4 +315,3 @@ async def get_creator_products(
             "timestamp": datetime.utcnow().isoformat() + "Z",
         },
     }
-

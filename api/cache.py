@@ -3,9 +3,8 @@
 import hashlib
 import json
 from functools import wraps
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 from cachetools import TTLCache
-from datetime import datetime
 
 # Cache instances
 _product_cache: Optional[TTLCache] = None
@@ -17,7 +16,7 @@ DEFAULT_TTL = 300
 
 def get_product_cache() -> TTLCache:
     """Get or create product cache instance.
-    
+
     Returns:
         TTLCache instance for products
     """
@@ -30,7 +29,7 @@ def get_product_cache() -> TTLCache:
 
 def get_creator_cache() -> TTLCache:
     """Get or create creator cache instance.
-    
+
     Returns:
         TTLCache instance for creators
     """
@@ -43,11 +42,11 @@ def get_creator_cache() -> TTLCache:
 
 def generate_cache_key(*args, **kwargs) -> str:
     """Generate cache key from function arguments.
-    
+
     Args:
         *args: Positional arguments
         **kwargs: Keyword arguments
-        
+
     Returns:
         Cache key string
     """
@@ -63,14 +62,15 @@ def generate_cache_key(*args, **kwargs) -> str:
 
 def cached(ttl: int = DEFAULT_TTL, cache_type: str = "product"):
     """Decorator for caching API endpoint responses.
-    
+
     Args:
         ttl: Time to live in seconds (default: 300 = 5 minutes)
         cache_type: Type of cache ("product" or "creator")
-        
+
     Returns:
         Decorated function with caching
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -81,31 +81,34 @@ def cached(ttl: int = DEFAULT_TTL, cache_type: str = "product"):
                 cache = get_creator_cache()
             else:
                 cache = get_product_cache()
-            
+
             # Generate cache key
             cache_key = generate_cache_key(func.__name__, *args, **kwargs)
-            
+
             # Check cache
             if cache_key in cache:
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.debug(f"Cache hit for {func.__name__}: {cache_key[:8]}")
                 return cache[cache_key]
-            
+
             # Execute function
             result = await func(*args, **kwargs)
-            
+
             # Store in cache (only if result is valid)
             if result is not None:
                 cache[cache_key] = result
-                
+
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.debug(f"Cache miss for {func.__name__}: {cache_key[:8]}")
-            
+
             return result
-        
+
         return wrapper
+
     return decorator
 
 
@@ -114,6 +117,7 @@ def invalidate_product_cache():
     cache = get_product_cache()
     cache.clear()
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info("Product cache invalidated")
 
@@ -123,6 +127,7 @@ def invalidate_creator_cache():
     cache = get_creator_cache()
     cache.clear()
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info("Creator cache invalidated")
 
@@ -132,19 +137,20 @@ def invalidate_all_cache():
     invalidate_product_cache()
     invalidate_creator_cache()
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info("All cache invalidated")
 
 
 def get_cache_stats() -> dict:
     """Get cache statistics.
-    
+
     Returns:
         Dictionary with cache statistics
     """
     product_cache = get_product_cache()
     creator_cache = get_creator_cache()
-    
+
     return {
         "product_cache": {
             "size": len(product_cache),
@@ -157,4 +163,3 @@ def get_cache_stats() -> dict:
             "ttl": creator_cache.ttl,
         },
     }
-
