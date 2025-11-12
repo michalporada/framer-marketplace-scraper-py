@@ -81,6 +81,48 @@ class CreatorResponse(BaseModel):
     meta: dict = Field(default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"})
 
 
+class TopCreatorByViews(BaseModel):
+    """Model for top creator by template views."""
+
+    username: str
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    total_views: int
+    templates_count: int
+    views_change: int = 0
+    views_change_percent: float = 0.0
+
+
+class TopCreatorsByViewsResponse(BaseModel):
+    """Response model for top creators by template views."""
+
+    data: List[TopCreatorByViews]
+    meta: dict = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
+class TopCreatorByTemplateCount(BaseModel):
+    """Model for top creator by template count."""
+
+    username: str
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    templates_count: int
+    total_products: int
+    templates_change: int = 0
+    templates_change_percent: float = 0.0
+
+
+class TopCreatorsByTemplateCountResponse(BaseModel):
+    """Response model for top creators by template count."""
+
+    data: List[TopCreatorByTemplateCount]
+    meta: dict = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
 @router.get("", response_model=CreatorListResponse)
 @cached(ttl=300, cache_type="creator")  # Cache for 5 minutes
 async def get_creators(
@@ -177,6 +219,371 @@ async def get_creators(
             "timestamp": datetime.utcnow().isoformat() + "Z",
         },
     )
+
+
+@router.get("/top-by-template-views", response_model=TopCreatorsByViewsResponse)
+@cached(ttl=300, cache_type="creator")  # Cache for 5 minutes
+async def get_top_creators_by_template_views(
+    limit: int = Query(10, ge=1, le=100, description="Number of creators to return"),
+    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for % change (1-168, default: 24)"),
+):
+    """Get top creators by total views of their templates.
+
+    This endpoint aggregates views_normalized from product_history for all templates
+    of each creator, calculates total views, and compares with period ago to calculate
+    percentage change.
+
+    Args:
+        limit: Number of top creators to return (1-100, default: 10)
+        period_hours: Period in hours to compare for % change (1-168, default: 24)
+
+    Returns:
+        TopCreatorsByViewsResponse with top creators sorted by total views
+
+    Raises:
+        503: Database not available
+    """
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+
+    try:
+        from sqlalchemy import text
+
+        # Get current time and period ago
+        now = datetime.utcnow()
+        period_ago = now - timedelta(hours=period_hours)
+
+        # Query to get latest total views per creator for templates
+        # Uses DISTINCT ON to get the most recent scrape for each product
+        # Then aggregates by creator_username
+        query_latest = text(
+            """
+            WITH latest_views AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    creator_username,
+                    views_normalized
+                FROM product_history
+                WHERE type = 'template'
+                    AND views_normalized IS NOT NULL
+                    AND scraped_at <= :now_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                creator_username,
+                SUM(views_normalized) as total_views,
+                COUNT(*) as templates_count
+            FROM latest_views
+            GROUP BY creator_username
+            ORDER BY total_views DESC
+            LIMIT :limit
+        """
+        )
+
+        # Query to get views from period ago
+        query_period_ago = text(
+            """
+            WITH period_views AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    creator_username,
+                    views_normalized
+                FROM product_history
+                WHERE type = 'template'
+                    AND views_normalized IS NOT NULL
+                    AND scraped_at <= :period_ago_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                creator_username,
+                SUM(views_normalized) as total_views
+            FROM period_views
+            GROUP BY creator_username
+        """
+        )
+
+        with engine.connect() as conn:
+            # Get latest views aggregated by creator
+            result_latest = conn.execute(
+                query_latest, {"now_time": now, "limit": limit}
+            )
+            latest_data = {}
+            for row in result_latest:
+                latest_data[row[0]] = {
+                    "total_views": int(row[1]) if row[1] else 0,
+                    "templates_count": int(row[2]) if row[2] else 0,
+                }
+
+            # Get views from period ago
+            result_period = conn.execute(
+                query_period_ago, {"period_ago_time": period_ago}
+            )
+            period_ago_data = {
+                row[0]: int(row[1]) if row[1] else 0 for row in result_period
+            }
+
+        # Get creator details (name, avatar) from creators table
+        creators_usernames = list(latest_data.keys())
+        if not creators_usernames:
+            return TopCreatorsByViewsResponse(
+                data=[],
+                meta={
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "period_hours": period_hours,
+                },
+            )
+
+        # Get creator details (name, avatar) from creators table
+        # Use simple loop with prepared statements for safety
+        creator_details = {}
+        if creators_usernames:
+            for username in creators_usernames:
+                creator_query = "SELECT username, name, avatar_url FROM creators WHERE username = :username"
+                creator_row = execute_query_one(creator_query, {"username": username})
+                if creator_row:
+                    creator_details[username] = {
+                        "name": creator_row.get("name"),
+                        "avatar_url": creator_row.get("avatar_url"),
+                    }
+
+        # Calculate changes and build response
+        top_creators = []
+        for username, views_data in latest_data.items():
+            current_views = views_data["total_views"]
+            previous_views = period_ago_data.get(username, 0)
+
+            # Calculate change
+            views_change = current_views - previous_views
+            views_change_percent = 0.0
+            if previous_views > 0:
+                views_change_percent = (views_change / previous_views) * 100
+
+            creator_info = creator_details.get(username, {})
+            top_creators.append(
+                TopCreatorByViews(
+                    username=username,
+                    name=creator_info.get("name"),
+                    avatar_url=creator_info.get("avatar_url"),
+                    total_views=current_views,
+                    templates_count=views_data["templates_count"],
+                    views_change=views_change,
+                    views_change_percent=round(views_change_percent, 2),
+                )
+            )
+
+        # Sort by total_views (should already be sorted, but ensure it)
+        top_creators.sort(key=lambda x: x.total_views, reverse=True)
+
+        return TopCreatorsByViewsResponse(
+            data=top_creators,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "period_hours": period_hours,
+                "limit": limit,
+            },
+        )
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Error calculating top creators by template views: {type(e).__name__}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to calculate top creators: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
+
+
+@router.get("/top-by-template-count", response_model=TopCreatorsByTemplateCountResponse)
+@cached(ttl=300, cache_type="creator")  # Cache for 5 minutes
+async def get_top_creators_by_template_count(
+    limit: int = Query(10, ge=1, le=100, description="Number of creators to return"),
+    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for % change (1-168, default: 24)"),
+):
+    """Get top creators by number of templates with percentage change.
+
+    This endpoint counts unique templates from product_history for each creator,
+    calculates total templates count, and compares with period ago to calculate
+    percentage change in template count.
+
+    Args:
+        limit: Number of top creators to return (1-100, default: 10)
+        period_hours: Period in hours to compare for % change (1-168, default: 24)
+
+    Returns:
+        TopCreatorsByTemplateCountResponse with top creators sorted by template count
+
+    Raises:
+        503: Database not available
+    """
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+
+    try:
+        from sqlalchemy import text
+
+        # Get current time and period ago
+        now = datetime.utcnow()
+        period_ago = now - timedelta(hours=period_hours)
+
+        # Query to get latest template count per creator
+        query_latest = text(
+            """
+            WITH latest_templates AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    creator_username
+                FROM product_history
+                WHERE type = 'template'
+                    AND scraped_at <= :now_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                creator_username,
+                COUNT(*) as templates_count
+            FROM latest_templates
+            GROUP BY creator_username
+            ORDER BY templates_count DESC
+            LIMIT :limit
+        """
+        )
+
+        # Query to get template count from period ago
+        query_period_ago = text(
+            """
+            WITH period_templates AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    creator_username
+                FROM product_history
+                WHERE type = 'template'
+                    AND scraped_at <= :period_ago_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                creator_username,
+                COUNT(*) as templates_count
+            FROM period_templates
+            GROUP BY creator_username
+        """
+        )
+
+        with engine.connect() as conn:
+            # Get latest template counts aggregated by creator
+            result_latest = conn.execute(
+                query_latest, {"now_time": now, "limit": limit}
+            )
+            latest_data = {}
+            for row in result_latest:
+                latest_data[row[0]] = {
+                    "templates_count": int(row[1]) if row[1] else 0,
+                }
+
+            # Get template counts from period ago
+            result_period = conn.execute(
+                query_period_ago, {"period_ago_time": period_ago}
+            )
+            period_ago_data = {
+                row[0]: int(row[1]) if row[1] else 0 for row in result_period
+            }
+
+        # Get creator details (name, avatar, total_products) from creators table
+        creators_usernames = list(latest_data.keys())
+        creator_details = {}
+        if creators_usernames:
+            for username in creators_usernames:
+                creator_query = "SELECT username, name, avatar_url, total_products FROM creators WHERE username = :username"
+                creator_row = execute_query_one(creator_query, {"username": username})
+                if creator_row:
+                    creator_details[username] = {
+                        "name": creator_row.get("name"),
+                        "avatar_url": creator_row.get("avatar_url"),
+                        "total_products": creator_row.get("total_products", 0),
+                    }
+
+        # Calculate changes and build response
+        top_creators = []
+        for username, count_data in latest_data.items():
+            current_count = count_data["templates_count"]
+            previous_count = period_ago_data.get(username, 0)
+
+            # Calculate change
+            templates_change = current_count - previous_count
+            templates_change_percent = 0.0
+            if previous_count > 0:
+                templates_change_percent = (templates_change / previous_count) * 100
+
+            creator_info = creator_details.get(username, {})
+
+            top_creators.append(
+                TopCreatorByTemplateCount(
+                    username=username,
+                    name=creator_info.get("name"),
+                    avatar_url=creator_info.get("avatar_url"),
+                    templates_count=current_count,
+                    total_products=creator_info.get("total_products", 0),
+                    templates_change=templates_change,
+                    templates_change_percent=round(templates_change_percent, 2),
+                )
+            )
+
+        # Sort by templates_count (should already be sorted, but ensure it)
+        top_creators.sort(key=lambda x: x.templates_count, reverse=True)
+
+        return TopCreatorsByTemplateCountResponse(
+            data=top_creators,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "period_hours": period_hours,
+                "limit": limit,
+            },
+        )
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Error calculating top creators by template count: {type(e).__name__}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to calculate top creators: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
 
 
 @router.get("/{username}", response_model=CreatorResponse)
@@ -551,6 +958,387 @@ async def get_creator_products_growth(
                 "error": {
                     "code": "INTERNAL_ERROR",
                     "message": f"Failed to calculate products growth: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
+    limit: int = Query(10, ge=1, le=100, description="Number of creators to return"),
+    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for % change (1-168, default: 24)"),
+):
+    """Get top creators by total views of their templates.
+
+    This endpoint aggregates views_normalized from product_history for all templates
+    of each creator, calculates total views, and compares with period ago to calculate
+    percentage change.
+
+    Args:
+        limit: Number of top creators to return (1-100, default: 10)
+        period_hours: Period in hours to compare for % change (1-168, default: 24)
+
+    Returns:
+        TopCreatorsByViewsResponse with top creators sorted by total views
+
+    Raises:
+        503: Database not available
+    """
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+
+    try:
+        from sqlalchemy import text
+
+        # Get current time and period ago
+        now = datetime.utcnow()
+        period_ago = now - timedelta(hours=period_hours)
+
+        # Query to get latest total views per creator for templates
+        # Uses DISTINCT ON to get the most recent scrape for each product
+        # Then aggregates by creator_username
+        query_latest = text(
+            """
+            WITH latest_views AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    creator_username,
+                    views_normalized
+                FROM product_history
+                WHERE type = 'template'
+                    AND views_normalized IS NOT NULL
+                    AND scraped_at <= :now_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                creator_username,
+                SUM(views_normalized) as total_views,
+                COUNT(*) as templates_count
+            FROM latest_views
+            GROUP BY creator_username
+            ORDER BY total_views DESC
+            LIMIT :limit
+        """
+        )
+
+        # Query to get views from period ago
+        query_period_ago = text(
+            """
+            WITH period_views AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    creator_username,
+                    views_normalized
+                FROM product_history
+                WHERE type = 'template'
+                    AND views_normalized IS NOT NULL
+                    AND scraped_at <= :period_ago_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                creator_username,
+                SUM(views_normalized) as total_views
+            FROM period_views
+            GROUP BY creator_username
+        """
+        )
+
+        with engine.connect() as conn:
+            # Get latest views aggregated by creator
+            result_latest = conn.execute(
+                query_latest, {"now_time": now, "limit": limit}
+            )
+            latest_data = {}
+            for row in result_latest:
+                latest_data[row[0]] = {
+                    "total_views": int(row[1]) if row[1] else 0,
+                    "templates_count": int(row[2]) if row[2] else 0,
+                }
+
+            # Get views from period ago
+            result_period = conn.execute(
+                query_period_ago, {"period_ago_time": period_ago}
+            )
+            period_ago_data = {
+                row[0]: int(row[1]) if row[1] else 0 for row in result_period
+            }
+
+        # Get creator details (name, avatar) from creators table
+        creators_usernames = list(latest_data.keys())
+        if not creators_usernames:
+            return TopCreatorsByViewsResponse(
+                data=[],
+                meta={
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "period_hours": period_hours,
+                },
+            )
+
+        # Get creator details (name, avatar) from creators table
+        # Use simple loop with prepared statements for safety
+        creator_details = {}
+        if creators_usernames:
+            for username in creators_usernames:
+                creator_query = "SELECT username, name, avatar_url FROM creators WHERE username = :username"
+                creator_row = execute_query_one(creator_query, {"username": username})
+                if creator_row:
+                    creator_details[username] = {
+                        "name": creator_row.get("name"),
+                        "avatar_url": creator_row.get("avatar_url"),
+                    }
+
+        # Calculate changes and build response
+        top_creators = []
+        for username, views_data in latest_data.items():
+            current_views = views_data["total_views"]
+            previous_views = period_ago_data.get(username, 0)
+
+            # Calculate change
+            views_change = current_views - previous_views
+            views_change_percent = 0.0
+            if previous_views > 0:
+                views_change_percent = (views_change / previous_views) * 100
+
+            creator_info = creator_details.get(username, {})
+            top_creators.append(
+                TopCreatorByViews(
+                    username=username,
+                    name=creator_info.get("name"),
+                    avatar_url=creator_info.get("avatar_url"),
+                    total_views=current_views,
+                    templates_count=views_data["templates_count"],
+                    views_change=views_change,
+                    views_change_percent=round(views_change_percent, 2),
+                )
+            )
+
+        # Sort by total_views (should already be sorted, but ensure it)
+        top_creators.sort(key=lambda x: x.total_views, reverse=True)
+
+        return TopCreatorsByViewsResponse(
+            data=top_creators,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "period_hours": period_hours,
+                "limit": limit,
+            },
+        )
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Error calculating top creators by template views: {type(e).__name__}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to calculate top creators: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
+
+
+class TopCreatorByTemplateCount(BaseModel):
+    """Model for top creator by template count."""
+
+    username: str
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    templates_count: int
+    total_products: int
+    templates_change: int = 0
+    templates_change_percent: float = 0.0
+
+
+class TopCreatorsByTemplateCountResponse(BaseModel):
+    """Response model for top creators by template count."""
+
+    data: List[TopCreatorByTemplateCount]
+    meta: dict = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
+@router.get("/top-by-template-count", response_model=TopCreatorsByTemplateCountResponse)
+@cached(ttl=300, cache_type="creator")  # Cache for 5 minutes
+async def get_top_creators_by_template_count(
+    limit: int = Query(10, ge=1, le=100, description="Number of creators to return"),
+    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for % change (1-168, default: 24)"),
+):
+    """Get top creators by number of templates with percentage change.
+
+    This endpoint counts unique templates from product_history for each creator,
+    calculates total templates count, and compares with period ago to calculate
+    percentage change in template count.
+
+    Args:
+        limit: Number of top creators to return (1-100, default: 10)
+        period_hours: Period in hours to compare for % change (1-168, default: 24)
+
+    Returns:
+        TopCreatorsByTemplateCountResponse with top creators sorted by template count
+
+    Raises:
+        503: Database not available
+    """
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+
+    try:
+        from sqlalchemy import text
+
+        # Get current time and period ago
+        now = datetime.utcnow()
+        period_ago = now - timedelta(hours=period_hours)
+
+        # Query to get latest template count per creator
+        query_latest = text(
+            """
+            WITH latest_templates AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    creator_username
+                FROM product_history
+                WHERE type = 'template'
+                    AND scraped_at <= :now_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                creator_username,
+                COUNT(*) as templates_count
+            FROM latest_templates
+            GROUP BY creator_username
+            ORDER BY templates_count DESC
+            LIMIT :limit
+        """
+        )
+
+        # Query to get template count from period ago
+        query_period_ago = text(
+            """
+            WITH period_templates AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    creator_username
+                FROM product_history
+                WHERE type = 'template'
+                    AND scraped_at <= :period_ago_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                creator_username,
+                COUNT(*) as templates_count
+            FROM period_templates
+            GROUP BY creator_username
+        """
+        )
+
+        with engine.connect() as conn:
+            # Get latest template counts aggregated by creator
+            result_latest = conn.execute(
+                query_latest, {"now_time": now, "limit": limit}
+            )
+            latest_data = {}
+            for row in result_latest:
+                latest_data[row[0]] = {
+                    "templates_count": int(row[1]) if row[1] else 0,
+                }
+
+            # Get template counts from period ago
+            result_period = conn.execute(
+                query_period_ago, {"period_ago_time": period_ago}
+            )
+            period_ago_data = {
+                row[0]: int(row[1]) if row[1] else 0 for row in result_period
+            }
+
+        # Get creator details (name, avatar, total_products) from creators table
+        creators_usernames = list(latest_data.keys())
+        creator_details = {}
+        if creators_usernames:
+            for username in creators_usernames:
+                creator_query = "SELECT username, name, avatar_url, total_products FROM creators WHERE username = :username"
+                creator_row = execute_query_one(creator_query, {"username": username})
+                if creator_row:
+                    creator_details[username] = {
+                        "name": creator_row.get("name"),
+                        "avatar_url": creator_row.get("avatar_url"),
+                        "total_products": creator_row.get("total_products", 0),
+                    }
+
+        # Calculate changes and build response
+        top_creators = []
+        for username, count_data in latest_data.items():
+            current_count = count_data["templates_count"]
+            previous_count = period_ago_data.get(username, 0)
+
+            # Calculate change
+            templates_change = current_count - previous_count
+            templates_change_percent = 0.0
+            if previous_count > 0:
+                templates_change_percent = (templates_change / previous_count) * 100
+
+            creator_info = creator_details.get(username, {})
+
+            top_creators.append(
+                TopCreatorByTemplateCount(
+                    username=username,
+                    name=creator_info.get("name"),
+                    avatar_url=creator_info.get("avatar_url"),
+                    templates_count=current_count,
+                    total_products=creator_info.get("total_products", 0),
+                    templates_change=templates_change,
+                    templates_change_percent=round(templates_change_percent, 2),
+                )
+            )
+
+        # Sort by templates_count (should already be sorted, but ensure it)
+        top_creators.sort(key=lambda x: x.templates_count, reverse=True)
+
+        return TopCreatorsByTemplateCountResponse(
+            data=top_creators,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "period_hours": period_hours,
+                "limit": limit,
+            },
+        )
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Error calculating top creators by template count: {type(e).__name__}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to calculate top creators: {str(e)}",
                     "details": {},
                 }
             },
