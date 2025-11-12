@@ -92,7 +92,7 @@ function TopCreatorsByViews({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopCreatorsByTemplateViews({
-          limit: 10,
+          limit: 5,
           period_hours: periodHours
         })
 
@@ -221,7 +221,7 @@ function MostPopularTemplates({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopTemplates({
-          limit: 10,
+          limit: 5,
           period_hours: periodHours
         })
 
@@ -349,7 +349,7 @@ function MostPopularComponents({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopComponents({
-          limit: 10,
+          limit: 5,
           period_hours: periodHours
         })
 
@@ -477,7 +477,7 @@ function MostPopularCategories({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopCategories({
-          limit: 10,
+          limit: 5,
           period_hours: periodHours
         })
 
@@ -594,7 +594,7 @@ function MostPopularFreeTemplates({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopFreeTemplates({
-          limit: 10,
+          limit: 5,
           period_hours: periodHours
         })
 
@@ -715,7 +715,7 @@ function CreatorsMostTemplates({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopCreatorsByTemplateCount({
-          limit: 10,
+          limit: 5,
           period_hours: periodHours
         })
 
