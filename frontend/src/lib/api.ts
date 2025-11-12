@@ -16,8 +16,8 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
   
   try {
     const response = await fetch(url, {
-      // Add timeout for better error handling
-      signal: AbortSignal.timeout(30000) // 30 seconds
+      // Add timeout for better error handling (reduced for faster feedback)
+      signal: AbortSignal.timeout(10000) // 10 seconds
     })
     
     if (!response.ok) {
@@ -140,15 +140,15 @@ export async function getTopCreatorsByTemplateViews(params?: {
   period_hours?: number
 }): Promise<{ data: any[]; meta?: any }> {
   // Get all creators and their products, then aggregate
-  const limit = params?.limit || 10
-  const creatorsResponse = await getCreators({ limit: 1000, sort: 'username' })
+  const limit = params?.limit || 5
+  const creatorsResponse = await getCreators({ limit: 100, sort: 'username' })
   const creators = creatorsResponse.data || []
   
-  // Get products for each creator and aggregate views
+  // Get products for each creator and aggregate views (limit concurrent requests)
   const creatorsWithViews = await Promise.all(
-    creators.map(async (creator) => {
+    creators.slice(0, 50).map(async (creator) => { // Limit to first 50 creators for performance
       try {
-        const productsResponse = await getCreatorProducts(creator.username, { type: 'template' })
+        const productsResponse = await getCreatorProducts(creator.username, { type: 'template', limit: 50 })
         const templates = productsResponse.data || []
         const totalViews = templates.reduce((sum: number, p: any) => {
           return sum + (p.stats?.views?.normalized || 0)
@@ -193,7 +193,7 @@ export async function getTopTemplates(params?: {
   limit?: number
   period_hours?: number
 }): Promise<{ data: any[]; meta?: any }> {
-  const limit = params?.limit || 10
+  const limit = params?.limit || 5
   const response = await getProducts({
     type: 'template',
     sort: 'views_normalized',
@@ -201,26 +201,12 @@ export async function getTopTemplates(params?: {
     limit
   })
   
-  // Get changes for each product to calculate % change
-  const templatesWithChanges = await Promise.all(
-    (response.data || []).map(async (product: any) => {
-      try {
-        const periodHours = params?.period_hours || 24
-        const changes = await getProductChanges(product.id, periodHours)
-        const viewsChange = changes.data?.views_change_percent || null
-        return {
-          ...product,
-          views_change_percent: viewsChange
-        }
-      } catch (error) {
-        console.error(`Error fetching changes for product ${product.id}:`, error)
-        return {
-          ...product,
-          views_change_percent: null
-        }
-      }
-    })
-  )
+  // Skip fetching changes for now to improve performance (can be added later)
+  // The changes endpoint is slow and causes timeouts
+  const templatesWithChanges = (response.data || []).map((product: any) => ({
+    ...product,
+    views_change_percent: null // Disabled for performance
+  }))
   
   return {
     data: templatesWithChanges,
@@ -234,7 +220,7 @@ export async function getTopComponents(params?: {
   limit?: number
   period_hours?: number
 }): Promise<{ data: any[]; meta?: any }> {
-  const limit = params?.limit || 10
+  const limit = params?.limit || 5
   const response = await getProducts({
     type: 'component',
     sort: 'views_normalized',
@@ -242,26 +228,12 @@ export async function getTopComponents(params?: {
     limit
   })
   
-  // Get changes for each product to calculate % change
-  const componentsWithChanges = await Promise.all(
-    (response.data || []).map(async (product: any) => {
-      try {
-        const periodHours = params?.period_hours || 24
-        const changes = await getProductChanges(product.id, periodHours)
-        const viewsChange = changes.data?.views_change_percent || null
-        return {
-          ...product,
-          views_change_percent: viewsChange
-        }
-      } catch (error) {
-        console.error(`Error fetching changes for product ${product.id}:`, error)
-        return {
-          ...product,
-          views_change_percent: null
-        }
-      }
-    })
-  )
+  // Skip fetching changes for now to improve performance (can be added later)
+  // The changes endpoint is slow and causes timeouts
+  const componentsWithChanges = (response.data || []).map((product: any) => ({
+    ...product,
+    views_change_percent: null // Disabled for performance
+  }))
   
   return {
     data: componentsWithChanges,
@@ -270,19 +242,19 @@ export async function getTopComponents(params?: {
 }
 
 // Top Categories by Views
-// Using existing endpoint: /api/products?limit=1000 and aggregate on frontend
+// Using existing endpoint: /api/products?limit=100 and aggregate on frontend
 export async function getTopCategories(params?: {
   limit?: number
   period_hours?: number
   product_type?: string
 }): Promise<{ data: any[]; meta?: any }> {
-  const limit = params?.limit || 10
+  const limit = params?.limit || 5
   const productType = params?.product_type || 'template'
   
-  // Get all products of the specified type
+  // Get products of the specified type (reduced limit for performance)
   const response = await getProducts({
     type: productType,
-    limit: 1000,
+    limit: 100,
     sort: 'views_normalized',
     order: 'desc'
   })
@@ -325,20 +297,20 @@ export async function getTopCategories(params?: {
 }
 
 // Top Free Templates by Views
-// Using existing endpoint: /api/products?type=template&sort=views_normalized&order=desc&limit=1000
+// Using existing endpoint: /api/products?type=template&sort=views_normalized&order=desc&limit=100
 // Filter by is_free on frontend
 export async function getTopFreeTemplates(params?: {
   limit?: number
   period_hours?: number
 }): Promise<{ data: any[]; meta?: any }> {
-  const limit = params?.limit || 10
+  const limit = params?.limit || 5
   
-  // Get all templates
+  // Get templates (reduced limit for performance)
   const response = await getProducts({
     type: 'template',
     sort: 'views_normalized',
     order: 'desc',
-    limit: 1000 // Get more to filter free ones
+    limit: 100 // Get more to filter free ones, but not too many
   })
   
   // Filter free templates
@@ -346,26 +318,12 @@ export async function getTopFreeTemplates(params?: {
     .filter((product: any) => product.is_free === true)
     .slice(0, limit)
   
-  // Get changes for each product to calculate % change
-  const templatesWithChanges = await Promise.all(
-    freeTemplates.map(async (product: any) => {
-      try {
-        const periodHours = params?.period_hours || 24
-        const changes = await getProductChanges(product.id, periodHours)
-        const viewsChange = changes.data?.views_change_percent || null
-        return {
-          ...product,
-          views_change_percent: viewsChange
-        }
-      } catch (error) {
-        console.error(`Error fetching changes for product ${product.id}:`, error)
-        return {
-          ...product,
-          views_change_percent: null
-        }
-      }
-    })
-  )
+  // Skip fetching changes for now to improve performance (can be added later)
+  // The changes endpoint is slow and causes timeouts
+  const templatesWithChanges = freeTemplates.map((product: any) => ({
+    ...product,
+    views_change_percent: null // Disabled for performance
+  }))
   
   return {
     data: templatesWithChanges,
@@ -374,25 +332,25 @@ export async function getTopFreeTemplates(params?: {
 }
 
 // Top Creators by Template Count
-// Using existing endpoint: /api/creators?sort=total_products&order=desc&limit=10
+// Using existing endpoint: /api/creators?sort=total_products&order=desc&limit=5
 // Filter by templates_count on frontend
 export async function getTopCreatorsByTemplateCount(params?: {
   limit?: number
   period_hours?: number
 }): Promise<{ data: any[]; meta?: any }> {
-  const limit = params?.limit || 10
+  const limit = params?.limit || 5
   
-  // Get creators sorted by total_products
+  // Get creators sorted by total_products (reduced limit for performance)
   const response = await getCreators({
     sort: 'total_products',
-    limit: 1000 // Get more to filter by template count
+    limit: 100 // Get more to filter by template count, but not too many
   })
   
-  // Get template count for each creator
+  // Get template count for each creator (limit concurrent requests)
   const creatorsWithTemplateCount = await Promise.all(
-    (response.data || []).map(async (creator: any) => {
+    (response.data || []).slice(0, 50).map(async (creator: any) => { // Limit to first 50 for performance
       try {
-        const productsResponse = await getCreatorProducts(creator.username, { type: 'template' })
+        const productsResponse = await getCreatorProducts(creator.username, { type: 'template', limit: 50 })
         const templatesCount = (productsResponse.data || []).length
         return {
           ...creator,
