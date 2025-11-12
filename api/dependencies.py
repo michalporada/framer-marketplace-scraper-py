@@ -40,7 +40,7 @@ def get_db_engine():
             pool_recycle=3600,  # Recycle connections after 1 hour
             connect_args={
                 "connect_timeout": 10,
-                "command_timeout": 30,  # Query timeout
+                # Note: command_timeout is set per-query using statement_timeout
             },
             echo=False,  # Set to True for SQL debugging
         )
@@ -70,6 +70,8 @@ def execute_query(query: str, params: Optional[dict] = None):
     try:
         # For SELECT queries, use connect() with autocommit
         with engine.connect() as conn:
+            # Set statement timeout for this query (30 seconds)
+            conn.execute(text("SET statement_timeout = '30s'"))
             # Use stream_results=False for compatibility
             result = conn.execute(text(query), params or {})
             rows = result.fetchall()
@@ -111,6 +113,8 @@ def execute_query_one(query: str, params: Optional[dict] = None):
     try:
         # For SELECT queries, use connect() with autocommit
         with engine.connect() as conn:
+            # Set statement timeout for this query (30 seconds)
+            conn.execute(text("SET statement_timeout = '30s'"))
             result = conn.execute(text(query), params or {})
             row = result.fetchone()
             if not row:
