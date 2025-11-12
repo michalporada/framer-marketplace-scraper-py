@@ -134,69 +134,25 @@ export async function getCategory(categoryName: string): Promise<{ data: any; me
 }
 
 // Top Creators by Template Views
-// Note: Using existing endpoint and processing on frontend until new endpoint is deployed
+// Simplified: Use dedicated endpoint if available, otherwise return empty
 export async function getTopCreatorsByTemplateViews(params?: {
   limit?: number
   period_hours?: number
 }): Promise<{ data: any[]; meta?: any }> {
-  // Get all creators and their products, then aggregate
   const limit = params?.limit || 5
-  const creatorsResponse = await getCreators({ limit: 100, sort: 'username' })
-  const creators = creatorsResponse.data || []
+  const periodHours = params?.period_hours || 24
   
-  // Get products for each creator and aggregate views (batch processing to limit concurrent requests)
-  // Process in batches of 5 to avoid overwhelming the API
-  const batchSize = 5
-  const creatorsWithViews: any[] = []
-  
-  for (let i = 0; i < Math.min(creators.length, 20); i += batchSize) { // Limit to first 20 creators
-    const batch = creators.slice(i, i + batchSize)
-    const batchResults = await Promise.all(
-      batch.map(async (creator) => {
-        try {
-          const productsResponse = await getCreatorProducts(creator.username, { type: 'template', limit: 20 })
-          const templates = productsResponse.data || []
-          const totalViews = templates.reduce((sum: number, p: any) => {
-            return sum + (p.stats?.views?.normalized || 0)
-          }, 0)
-          return {
-            username: creator.username,
-            name: creator.name || creator.username,
-            avatar_url: creator.avatar_url,
-            total_views: totalViews,
-            templates_count: templates.length,
-            views_change_percent: null // Not available without history endpoint
-          }
-        } catch (error) {
-          console.error(`Error fetching products for creator ${creator.username}:`, error)
-          return {
-            username: creator.username,
-            name: creator.name || creator.username,
-            avatar_url: creator.avatar_url,
-            total_views: 0,
-            templates_count: 0,
-            views_change_percent: null
-          }
-        }
-      })
-    )
-    creatorsWithViews.push(...batchResults)
-    
-    // Small delay between batches to avoid overwhelming the API
-    if (i + batchSize < Math.min(creators.length, 20)) {
-      await new Promise(resolve => setTimeout(resolve, 100)) // 100ms delay
+  try {
+    // Try dedicated endpoint first
+    const query = `limit=${limit}&period_hours=${periodHours}`
+    return await fetchAPI(`/api/creators/top-by-template-views?${query}`)
+  } catch (error) {
+    console.warn('Dedicated endpoint not available, returning empty data:', error)
+    // Return empty data instead of making many requests
+    return {
+      data: [],
+      meta: { timestamp: new Date().toISOString() }
     }
-  }
-  
-  // Sort by total_views and return top N
-  const sorted = creatorsWithViews
-    .filter(c => c.total_views > 0)
-    .sort((a, b) => b.total_views - a.total_views)
-    .slice(0, limit)
-  
-  return {
-    data: sorted,
-    meta: { timestamp: new Date().toISOString() }
   }
 }
 
