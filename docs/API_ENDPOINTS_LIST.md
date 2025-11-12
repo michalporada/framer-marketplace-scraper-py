@@ -319,6 +319,58 @@
 
 ---
 
+### `GET /api/creators/{username}/products-growth`
+**Opis:** Analizuje wzrost views dla wszystkich produktów danego kreatora w określonym okresie
+
+**Path Parameters:**
+- `username` (required): Username kreatora (bez `@`, np. `creator-name`)
+
+**Query Parameters:**
+- `product_type` (optional): `template | component | vector | plugin` - filtruj po typie produktu
+- `period_hours` (default: 24, max: 168): Okres w godzinach do porównania (1-168, domyślnie 24h = 1 dzień)
+
+**Response Model:** `CreatorProductsGrowthResponse`
+```json
+{
+  "creator_username": "designer-name",
+  "creator_name": "Designer Name",
+  "product_type": "template",
+  "period_hours": 24,
+  "total_products": 5,
+  "products_with_data": 5,
+  "total_views_current": 125000,
+  "total_views_previous": 120000,
+  "total_views_change": 5000,
+  "total_views_change_percent": 4.17,
+  "products": [
+    {
+      "product_id": "agency-template",
+      "product_name": "Agency Template",
+      "product_type": "template",
+      "current_views": 50000,
+      "previous_views": 48000,
+      "views_change": 2000,
+      "views_change_percent": 4.17
+    }
+  ],
+  "meta": {
+    "timestamp": "2024-01-02T12:00:00Z",
+    "period_start": "2024-01-01T12:00:00Z",
+    "period_end": "2024-01-02T12:00:00Z"
+  }
+}
+```
+
+**Data Source:** `product_history` table (porównuje najnowszy scrape z scrape sprzed okresu)
+
+**Error Codes:**
+- `404`: `CREATOR_NOT_FOUND`
+- `422`: `INVALID_PRODUCT_TYPE`
+- `503`: `DATABASE_NOT_AVAILABLE`
+- `500`: `INTERNAL_ERROR`
+
+---
+
 ## 📊 Metrics (`/api/metrics`)
 
 ### `GET /api/metrics/summary`
@@ -498,16 +550,16 @@
 ## 📝 Podsumowanie
 
 ### Statystyki:
-- **Łącznie endpointów:** 17
-- **Products:** 6 endpointów
-- **Creators:** 4 endpointy
+- **Łącznie endpointów:** 22
+- **Products:** 7 endpointów
+- **Creators:** 4 endpointy (w tym 1 nowy: products-growth)
 - **Metrics:** 3 endpointy
 - **Cache:** 2 endpointy
 - **Root & Health:** 2 endpointy
 
 ### Cache:
-- ✅ **Cached:** `/api/products`, `/api/products/{id}`, `/api/creators`, `/api/creators/{username}`, `/api/creators/{username}/products`, `/api/products/{id}/changes`
-- ❌ **Not cached:** `/api/products/views-change-24h`, `/api/products/categories/comparison`, `/api/metrics/*`, `/cache/*`
+- ✅ **Cached:** `/api/products`, `/api/products/{id}`, `/api/creators`, `/api/creators/{username}`, `/api/creators/{username}/products`, `/api/products/{id}/changes`, `/api/products/categories/{category_name}/views`
+- ❌ **Not cached:** `/api/products/views-change-24h`, `/api/products/categories/comparison`, `/api/creators/{username}/products-growth`, `/api/metrics/*`, `/cache/*`
 
 ### Response Models:
 - Wszystkie endpointy używają Pydantic models (type safety)
@@ -530,5 +582,5 @@
 
 ---
 
-*Ostatnia aktualizacja: 2024-01-01*
+*Ostatnia aktualizacja: 2025-11-12*
 

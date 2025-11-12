@@ -15,19 +15,38 @@ Zaawansowany scraper do zbierania danych z Framer Marketplace, umożliwiający a
    - Konfiguracja wszystkich serwisów
    - Troubleshooting i best practices
 
-2. **[STACK_TECHNICZNY.md](./documentation_sources/STACK_TECHNICZNY.md)** - Szczegółowy opis stacku technicznego, w tym:
+2. **[API_ENDPOINTS_LIST.md](./docs/API_ENDPOINTS_LIST.md)** - Pełna lista wszystkich endpointów API:
+   - 22 endpointy z opisami i przykładami
+   - Query parameters i response models
+   - Error codes i cache status
+
+3. **[API_PRODUCTS_EXAMPLES.md](./docs/API_PRODUCTS_EXAMPLES.md)** - Przykłady użycia endpointów Products:
+   - Różne typy produktów (templates, components, vectors, plugins)
+   - Przykłady curl i Python
+   - Analiza zmian views w 24h
+
+4. **[API_CREATORS_ANALYSIS_EXAMPLES.md](./docs/API_CREATORS_ANALYSIS_EXAMPLES.md)** - Przykłady analizy danych kreatorów:
+   - Analiza wzrostu views produktów kreatora
+   - Przykłady dla różnych okresów i typów produktów
+
+5. **[API_CATEGORIES_VIEWS_EXAMPLES.md](./docs/API_CATEGORIES_VIEWS_EXAMPLES.md)** - Przykłady sprawdzania views kategorii:
+   - Statystyki kategorii
+   - Porównywanie kategorii
+   - Top produkty w kategorii
+
+6. **[STACK_TECHNICZNY.md](./documentation_sources/STACK_TECHNICZNY.md)** - Szczegółowy opis stacku technicznego, w tym:
    - Biblioteki Python i narzędzia
    - Opcje baz danych
    - GitHub Actions i Vercel
    - Rekomendacje deployment
 
-3. **[PROPOZYCJA_ARCHITEKTURY.md](./documentation_sources/PROPOZYCJA_ARCHITEKTURY.md)** - Propozycja struktury projektu:
+7. **[PROPOZYCJA_ARCHITEKTURY.md](./documentation_sources/PROPOZYCJA_ARCHITEKTURY.md)** - Propozycja struktury projektu:
    - Struktura folderów
    - Opis komponentów
    - Flow scrapowania
    - Deployment strategy
 
-4. **[REKOMENDACJE_SCRAPERA_FRAMER.md](./documentation_sources/REKOMENDACJE_SCRAPERA_FRAMER.md)** - Szczegółowa analiza Framer Marketplace:
+8. **[REKOMENDACJE_SCRAPERA_FRAMER.md](./documentation_sources/REKOMENDACJE_SCRAPERA_FRAMER.md)** - Szczegółowa analiza Framer Marketplace:
    - Analiza techniczna strony
    - Struktura URL-i i selektory CSS
    - Zalecane dane do zbierania
@@ -187,13 +206,33 @@ Po kilku dniach scrapowania możesz porównywać zmiany w czasie przez API (zoba
 
 ### ✅ API Endpoints (FastAPI)
 
-API jest dostępne i gotowe do użycia:
+API jest dostępne i gotowe do użycia. **Pełna dokumentacja:** [docs/API_ENDPOINTS_LIST.md](./docs/API_ENDPOINTS_LIST.md)
+
+**Główne funkcjonalności:**
 
 **Porównywanie produktów w czasie:**
 ```bash
 GET /api/products/{product_id}/changes
 ```
 Porównuje dane produktu między różnymi scrapami, wykrywa zmiany w statystykach, cenie i metadanych.
+
+**Analiza zmian views w 24h:**
+```bash
+GET /api/products/views-change-24h?product_type=template
+```
+Oblicza łączną zmianę views dla wszystkich produktów danego typu w ostatnich 24 godzinach.
+
+**Views kategorii:**
+```bash
+GET /api/products/categories/{category_name}/views?product_type=template
+```
+Zwraca aktualną liczbę views i statystyki dla danej kategorii.
+
+**Analiza wzrostu produktów kreatora:**
+```bash
+GET /api/creators/{username}/products-growth?product_type=template&period_hours=24
+```
+Analizuje wzrost views dla wszystkich produktów danego kreatora w określonym okresie.
 
 **Porównywanie kategorii:**
 ```bash
