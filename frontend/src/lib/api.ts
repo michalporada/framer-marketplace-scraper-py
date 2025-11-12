@@ -144,36 +144,49 @@ export async function getTopCreatorsByTemplateViews(params?: {
   const creatorsResponse = await getCreators({ limit: 100, sort: 'username' })
   const creators = creatorsResponse.data || []
   
-  // Get products for each creator and aggregate views (limit concurrent requests)
-  const creatorsWithViews = await Promise.all(
-    creators.slice(0, 50).map(async (creator) => { // Limit to first 50 creators for performance
-      try {
-        const productsResponse = await getCreatorProducts(creator.username, { type: 'template', limit: 50 })
-        const templates = productsResponse.data || []
-        const totalViews = templates.reduce((sum: number, p: any) => {
-          return sum + (p.stats?.views?.normalized || 0)
-        }, 0)
-        return {
-          username: creator.username,
-          name: creator.name || creator.username,
-          avatar_url: creator.avatar_url,
-          total_views: totalViews,
-          templates_count: templates.length,
-          views_change_percent: null // Not available without history endpoint
+  // Get products for each creator and aggregate views (batch processing to limit concurrent requests)
+  // Process in batches of 5 to avoid overwhelming the API
+  const batchSize = 5
+  const creatorsWithViews: any[] = []
+  
+  for (let i = 0; i < Math.min(creators.length, 20); i += batchSize) { // Limit to first 20 creators
+    const batch = creators.slice(i, i + batchSize)
+    const batchResults = await Promise.all(
+      batch.map(async (creator) => {
+        try {
+          const productsResponse = await getCreatorProducts(creator.username, { type: 'template', limit: 20 })
+          const templates = productsResponse.data || []
+          const totalViews = templates.reduce((sum: number, p: any) => {
+            return sum + (p.stats?.views?.normalized || 0)
+          }, 0)
+          return {
+            username: creator.username,
+            name: creator.name || creator.username,
+            avatar_url: creator.avatar_url,
+            total_views: totalViews,
+            templates_count: templates.length,
+            views_change_percent: null // Not available without history endpoint
+          }
+        } catch (error) {
+          console.error(`Error fetching products for creator ${creator.username}:`, error)
+          return {
+            username: creator.username,
+            name: creator.name || creator.username,
+            avatar_url: creator.avatar_url,
+            total_views: 0,
+            templates_count: 0,
+            views_change_percent: null
+          }
         }
-      } catch (error) {
-        console.error(`Error fetching products for creator ${creator.username}:`, error)
-        return {
-          username: creator.username,
-          name: creator.name || creator.username,
-          avatar_url: creator.avatar_url,
-          total_views: 0,
-          templates_count: 0,
-          views_change_percent: null
-        }
-      }
-    })
-  )
+      })
+    )
+    creatorsWithViews.push(...batchResults)
+    
+    // Small delay between batches to avoid overwhelming the API
+    if (i + batchSize < Math.min(creators.length, 20)) {
+      await new Promise(resolve => setTimeout(resolve, 100)) // 100ms delay
+    }
+  }
   
   // Sort by total_views and return top N
   const sorted = creatorsWithViews
@@ -346,25 +359,39 @@ export async function getTopCreatorsByTemplateCount(params?: {
     limit: 100 // Get more to filter by template count, but not too many
   })
   
-  // Get template count for each creator (limit concurrent requests)
-  const creatorsWithTemplateCount = await Promise.all(
-    (response.data || []).slice(0, 50).map(async (creator: any) => { // Limit to first 50 for performance
-      try {
-        const productsResponse = await getCreatorProducts(creator.username, { type: 'template', limit: 50 })
-        const templatesCount = (productsResponse.data || []).length
-        return {
-          ...creator,
-          templates_count: templatesCount
+  // Get template count for each creator (batch processing to limit concurrent requests)
+  // Process in batches of 5 to avoid overwhelming the API
+  const batchSize = 5
+  const creatorsWithTemplateCount: any[] = []
+  const creatorsToProcess = (response.data || []).slice(0, 20) // Limit to first 20 for performance
+  
+  for (let i = 0; i < creatorsToProcess.length; i += batchSize) {
+    const batch = creatorsToProcess.slice(i, i + batchSize)
+    const batchResults = await Promise.all(
+      batch.map(async (creator: any) => {
+        try {
+          const productsResponse = await getCreatorProducts(creator.username, { type: 'template', limit: 20 })
+          const templatesCount = (productsResponse.data || []).length
+          return {
+            ...creator,
+            templates_count: templatesCount
+          }
+        } catch (error) {
+          console.error(`Error fetching products for creator ${creator.username}:`, error)
+          return {
+            ...creator,
+            templates_count: 0
+          }
         }
-      } catch (error) {
-        console.error(`Error fetching products for creator ${creator.username}:`, error)
-        return {
-          ...creator,
-          templates_count: 0
-        }
-      }
-    })
-  )
+      })
+    )
+    creatorsWithTemplateCount.push(...batchResults)
+    
+    // Small delay between batches to avoid overwhelming the API
+    if (i + batchSize < creatorsToProcess.length) {
+      await new Promise(resolve => setTimeout(resolve, 100)) // 100ms delay
+    }
+  }
   
   // Sort by templates_count and return top N
   const sorted = creatorsWithTemplateCount

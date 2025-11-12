@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import QueuePool
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,8 +33,15 @@ def get_db_engine():
     try:
         _db_engine = create_engine(
             database_url,
-            poolclass=NullPool,
-            connect_args={"connect_timeout": 10},
+            poolclass=QueuePool,
+            pool_size=5,  # Number of connections to maintain
+            max_overflow=10,  # Additional connections beyond pool_size
+            pool_pre_ping=True,  # Verify connections before using
+            pool_recycle=3600,  # Recycle connections after 1 hour
+            connect_args={
+                "connect_timeout": 10,
+                "command_timeout": 30,  # Query timeout
+            },
             echo=False,  # Set to True for SQL debugging
         )
         return _db_engine
