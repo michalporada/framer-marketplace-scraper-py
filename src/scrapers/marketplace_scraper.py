@@ -59,7 +59,14 @@ class MarketplaceScraper:
 
     async def __aenter__(self):
         """Async context manager entry."""
-        timeout = httpx.Timeout(settings.timeout)
+        # Set explicit timeouts: connect, read, write, pool
+        # This ensures requests are properly cancelled if they exceed timeout
+        timeout = httpx.Timeout(
+            connect=5.0,  # Connection timeout: 5s
+            read=settings.timeout,  # Read timeout: 12s (from settings)
+            write=5.0,  # Write timeout: 5s
+            pool=5.0,  # Pool timeout: 5s
+        )
         from src.utils.user_agents import get_random_user_agent
 
         # Use realistic browser headers to avoid bot detection

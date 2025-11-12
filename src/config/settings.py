@@ -27,10 +27,14 @@ class Settings(BaseSettings):
     # Rate Limiting
     rate_limit: float = 2.0  # requests per second (optimized: was 1.0)
     delay_between_requests: float = 0  # seconds (removed - rate_limiter handles this)
-    max_concurrent_requests: int = 10  # concurrent requests (optimized: was 5)
+    max_concurrent_requests: int = (
+        15  # concurrent requests (optimized: was 10, increased for better throughput)
+    )
 
     # HTTP Settings
-    timeout: int = 18  # seconds per request (optimized: was 25s, faster failure detection)
+    timeout: int = (
+        12  # seconds per request (optimized: was 18s, faster failure detection for slow servers)
+    )
     max_retries: int = 3  # retries (optimized: was 5, faster failure handling)
     retry_initial_wait: float = 1.5  # Initial wait time in seconds (optimized: was 2.0s)
     retry_max_wait: float = 120.0  # Max wait time (2 minutes, optimized: was 5 minutes)

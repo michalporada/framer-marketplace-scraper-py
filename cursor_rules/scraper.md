@@ -240,6 +240,28 @@ html = await retry_async(
    - Skip produkt
    - Może wskazywać na zmianę struktury HTML
 
+## Database Storage
+
+### Product History
+
+1. **Automatyczne zapisywanie historii**
+   - Każdy scrapowany produkt jest automatycznie zapisywany do tabeli `product_history`
+   - Metoda `save_product_history_db()` jest wywoływana po każdym zapisie produktu
+   - **Zawsze INSERT, nigdy UPDATE** - zachowuje pełną historię zmian
+   - Timestamp `scraped_at` pozwala śledzić zmiany w czasie
+
+2. **Batch Operations**
+   - `save_products_batch_db()` - optymalizowane zapisywanie wielu produktów
+   - Używa transakcji SQL (`engine.begin()`) dla spójności
+   - Chunking dla dużych batchów (>1000 produktów)
+   - Automatycznie zapisuje każdy produkt do `product_history` w batch
+
+3. **Implementacja**
+   ```python
+   # W save_product_db() i save_products_batch_db()
+   await self.save_product_history_db(product)  # Automatycznie po zapisie
+   ```
+
 ## Metrics Tracking
 
 ### Wymagane Metryki
@@ -347,6 +369,8 @@ logger.error("scraping_failed", error=str(e), url=url, retry_count=retry)
 - [ ] Walidacja danych przez Pydantic
 - [ ] Twarde zabezpieczenia (min próg, deduplikacja, blokowanie eksportu)
 - [ ] Logowanie slow requests
+- [ ] Product history zapisywanie (`save_product_history_db`)
+- [ ] Batch operations optimization (transakcje, chunking)
 - [ ] Testy jednostkowe napisane
 - [ ] Dokumentacja zaktualizowana (jeśli potrzebne)
 
