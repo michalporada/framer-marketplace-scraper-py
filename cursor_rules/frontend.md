@@ -55,8 +55,17 @@ frontend/
      - Używaj `mcp_shadcn-ui_get_component()` do pobierania kodu źródłowego komponentu
      - Używaj `mcp_shadcn-ui_get_component_demo()` do pobierania przykładów użycia
      - Używaj `mcp_shadcn-ui_list_components()` do sprawdzenia dostępnych komponentów
+     - Używaj `mcp_shadcn-ui_get_block()` do pobierania gotowych bloków UI (np. login page, calendar, dashboard)
+     - Używaj `mcp_shadcn-ui_list_blocks()` do przeglądania dostępnych bloków
      - **NIGDY nie kopiuj-wklejaj kodu komponentów z zewnętrznych źródeł ręcznie**
      - MCP serwer zapewnia najnowsze wersje komponentów i zgodność z oficjalnym źródłem
+   - **Planowanie z shadcn:**
+     - Używaj MCP serwera podczas fazy planowania
+     - Zastosuj komponenty wszędzie gdzie są odpowiednie
+     - Preferuj całe bloki gdzie to możliwe (np. strona logowania, kalendarz, dashboard)
+   - **Implementacja komponentów shadcn:**
+     - Najpierw wywołaj `mcp_shadcn-ui_get_component_demo()` aby zobaczyć jak komponent jest używany
+     - Następnie zaimplementuj na podstawie demo, aby zapewnić poprawną implementację
 
 2. **Tailwind CSS**
    - Używaj utility classes z Tailwind
