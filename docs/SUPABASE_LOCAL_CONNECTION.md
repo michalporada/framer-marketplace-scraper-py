@@ -112,3 +112,4 @@ Aby znaleźć region w Session Mode connection string:
 3. Użyj tego regionu w connection string: `aws-0-[REGION].pooler.supabase.com`
 
 
+

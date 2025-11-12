@@ -346,6 +346,440 @@ async def get_views_change_24h(
         )
 
 
+class TopProductByViews(BaseModel):
+    """Model for top product by views."""
+
+    product_id: str
+    name: str
+    type: str
+    creator_username: Optional[str] = None
+    creator_name: Optional[str] = None
+    views: int
+    views_change: int = 0
+    views_change_percent: float = 0.0
+    is_free: bool = False
+    price: Optional[float] = None
+
+
+class TopProductsByViewsResponse(BaseModel):
+    """Response model for top products by views."""
+
+    data: List[TopProductByViews]
+    meta: dict = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
+@router.get("/top-templates", response_model=TopProductsByViewsResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
+async def get_top_templates(
+    limit: int = Query(10, ge=1, le=100, description="Number of templates to return"),
+    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for % change (1-168, default: 24)"),
+):
+    """Get top templates by views with percentage change.
+
+    This endpoint aggregates views_normalized from product_history for templates,
+    calculates total views, and compares with period ago to calculate percentage change.
+
+    Args:
+        limit: Number of top templates to return (1-100, default: 10)
+        period_hours: Period in hours to compare for % change (1-168, default: 24)
+
+    Returns:
+        TopProductsByViewsResponse with top templates sorted by views
+
+    Raises:
+        503: Database not available
+    """
+    return await _get_top_products_by_type("template", limit, period_hours)
+
+
+@router.get("/top-components", response_model=TopProductsByViewsResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
+async def get_top_components(
+    limit: int = Query(10, ge=1, le=100, description="Number of components to return"),
+    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for % change (1-168, default: 24)"),
+):
+    """Get top components by views/installs with percentage change.
+
+    This endpoint aggregates views_normalized from product_history for components,
+    calculates total views, and compares with period ago to calculate percentage change.
+
+    Args:
+        limit: Number of top components to return (1-100, default: 10)
+        period_hours: Period in hours to compare for % change (1-168, default: 24)
+
+    Returns:
+        TopProductsByViewsResponse with top components sorted by views
+
+    Raises:
+        503: Database not available
+    """
+    return await _get_top_products_by_type("component", limit, period_hours)
+
+
+@router.get("/top-free-templates", response_model=TopProductsByViewsResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
+async def get_top_free_templates(
+    limit: int = Query(10, ge=1, le=100, description="Number of free templates to return"),
+    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for % change (1-168, default: 24)"),
+):
+    """Get top free templates by views with percentage change.
+
+    This endpoint aggregates views_normalized from product_history for free templates,
+    calculates total views, and compares with period ago to calculate percentage change.
+
+    Args:
+        limit: Number of top free templates to return (1-100, default: 10)
+        period_hours: Period in hours to compare for % change (1-168, default: 24)
+
+    Returns:
+        TopProductsByViewsResponse with top free templates sorted by views
+
+    Raises:
+        503: Database not available
+    """
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+
+    try:
+        from sqlalchemy import text
+
+        # Get current time and period ago
+        now = datetime.utcnow()
+        period_ago = now - timedelta(hours=period_hours)
+
+        # Query to get latest views for free templates
+        # First get latest views for each template, then join with products to filter by is_free
+        query_latest = text(
+            """
+            WITH latest_views AS (
+                SELECT DISTINCT ON (ph.product_id)
+                    ph.product_id,
+                    ph.name,
+                    ph.creator_username,
+                    ph.views_normalized
+                FROM product_history ph
+                INNER JOIN products p ON ph.product_id = p.id
+                WHERE ph.type = 'template'
+                    AND ph.views_normalized IS NOT NULL
+                    AND p.is_free = true
+                    AND ph.scraped_at <= :now_time
+                ORDER BY ph.product_id, ph.scraped_at DESC
+            )
+            SELECT product_id, name, creator_username, views_normalized
+            FROM latest_views
+            ORDER BY views_normalized DESC
+            LIMIT :limit
+        """
+        )
+
+        # Query to get views from period ago (only for free templates)
+        query_period_ago = text(
+            """
+            SELECT DISTINCT ON (ph.product_id)
+                ph.product_id,
+                ph.views_normalized
+            FROM product_history ph
+            INNER JOIN products p ON ph.product_id = p.id
+            WHERE ph.type = 'template'
+                AND ph.views_normalized IS NOT NULL
+                AND p.is_free = true
+                AND ph.scraped_at <= :period_ago_time
+            ORDER BY ph.product_id, ph.scraped_at DESC
+        """
+        )
+
+        with engine.connect() as conn:
+            # Get latest views for top free templates
+            result_latest = conn.execute(
+                query_latest, {"now_time": now, "limit": limit}
+            )
+            latest_data = {}
+            for row in result_latest:
+                latest_data[row[0]] = {
+                    "name": row[1],
+                    "creator_username": row[2],
+                    "views": int(row[3]) if row[3] else 0,
+                }
+
+            # Get views from period ago
+            result_period = conn.execute(
+                query_period_ago, {"period_ago_time": period_ago}
+            )
+            period_ago_data = {
+                row[0]: int(row[1]) if row[1] else 0 for row in result_period
+            }
+
+        # Get product details (is_free, price) from products table
+        product_ids = list(latest_data.keys())
+        products_details = {}
+        if product_ids:
+            for product_id in product_ids:
+                product_query = "SELECT id, is_free, price FROM products WHERE id = :product_id"
+                product_row = execute_query_one(product_query, {"product_id": product_id})
+                if product_row:
+                    products_details[product_id] = {
+                        "is_free": product_row.get("is_free", False),
+                        "price": float(product_row.get("price")) if product_row.get("price") else None,
+                    }
+
+        # Get creator details
+        creators_usernames = list(set([data["creator_username"] for data in latest_data.values() if data["creator_username"]]))
+        creator_details = {}
+        if creators_usernames:
+            for username in creators_usernames:
+                creator_query = "SELECT username, name FROM creators WHERE username = :username"
+                creator_row = execute_query_one(creator_query, {"username": username})
+                if creator_row:
+                    creator_details[username] = creator_row.get("name")
+
+        # Calculate changes and build response
+        top_products = []
+        for product_id, product_data in latest_data.items():
+            current_views = product_data["views"]
+            previous_views = period_ago_data.get(product_id, 0)
+
+            # Calculate change
+            views_change = current_views - previous_views
+            views_change_percent = 0.0
+            if previous_views > 0:
+                views_change_percent = (views_change / previous_views) * 100
+
+            product_info = products_details.get(product_id, {})
+            creator_info = creator_details.get(product_data["creator_username"] or "", {})
+
+            top_products.append(
+                TopProductByViews(
+                    product_id=product_id,
+                    name=product_data["name"],
+                    type="template",
+                    creator_username=product_data["creator_username"],
+                    creator_name=creator_info.get("name") if isinstance(creator_info, dict) else None,
+                    views=current_views,
+                    views_change=views_change,
+                    views_change_percent=round(views_change_percent, 2),
+                    is_free=product_info.get("is_free", True),  # Should always be True for free templates
+                    price=product_info.get("price"),
+                )
+            )
+
+        # Sort by views (should already be sorted, but ensure it)
+        top_products.sort(key=lambda x: x.views, reverse=True)
+
+        return TopProductsByViewsResponse(
+            data=top_products,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "period_hours": period_hours,
+                "limit": limit,
+            },
+        )
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Error calculating top free templates: {type(e).__name__}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to calculate top free templates: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
+
+
+async def _get_top_products_by_type(
+    product_type: str, limit: int, period_hours: int
+) -> TopProductsByViewsResponse:
+    """Helper function to get top products by type with percentage change.
+
+    Args:
+        product_type: Product type (template, component, vector, plugin)
+        limit: Number of top products to return
+        period_hours: Period in hours to compare for % change
+
+    Returns:
+        TopProductsByViewsResponse with top products sorted by views
+    """
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+
+    try:
+        from sqlalchemy import text
+
+        # Get current time and period ago
+        now = datetime.utcnow()
+        period_ago = now - timedelta(hours=period_hours)
+
+        # Query to get latest views for products
+        # First get latest views for each product, then sort by views and limit
+        query_latest = text(
+            """
+            WITH latest_views AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    name,
+                    creator_username,
+                    views_normalized
+                FROM product_history
+                WHERE type = :product_type
+                    AND views_normalized IS NOT NULL
+                    AND scraped_at <= :now_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT product_id, name, creator_username, views_normalized
+            FROM latest_views
+            ORDER BY views_normalized DESC
+            LIMIT :limit
+        """
+        )
+
+        # Query to get views from period ago
+        query_period_ago = text(
+            """
+            SELECT DISTINCT ON (product_id)
+                product_id,
+                views_normalized
+            FROM product_history
+            WHERE type = :product_type
+                AND views_normalized IS NOT NULL
+                AND scraped_at <= :period_ago_time
+            ORDER BY product_id, scraped_at DESC
+        """
+        )
+
+        with engine.connect() as conn:
+            # Get latest views for top products
+            result_latest = conn.execute(
+                query_latest, {"product_type": product_type, "now_time": now, "limit": limit}
+            )
+            latest_data = {}
+            for row in result_latest:
+                latest_data[row[0]] = {
+                    "name": row[1],
+                    "creator_username": row[2],
+                    "views": int(row[3]) if row[3] else 0,
+                }
+
+            # Get views from period ago
+            result_period = conn.execute(
+                query_period_ago, {"product_type": product_type, "period_ago_time": period_ago}
+            )
+            period_ago_data = {
+                row[0]: int(row[1]) if row[1] else 0 for row in result_period
+            }
+
+        # Get product details (is_free, price) from products table
+        product_ids = list(latest_data.keys())
+        products_details = {}
+        if product_ids:
+            for product_id in product_ids:
+                product_query = "SELECT id, is_free, price FROM products WHERE id = :product_id"
+                product_row = execute_query_one(product_query, {"product_id": product_id})
+                if product_row:
+                    products_details[product_id] = {
+                        "is_free": product_row.get("is_free", False),
+                        "price": float(product_row.get("price")) if product_row.get("price") else None,
+                    }
+
+        # Get creator details
+        creators_usernames = list(set([data["creator_username"] for data in latest_data.values() if data["creator_username"]]))
+        creator_details = {}
+        if creators_usernames:
+            for username in creators_usernames:
+                creator_query = "SELECT username, name FROM creators WHERE username = :username"
+                creator_row = execute_query_one(creator_query, {"username": username})
+                if creator_row:
+                    creator_details[username] = creator_row.get("name")
+
+        # Calculate changes and build response
+        top_products = []
+        for product_id, product_data in latest_data.items():
+            current_views = product_data["views"]
+            previous_views = period_ago_data.get(product_id, 0)
+
+            # Calculate change
+            views_change = current_views - previous_views
+            views_change_percent = 0.0
+            if previous_views > 0:
+                views_change_percent = (views_change / previous_views) * 100
+
+            product_info = products_details.get(product_id, {})
+            creator_info = creator_details.get(product_data["creator_username"] or "", {})
+
+            top_products.append(
+                TopProductByViews(
+                    product_id=product_id,
+                    name=product_data["name"],
+                    type=product_type,
+                    creator_username=product_data["creator_username"],
+                    creator_name=creator_info.get("name") if isinstance(creator_info, dict) else None,
+                    views=current_views,
+                    views_change=views_change,
+                    views_change_percent=round(views_change_percent, 2),
+                    is_free=product_info.get("is_free", False),
+                    price=product_info.get("price"),
+                )
+            )
+
+        # Sort by views (should already be sorted, but ensure it)
+        top_products.sort(key=lambda x: x.views, reverse=True)
+
+        return TopProductsByViewsResponse(
+            data=top_products,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "period_hours": period_hours,
+                "limit": limit,
+            },
+        )
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Error calculating top templates: {type(e).__name__}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to calculate top templates: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
+
+
 @router.get("", response_model=ProductListResponse)
 @cached(ttl=300, cache_type="product")  # Cache for 5 minutes
 async def get_products(
@@ -1160,6 +1594,214 @@ async def get_category_comparison(
             "total_categories": len(comparisons),
         },
     )
+
+
+class TopCategoryByViews(BaseModel):
+    """Model for top category by views."""
+
+    category_name: str
+    total_views: int
+    products_count: int
+    views_change: int = 0
+    views_change_percent: float = 0.0
+
+
+class TopCategoriesByViewsResponse(BaseModel):
+    """Response model for top categories by views."""
+
+    data: List[TopCategoryByViews]
+    meta: dict = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
+@router.get("/categories/top-by-views", response_model=TopCategoriesByViewsResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
+async def get_top_categories_by_views(
+    limit: int = Query(10, ge=1, le=100, description="Number of categories to return"),
+    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for % change (1-168, default: 24)"),
+    product_type: Optional[str] = Query(
+        None, description="Filter by product type: template, component, vector, plugin"
+    ),
+):
+    """Get top categories by total views with percentage change.
+
+    This endpoint aggregates views_normalized from product_history for all products
+    in each category, calculates total views, and compares with period ago to calculate
+    percentage change.
+
+    Args:
+        limit: Number of top categories to return (1-100, default: 10)
+        period_hours: Period in hours to compare for % change (1-168, default: 24)
+        product_type: Optional filter by product type
+
+    Returns:
+        TopCategoriesByViewsResponse with top categories sorted by total views
+
+    Raises:
+        503: Database not available
+    """
+    # Validate product type
+    if product_type and product_type not in ["template", "component", "vector", "plugin"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": {
+                    "code": "INVALID_PRODUCT_TYPE",
+                    "message": (
+                        "Invalid product type. Must be one of: template, component, vector, plugin"
+                    ),
+                    "details": {"type": product_type},
+                }
+            },
+        )
+
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+
+    try:
+        from sqlalchemy import text
+
+        # Get current time and period ago
+        now = datetime.utcnow()
+        period_ago = now - timedelta(hours=period_hours)
+
+        # Build WHERE clause for product type filter
+        where_clause = "WHERE category IS NOT NULL AND views_normalized IS NOT NULL"
+        params = {"now_time": now, "limit": limit}
+        if product_type:
+            where_clause += " AND type = :product_type"
+            params["product_type"] = product_type
+
+        # Query to get latest total views per category
+        query_latest = text(
+            """
+            WITH latest_views AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    category,
+                    views_normalized
+                FROM product_history
+            """ + where_clause + """
+                AND scraped_at <= :now_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                category,
+                SUM(views_normalized) as total_views,
+                COUNT(*) as products_count
+            FROM latest_views
+            GROUP BY category
+            ORDER BY total_views DESC
+            LIMIT :limit
+        """
+        )
+
+        # Query to get views from period ago
+        where_clause_period = "WHERE category IS NOT NULL AND views_normalized IS NOT NULL"
+        params_period = {"period_ago_time": period_ago}
+        if product_type:
+            where_clause_period += " AND type = :product_type"
+            params_period["product_type"] = product_type
+
+        query_period_ago = text(
+            """
+            WITH period_views AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    category,
+                    views_normalized
+                FROM product_history
+            """ + where_clause_period + """
+                AND scraped_at <= :period_ago_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT 
+                category,
+                SUM(views_normalized) as total_views
+            FROM period_views
+            GROUP BY category
+        """
+        )
+
+        with engine.connect() as conn:
+            # Get latest views aggregated by category
+            result_latest = conn.execute(query_latest, params)
+            latest_data = {}
+            for row in result_latest:
+                latest_data[row[0]] = {
+                    "total_views": int(row[1]) if row[1] else 0,
+                    "products_count": int(row[2]) if row[2] else 0,
+                }
+
+            # Get views from period ago
+            result_period = conn.execute(query_period_ago, params_period)
+            period_ago_data = {
+                row[0]: int(row[1]) if row[1] else 0 for row in result_period
+            }
+
+        # Calculate changes and build response
+        top_categories = []
+        for category_name, views_data in latest_data.items():
+            current_views = views_data["total_views"]
+            previous_views = period_ago_data.get(category_name, 0)
+
+            # Calculate change
+            views_change = current_views - previous_views
+            views_change_percent = 0.0
+            if previous_views > 0:
+                views_change_percent = (views_change / previous_views) * 100
+
+            top_categories.append(
+                TopCategoryByViews(
+                    category_name=category_name,
+                    total_views=current_views,
+                    products_count=views_data["products_count"],
+                    views_change=views_change,
+                    views_change_percent=round(views_change_percent, 2),
+                )
+            )
+
+        # Sort by total_views (should already be sorted, but ensure it)
+        top_categories.sort(key=lambda x: x.total_views, reverse=True)
+
+        return TopCategoriesByViewsResponse(
+            data=top_categories,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "period_hours": period_hours,
+                "limit": limit,
+                "product_type": product_type,
+            },
+        )
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Error calculating top categories: {type(e).__name__}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to calculate top categories: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
 
 
 class CategoryViewsResponse(BaseModel):

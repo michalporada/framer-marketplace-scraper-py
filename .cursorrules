@@ -508,6 +508,9 @@
       - "frontend/src/styles/ - Global styles"
   design_system:
     - "Use Shadcn/ui as base for components, don't modify Shadcn components directly, create wrapper components if changes needed"
+    - "ALWAYS use MCP shadcn server to fetch components - use mcp_shadcn-ui_get_component() to get component source code, use mcp_shadcn-ui_get_component_demo() for usage examples, use mcp_shadcn-ui_list_components() to see available components, NEVER manually copy-paste component code from external sources"
+    - "When planning with shadcn: use MCP server during planning phase, apply components wherever applicable, prefer whole blocks where possible (e.g., login page, calendar, dashboard) using mcp_shadcn-ui_get_block()"
+    - "When implementing shadcn components: first call mcp_shadcn-ui_get_component_demo() to see how it's used, then implement based on the demo to ensure correct implementation"
     - "Use Tailwind utility classes, avoid custom CSS where possible, use Tailwind config for custom colors/spacing"
     - "Responsive design: mobile-first approach, breakpoints: sm (640px), md (768px), lg (1024px), xl (1280px), test on different resolutions"
   components:
