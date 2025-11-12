@@ -962,39 +962,6 @@ async def get_creator_products_growth(
                 }
             },
         )
-    limit: int = Query(10, ge=1, le=100, description="Number of creators to return"),
-    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for % change (1-168, default: 24)"),
-):
-    """Get top creators by total views of their templates.
-
-    This endpoint aggregates views_normalized from product_history for all templates
-    of each creator, calculates total views, and compares with period ago to calculate
-    percentage change.
-
-    Args:
-        limit: Number of top creators to return (1-100, default: 10)
-        period_hours: Period in hours to compare for % change (1-168, default: 24)
-
-    Returns:
-        TopCreatorsByViewsResponse with top creators sorted by total views
-
-    Raises:
-        503: Database not available
-    """
-    engine = get_db_engine()
-    if not engine:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": {
-                    "code": "DATABASE_NOT_AVAILABLE",
-                    "message": "Database connection not available",
-                    "details": {},
-                }
-            },
-        )
-
-    try:
         from sqlalchemy import text
 
         # Get current time and period ago
