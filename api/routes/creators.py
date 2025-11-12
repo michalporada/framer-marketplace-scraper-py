@@ -426,6 +426,7 @@ async def get_creator_products_growth(
         period_ago = now - timedelta(hours=period_hours)
 
         # Build where clause for product type filter
+        # Using prepared statements to prevent SQL injection
         where_clause = "WHERE creator_username = :username AND views_normalized IS NOT NULL"
         params = {"username": username, "now_time": now, "period_ago_time": period_ago}
         if product_type:
@@ -433,6 +434,8 @@ async def get_creator_products_growth(
             params["product_type"] = product_type
 
         # Query to get latest views for each product of this creator
+        # Uses DISTINCT ON to get the most recent scrape for each product
+        # Prepared statement prevents SQL injection
         query_latest = text(
             """
             SELECT DISTINCT ON (product_id)
@@ -448,6 +451,8 @@ async def get_creator_products_growth(
         )
 
         # Query to get views from period ago
+        # Uses DISTINCT ON to get the most recent scrape before the period mark
+        # Prepared statement prevents SQL injection
         query_period_ago = text(
             """
             SELECT DISTINCT ON (product_id)
@@ -477,14 +482,16 @@ async def get_creator_products_growth(
             period_ago_data = {row[0]: row[1] for row in result_period if row[1] is not None}
 
         # Calculate growth for each product
+        # Compare current views with views from period ago
         products_growth = []
         total_views_current = 0
         total_views_previous = 0
 
         for product_id, product_data in latest_data.items():
             current_views = product_data["views"]
-            previous_views = period_ago_data.get(product_id, 0)
+            previous_views = period_ago_data.get(product_id, 0)  # 0 if product didn't exist
 
+            # Calculate absolute and percentage change
             views_change = current_views - previous_views
             views_change_percent = 0.0
             if previous_views > 0:

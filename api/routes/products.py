@@ -247,6 +247,8 @@ async def get_views_change_24h(
         hours_24_ago = now - timedelta(hours=24)
 
         # Query to get latest views for each product
+        # Uses DISTINCT ON to get the most recent scrape for each product
+        # Prepared statement prevents SQL injection
         query_latest = text(
             """
             SELECT DISTINCT ON (product_id)
@@ -262,6 +264,8 @@ async def get_views_change_24h(
         )
 
         # Query to get views from 24 hours ago (or closest before that time)
+        # Uses DISTINCT ON to get the most recent scrape before the 24h mark
+        # Prepared statement prevents SQL injection
         query_24h_ago = text(
             """
             SELECT DISTINCT ON (product_id)
@@ -291,22 +295,25 @@ async def get_views_change_24h(
             views_24h_ago = {row[0]: row[1] for row in result_24h if row[1] is not None}
 
         # Calculate changes
+        # Compare current views with views from 24h ago
         total_change = 0
         products_with_changes = 0
         products_count = len(latest_views)
 
         # For products that exist in both, calculate difference
+        # For new products (didn't exist 24h ago), count all current views as change
         for product_id in latest_views:
             current_views = latest_views[product_id]
             old_views = views_24h_ago.get(product_id, 0)
 
             if current_views is not None and old_views is not None:
+                # Product existed in both periods - calculate difference
                 change = current_views - old_views
                 total_change += change
                 if change != 0:
                     products_with_changes += 1
             elif current_views is not None:
-                # New product (didn't exist 24h ago)
+                # New product (didn't exist 24h ago) - all views are new
                 total_change += current_views
                 products_with_changes += 1
 
