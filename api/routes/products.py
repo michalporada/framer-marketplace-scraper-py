@@ -2,7 +2,7 @@
 
 import json
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -180,6 +180,163 @@ class ErrorResponse(BaseModel):
     """Error response model."""
 
     error: dict
+
+
+class ViewsChange24hResponse(BaseModel):
+    """Response model for 24h views change."""
+
+    product_type: str
+    total_views_change: int
+    products_count: int
+    products_with_changes: int
+    meta: dict = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
+@router.get("/views-change-24h", response_model=ViewsChange24hResponse)
+async def get_views_change_24h(
+    product_type: str = Query(
+        "template", description="Product type: template, component, vector, plugin"
+    ),
+):
+    """Get total views change for all products of a given type in the last 24 hours.
+
+    This endpoint compares the latest scrape with the scrape from 24 hours ago
+    and calculates the total change in views.
+
+    Args:
+        product_type: Product type to analyze (default: template)
+
+    Returns:
+        ViewsChange24hResponse with total views change
+    """
+    # Validate product type
+    if product_type not in ["template", "component", "vector", "plugin"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": {
+                    "code": "INVALID_PRODUCT_TYPE",
+                    "message": (
+                        "Invalid product type. Must be one of: template, component, vector, plugin"
+                    ),
+                    "details": {"type": product_type},
+                }
+            },
+        )
+
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+
+    try:
+        from sqlalchemy import text
+
+        # Get current time and 24 hours ago
+        now = datetime.utcnow()
+        hours_24_ago = now - timedelta(hours=24)
+
+        # Query to get latest views for each product
+        query_latest = text(
+            """
+            SELECT DISTINCT ON (product_id)
+                product_id,
+                views_normalized,
+                scraped_at
+            FROM product_history
+            WHERE type = :product_type
+                AND views_normalized IS NOT NULL
+                AND scraped_at <= :now_time
+            ORDER BY product_id, scraped_at DESC
+        """
+        )
+
+        # Query to get views from 24 hours ago (or closest before that time)
+        query_24h_ago = text(
+            """
+            SELECT DISTINCT ON (product_id)
+                product_id,
+                views_normalized,
+                scraped_at
+            FROM product_history
+            WHERE type = :product_type
+                AND views_normalized IS NOT NULL
+                AND scraped_at <= :hours_24_ago_time
+            ORDER BY product_id, scraped_at DESC
+        """
+        )
+
+        with engine.connect() as conn:
+            # Get latest views
+            result_latest = conn.execute(
+                query_latest, {"product_type": product_type, "now_time": now}
+            )
+            latest_views = {row[0]: row[1] for row in result_latest if row[1] is not None}
+
+            # Get views from 24h ago
+            result_24h = conn.execute(
+                query_24h_ago,
+                {"product_type": product_type, "hours_24_ago_time": hours_24_ago},
+            )
+            views_24h_ago = {row[0]: row[1] for row in result_24h if row[1] is not None}
+
+        # Calculate changes
+        total_change = 0
+        products_with_changes = 0
+        products_count = len(latest_views)
+
+        # For products that exist in both, calculate difference
+        for product_id in latest_views:
+            current_views = latest_views[product_id]
+            old_views = views_24h_ago.get(product_id, 0)
+
+            if current_views is not None and old_views is not None:
+                change = current_views - old_views
+                total_change += change
+                if change != 0:
+                    products_with_changes += 1
+            elif current_views is not None:
+                # New product (didn't exist 24h ago)
+                total_change += current_views
+                products_with_changes += 1
+
+        return ViewsChange24hResponse(
+            product_type=product_type,
+            total_views_change=total_change,
+            products_count=products_count,
+            products_with_changes=products_with_changes,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "period_start": hours_24_ago.isoformat() + "Z",
+                "period_end": now.isoformat() + "Z",
+            },
+        )
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error calculating 24h views change: {type(e).__name__}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to calculate views change: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
 
 
 @router.get("", response_model=ProductListResponse)
@@ -994,5 +1151,159 @@ async def get_category_comparison(
         meta={
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "total_categories": len(comparisons),
+        },
+    )
+
+
+class CategoryViewsResponse(BaseModel):
+    """Response model for category views statistics."""
+
+    category: str
+    product_type: Optional[str] = None
+    total_views: int
+    products_count: int
+    average_views_per_product: float
+    free_products_count: int
+    paid_products_count: int
+    products: List[dict] = Field(
+        default_factory=list, description="List of products in category (optional)"
+    )
+    meta: dict = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
+@router.get("/categories/{category_name}/views", response_model=CategoryViewsResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
+async def get_category_views(
+    category_name: str,
+    product_type: Optional[str] = Query(
+        None, description="Filter by product type: template, component, vector, plugin"
+    ),
+    include_products: bool = Query(
+        False, description="Include list of products in response"
+    ),
+    limit: int = Query(100, ge=1, le=1000, description="Max products to include (if include_products=true)"),
+):
+    """Get total views and statistics for a specific category.
+
+    This endpoint calculates the total number of views, product count, and other
+    statistics for a given category, optionally filtered by product type.
+
+    Args:
+        category_name: Name of the category
+        product_type: Optional filter by product type
+        include_products: Whether to include list of products in response
+        limit: Maximum number of products to include (if include_products=true)
+
+    Returns:
+        CategoryViewsResponse with category statistics
+
+    Raises:
+        404: Category not found
+    """
+    # Validate product type
+    if product_type and product_type not in ["template", "component", "vector", "plugin"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": {
+                    "code": "INVALID_PRODUCT_TYPE",
+                    "message": (
+                        "Invalid product type. Must be one of: template, component, vector, plugin"
+                    ),
+                    "details": {"type": product_type},
+                }
+            },
+        )
+
+    # Build query with prepared statements
+    where_clause = "WHERE category = :category"
+    params = {"category": category_name}
+    if product_type:
+        where_clause += " AND type = :product_type"
+        params["product_type"] = product_type
+
+    # Get category statistics
+    stats_query = (
+        """
+        SELECT 
+            COUNT(*) as products_count,
+            SUM(views_normalized) as total_views,
+            SUM(CASE WHEN is_free = true THEN 1 ELSE 0 END) as free_products_count,
+            SUM(CASE WHEN is_free = false THEN 1 ELSE 0 END) as paid_products_count
+        FROM products
+        """
+        + where_clause
+        + """
+        AND views_normalized IS NOT NULL
+    """
+    )
+    stats_result = execute_query_one(stats_query, params)
+
+    if not stats_result or stats_result.get("products_count", 0) == 0:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": {
+                    "code": "CATEGORY_NOT_FOUND",
+                    "message": f"Category '{category_name}' not found",
+                    "details": {"category": category_name, "product_type": product_type},
+                }
+            },
+        )
+
+    products_count = stats_result.get("products_count", 0) or 0
+    total_views = stats_result.get("total_views", 0) or 0
+    free_products_count = stats_result.get("free_products_count", 0) or 0
+    paid_products_count = stats_result.get("paid_products_count", 0) or 0
+
+    # Calculate average views per product
+    average_views = 0.0
+    if products_count > 0:
+        average_views = total_views / products_count
+
+    # Get products list if requested
+    products_list = []
+    if include_products:
+        products_query = (
+            """
+            SELECT id, name, type, views_normalized, is_free, price
+            FROM products
+            """
+            + where_clause
+            + """
+            AND views_normalized IS NOT NULL
+            ORDER BY views_normalized DESC
+            LIMIT :limit
+        """
+        )
+        params["limit"] = limit
+        products_rows = execute_query(products_query, params)
+
+        if products_rows:
+            products_list = [
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "type": row["type"],
+                    "views": row["views_normalized"],
+                    "is_free": row.get("is_free", False),
+                    "price": float(row["price"]) if row.get("price") else None,
+                }
+                for row in products_rows
+            ]
+
+    return CategoryViewsResponse(
+        category=category_name,
+        product_type=product_type,
+        total_views=total_views,
+        products_count=products_count,
+        average_views_per_product=round(average_views, 2),
+        free_products_count=free_products_count,
+        paid_products_count=paid_products_count,
+        products=products_list,
+        meta={
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         },
     )
