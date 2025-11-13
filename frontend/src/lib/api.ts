@@ -313,7 +313,7 @@ export async function getSmallestCategories(params?: {
   try {
     // Get more categories than needed, then sort and take smallest
     const query = `limit=100&period_hours=${periodHours}&product_type=${productType}`
-    const response = await fetchAPI(`/api/products/categories/top-by-views?${query}`)
+    const response = await fetchAPI<{ data: any[]; meta?: any }>(`/api/products/categories/top-by-views?${query}`)
     
     // Sort by products_count ascending and take top N
     const sorted = (response.data || []).sort((a: any, b: any) => {
