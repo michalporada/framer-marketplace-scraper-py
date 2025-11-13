@@ -1202,6 +1202,11 @@ function CreatorsMostTemplates({
                           >
                             {row.name || row.id}
                           </Link>
+                          {row.totalViews && (
+                            <span className="text-xs text-muted-foreground">
+                              {row.totalViews.toLocaleString()} total views
+                            </span>
+                          )}
                         </div>
                       </div>
                     </TableCell>
