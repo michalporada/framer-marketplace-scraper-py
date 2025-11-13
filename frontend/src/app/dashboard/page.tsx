@@ -287,7 +287,6 @@ function MostPopularTemplates({
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Template</TableHead>
                 <TableHead className="text-right">Price</TableHead>
-                <TableHead>Creator</TableHead>
                 <TableHead className="text-right">Views</TableHead>
                 <TableHead className="text-right">Change</TableHead>
               </TableRow>
@@ -295,7 +294,7 @@ function MostPopularTemplates({
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
@@ -304,9 +303,14 @@ function MostPopularTemplates({
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{row.name}</span>
-                      </div>
+                      <Link 
+                        href={`https://www.framer.com/marketplace/templates/${row.id}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium hover:underline transition-colors"
+                      >
+                        {row.name}
+                      </Link>
                     </TableCell>
                     <TableCell className="text-right">
                       {row.isFree ? (
@@ -315,20 +319,6 @@ function MostPopularTemplates({
                         <Badge variant="outline" className="text-xs">
                           {row.price ? `$${row.price.toFixed(2)}` : 'Paid'}
                         </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {row.creatorId ? (
-                        <Link 
-                          href={`https://www.framer.com/@${row.creatorId}/`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:underline transition-colors"
-                        >
-                          {row.creator}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">{row.creator}</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
@@ -379,19 +369,19 @@ function MostPopularComponents({
         const components = response.data || []
         
         setData(components.map((component: any, index: number) => ({
-          id: component.product_id,
+          id: component.product_id || component.id,
           rank: index + 1,
           name: component.name,
-          creator: component.creator_username || component.creator_name || 'Unknown',
-          creatorId: component.creator_username,
-          views: component.views || component.views_normalized || 0,
-          isFree: component.is_free,
+          creator: component.creator_username || component.creator_name || component.creator?.username || component.creator?.name || 'Unknown',
+          creatorId: component.creator_username || component.creator?.username,
+          views: component.views || component.views_normalized || component.stats?.views?.normalized || 0,
+          isFree: component.is_free !== undefined ? component.is_free : (component.price === null || component.price === 0),
           price: component.price,
           change: component.views_change_percent !== undefined && component.views_change_percent !== null ? {
             value: Math.abs(component.views_change_percent),
             isPositive: component.views_change_percent >= 0
           } : undefined
-        })))
+        })).filter((item: any) => item.id && item.name)) // Filter out invalid items
       } catch (err) {
         console.error('Error fetching top components:', err)
         setError(err instanceof Error ? err.message : 'Failed to load data')
@@ -446,18 +436,14 @@ function MostPopularComponents({
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{row.name}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          {row.isFree ? (
-                            <Badge variant="secondary" className="text-xs">Free</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-xs">
-                              {row.price ? `$${row.price.toFixed(2)}` : 'Paid'}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
+                      <Link 
+                        href={`https://www.framer.com/marketplace/components/${row.id}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium hover:underline transition-colors"
+                      >
+                        {row.name}
+                      </Link>
                     </TableCell>
                     <TableCell>
                       {row.creatorId ? (
@@ -585,9 +571,14 @@ function MostPopularCategories({
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{row.name}</span>
-                      </div>
+                      <Link 
+                        href={`https://www.framer.com/marketplace/category/${row.id}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium hover:underline transition-colors"
+                      >
+                        {row.name}
+                      </Link>
                     </TableCell>
                     <TableCell className="text-right">{row.productsCount?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
@@ -688,7 +679,6 @@ function MostPopularFreeTemplates({
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Template</TableHead>
-                <TableHead>Creator</TableHead>
                 <TableHead className="text-right">Views</TableHead>
                 <TableHead className="text-right">Change</TableHead>
               </TableRow>
@@ -696,7 +686,7 @@ function MostPopularFreeTemplates({
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
@@ -705,33 +695,14 @@ function MostPopularFreeTemplates({
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
-                      <span className="font-medium">{row.name}</span>
-                    </TableCell>
-                    <TableCell>
-                      {row.creatorId ? (
-                        <Link 
-                          href={`https://www.framer.com/@${row.creatorId}/`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                        >
-                          {row.creatorAvatar && (
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={row.creatorAvatar} alt={row.creator} />
-                              <AvatarFallback>{row.creator?.charAt(0)?.toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                          )}
-                        </Link>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          {row.creatorAvatar && (
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={row.creatorAvatar} alt={row.creator} />
-                              <AvatarFallback>{row.creator?.charAt(0)?.toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                          )}
-                        </div>
-                      )}
+                      <Link 
+                        href={`https://www.framer.com/marketplace/templates/${row.id}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium hover:underline transition-colors"
+                      >
+                        {row.name}
+                      </Link>
                     </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
