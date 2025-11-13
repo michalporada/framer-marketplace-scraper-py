@@ -233,12 +233,12 @@ function TopCreatorsByViews({
   const creators = responseData?.data || []
   const mappedData = creators.map((creator: any, index: number) => {
     // Obsługa name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
-    const creatorName = creator.name && typeof creator.name === 'string' && creator.name.trim() 
+    const creatorName = (creator.name != null && creator.name !== '' && typeof creator.name === 'string' && creator.name.trim() !== '')
       ? creator.name.trim() 
-      : creator.username
+      : creator.username || 'Unknown'
     
     // Obsługa avatar_url - sprawdź czy istnieje i nie jest pusty/null/undefined
-    const avatarUrl = creator.avatar_url && typeof creator.avatar_url === 'string' && creator.avatar_url.trim()
+    const avatarUrl = (creator.avatar_url != null && creator.avatar_url !== '' && typeof creator.avatar_url === 'string' && creator.avatar_url.trim() !== '')
       ? creator.avatar_url.trim()
       : null
     
@@ -1073,12 +1073,12 @@ function CreatorsMostTemplates({
   const creators = responseData?.data || []
   const mappedData = creators.map((creator: any, index: number) => {
     // Obsługa name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
-    const creatorName = creator.name && typeof creator.name === 'string' && creator.name.trim() 
+    const creatorName = (creator.name != null && creator.name !== '' && typeof creator.name === 'string' && creator.name.trim() !== '')
       ? creator.name.trim() 
-      : creator.username
+      : creator.username || 'Unknown'
     
     // Obsługa avatar_url - sprawdź czy istnieje i nie jest pusty/null/undefined
-    const avatarUrl = creator.avatar_url && typeof creator.avatar_url === 'string' && creator.avatar_url.trim()
+    const avatarUrl = (creator.avatar_url != null && creator.avatar_url !== '' && typeof creator.avatar_url === 'string' && creator.avatar_url.trim() !== '')
       ? creator.avatar_url.trim()
       : null
     
