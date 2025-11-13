@@ -95,7 +95,7 @@ def _build_reverse_mapping() -> None:
     """Build reverse mapping from subcategory to parent categories."""
     global _SUBCATEGORY_TO_PARENT
     _SUBCATEGORY_TO_PARENT = {}
-    
+
     for parent, subcategories in CATEGORY_MAPPING.items():
         for subcat in subcategories:
             if subcat not in _SUBCATEGORY_TO_PARENT:
@@ -109,34 +109,34 @@ _build_reverse_mapping()
 
 def expand_categories(categories: List[str]) -> List[str]:
     """Expand categories list to include parent categories.
-    
+
     Args:
         categories: List of category names
-        
+
     Returns:
         Expanded list with parent categories added
     """
     expanded = set(categories)  # Use set to avoid duplicates
-    
+
     # Add parent categories for each subcategory
     for category in categories:
         if category in _SUBCATEGORY_TO_PARENT:
             expanded.update(_SUBCATEGORY_TO_PARENT[category])
-    
+
     # Return as list, preserving original order, then adding new ones
     result = list(categories)
     for parent in sorted(expanded - set(categories)):
         result.append(parent)
-    
+
     return result
 
 
 def get_parent_categories(category: str) -> List[str]:
     """Get parent categories for a given category.
-    
+
     Args:
         category: Category name
-        
+
     Returns:
         List of parent category names (empty if category has no parents)
     """
@@ -145,10 +145,10 @@ def get_parent_categories(category: str) -> List[str]:
 
 def get_subcategories(parent_category: str) -> List[str]:
     """Get subcategories for a given parent category.
-    
+
     Args:
         parent_category: Parent category name
-        
+
     Returns:
         List of subcategory names (empty if category has no subcategories)
     """
@@ -157,10 +157,10 @@ def get_subcategories(parent_category: str) -> List[str]:
 
 def has_category_mapping(category: str) -> bool:
     """Check if a category has any mapping (is a parent or subcategory).
-    
+
     Args:
         category: Category name
-        
+
     Returns:
         True if category is in mapping, False otherwise
     """

@@ -921,7 +921,9 @@ class DatabaseStorage:
         """
         import json as json_lib
 
-        social_media_json = json_lib.dumps(creator.social_media) if creator.social_media else None
+        social_media_json = (
+            json_lib.dumps(creator.social_media) if creator.social_media else None
+        )
 
         return {
             "username": creator.username,
