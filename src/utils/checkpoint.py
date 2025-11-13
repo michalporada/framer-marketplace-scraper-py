@@ -22,6 +22,7 @@ class CheckpointManager:
         """
         self.checkpoint_file = Path(checkpoint_file or settings.checkpoint_file)
         self.checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
+        self._checkpoint_loaded = False  # Flag to track if checkpoint was already loaded
 
     def load_checkpoint(self) -> dict:
         """Load checkpoint data from file.
@@ -34,7 +35,10 @@ class CheckpointManager:
             - timestamp: Last checkpoint timestamp
         """
         if not self.checkpoint_file.exists():
-            logger.info("checkpoint_not_found", file=str(self.checkpoint_file))
+            # Log only once on first load, use DEBUG level to reduce noise
+            if not self._checkpoint_loaded:
+                logger.debug("checkpoint_not_found", file=str(self.checkpoint_file))
+                self._checkpoint_loaded = True
             return {
                 "processed_urls": [],
                 "failed_urls": [],
@@ -48,6 +52,7 @@ class CheckpointManager:
                 # Convert lists back to sets for faster lookups
                 processed = data.get("processed_urls", [])
                 failed = data.get("failed_urls", [])
+                self._checkpoint_loaded = True  # Mark as loaded when file exists
                 return {
                     "processed_urls": set(processed) if isinstance(processed, list) else processed,
                     "failed_urls": set(failed) if isinstance(failed, list) else failed,
@@ -56,6 +61,7 @@ class CheckpointManager:
                 }
         except Exception as e:
             logger.warning("checkpoint_load_error", file=str(self.checkpoint_file), error=str(e))
+            self._checkpoint_loaded = True  # Mark as loaded even on error
             return {
                 "processed_urls": [],
                 "failed_urls": [],
@@ -116,11 +122,12 @@ class CheckpointManager:
             processed = set(processed) if processed else set()
         return url in processed
 
-    def add_processed(self, url: str) -> None:
-        """Add URL to processed set and save checkpoint.
+    def add_processed(self, url: str, save_immediately: bool = True) -> None:
+        """Add URL to processed set and optionally save checkpoint.
 
         Args:
             url: URL that was successfully processed
+            save_immediately: If True, save checkpoint immediately. If False, only add to in-memory set.
         """
         checkpoint = self.load_checkpoint()
         # Ensure processed_urls is a set
@@ -130,11 +137,12 @@ class CheckpointManager:
         processed.add(url)
         checkpoint["processed_urls"] = processed
 
-        self.save_checkpoint(
-            checkpoint["processed_urls"],
-            checkpoint["failed_urls"],
-            checkpoint["stats"],
-        )
+        if save_immediately:
+            self.save_checkpoint(
+                checkpoint["processed_urls"],
+                checkpoint["failed_urls"],
+                checkpoint["stats"],
+            )
 
     def add_failed(self, url: str) -> None:
         """Add URL to failed set and save checkpoint.

@@ -2,12 +2,21 @@ name: Sync JSON to Database
 
 on:
   workflow_dispatch:  # Ręczne uruchomienie
+  workflow_run:
+    workflows: ["Daily Scrape"]
+    types:
+      - completed
+    branches:
+      - main
   schedule:
-    - cron: '0 3 * * *'  # Codziennie o 3:00 UTC (po scrapowaniu o 2:00)
+    # Fallback: jeśli workflow_run nie zadziała, uruchom o 8:00 UTC (6h po scrapowaniu o 2:00)
+    - cron: '0 8 * * *'
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # Tylko uruchom jeśli scrape workflow zakończył się sukcesem (dla workflow_run trigger)
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     
     steps:
       - name: Checkout repository
@@ -28,19 +37,26 @@ jobs:
         id: find-scrape-run
         continue-on-error: true
         run: |
-          echo "🔍 Looking for latest successful 'Daily Scrape' workflow run..."
-          
-          # Get latest successful run of scrape workflow
-          RUN_ID=$(gh run list --workflow=scrape.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || echo "")
-          
-          if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
-            echo "⚠️ No successful scrape workflow run found"
-            echo "run_id=" >> $GITHUB_OUTPUT
-            echo "found=false" >> $GITHUB_OUTPUT
-          else
-            echo "✅ Found scrape workflow run: $RUN_ID"
+          # If triggered by workflow_run, use that run_id
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            RUN_ID="${{ github.event.workflow_run.id }}"
+            echo "✅ Using workflow_run trigger: $RUN_ID"
             echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
             echo "found=true" >> $GITHUB_OUTPUT
+          else
+            # For schedule/workflow_dispatch, find latest successful run
+            echo "🔍 Looking for latest successful 'Daily Scrape' workflow run..."
+            RUN_ID=$(gh run list --workflow=scrape.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || echo "")
+            
+            if [ -z "$RUN_ID" ] || [ "$RUN_ID" == "null" ]; then
+              echo "⚠️ No successful scrape workflow run found"
+              echo "run_id=" >> $GITHUB_OUTPUT
+              echo "found=false" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Found scrape workflow run: $RUN_ID"
+              echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+              echo "found=true" >> $GITHUB_OUTPUT
+            fi
           fi
         env:
           GH_TOKEN: ${{ github.token }}
