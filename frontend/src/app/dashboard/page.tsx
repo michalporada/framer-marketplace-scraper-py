@@ -572,7 +572,7 @@ function MostPopularCategories({
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
                       <Link 
-                        href={`https://www.framer.com/marketplace/category/${row.id}/`}
+                        href={`https://www.framer.com/marketplace/templates/category/${row.id.toLowerCase().replace(/\s+/g, '-')}/`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-medium hover:underline transition-colors"
