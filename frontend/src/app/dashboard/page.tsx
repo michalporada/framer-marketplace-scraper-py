@@ -403,7 +403,8 @@ function MostPopularTemplates({
     id: template.product_id,
     rank: index + 1,
     name: template.name,
-    creator: template.creator_name || template.creator_username || 'Unknown',
+    // Używamy pełnej nazwy (creator_name) zamiast username - preferuj name jeśli istnieje i nie jest pusty
+    creator: (template.creator_name && template.creator_name.trim()) ? template.creator_name : template.creator_username || 'Unknown',
     creatorId: template.creator_username,
     category: template.category || null, // Kategoria może nie być dostępna w API
     views: template.views,
@@ -910,7 +911,8 @@ function MostPopularFreeTemplates({
     id: template.product_id,
     rank: index + 1,
     name: template.name,
-    creator: template.creator_name || template.creator_username || 'Unknown',
+    // Używamy pełnej nazwy (creator_name) zamiast username - preferuj name jeśli istnieje i nie jest pusty
+    creator: (template.creator_name && template.creator_name.trim()) ? template.creator_name : template.creator_username || 'Unknown',
     creatorId: template.creator_username,
     creatorAvatar: template.creator_avatar_url,
     category: template.category || null, // Kategoria może nie być dostępna w API
