@@ -1656,31 +1656,59 @@ async def get_top_categories_by_views(
         )
 
     try:
-        # Load all products from JSON files (contains all categories, not just main one)
+        # Try to load from JSON files first (contains all categories)
         data_path = Path(settings.data_path)
+        products = []
         
-        # Check if data path exists
-        if not data_path.exists():
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Data path does not exist: {data_path}")
-            return TopCategoriesByViewsResponse(
-                data=[],
-                meta={
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
-                    "period_hours": period_hours,
-                    "limit": limit,
-                    "product_type": product_type,
-                },
-            )
+        if data_path.exists():
+            products = load_all_products_from_json(data_path, product_type)
         
-        products = load_all_products_from_json(data_path, product_type)
+        # If no products from JSON, fallback to database
+        if not products:
+            engine = get_db_engine()
+            if engine:
+                try:
+                    from sqlalchemy import text
+                    
+                    # Build WHERE clause
+                    where_clause = "WHERE category IS NOT NULL AND views_normalized IS NOT NULL"
+                    params = {}
+                    if product_type:
+                        where_clause += " AND type = :product_type"
+                        params["product_type"] = product_type
+                    
+                    query_str = (
+                        """
+                        SELECT 
+                            category,
+                            views_normalized,
+                            id
+                        FROM products
+                        """ + where_clause
+                    )
+                    query = text(query_str)
+                    
+                    with engine.connect() as conn:
+                        result = conn.execute(query, params)
+                        for row in result:
+                            products.append({
+                                "category": row[0],
+                                "categories": [row[0]] if row[0] else [],
+                                "stats": {
+                                    "views": {
+                                        "normalized": row[1] or 0
+                                    }
+                                }
+                            })
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Could not load products from database: {str(e)}")
         
-        # Log if no products found
         if not products:
             import logging
             logger = logging.getLogger(__name__)
-            logger.warning(f"No products found in JSON files at {data_path} for type {product_type}")
+            logger.warning(f"No products found in JSON files or database for type {product_type}")
             return TopCategoriesByViewsResponse(
                 data=[],
                 meta={
@@ -2013,30 +2041,59 @@ async def get_all_categories_by_count(
         )
     
     try:
-        # Load all products from JSON files (contains all categories, not just main one)
+        # Try to load from JSON files first (contains all categories)
         data_path = Path(settings.data_path)
+        products = []
         
-        # Check if data path exists
-        if not data_path.exists():
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Data path does not exist: {data_path}")
-            return TopCategoriesByViewsResponse(
-                data=[],
-                meta={
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
-                    "limit": limit,
-                    "product_type": product_type,
-                },
-            )
+        if data_path.exists():
+            products = load_all_products_from_json(data_path, product_type)
         
-        products = load_all_products_from_json(data_path, product_type)
+        # If no products from JSON, fallback to database
+        if not products:
+            engine = get_db_engine()
+            if engine:
+                try:
+                    from sqlalchemy import text
+                    
+                    # Build WHERE clause
+                    where_clause = "WHERE category IS NOT NULL AND views_normalized IS NOT NULL"
+                    params = {}
+                    if product_type:
+                        where_clause += " AND type = :product_type"
+                        params["product_type"] = product_type
+                    
+                    query_str = (
+                        """
+                        SELECT 
+                            category,
+                            views_normalized,
+                            id
+                        FROM products
+                        """ + where_clause
+                    )
+                    query = text(query_str)
+                    
+                    with engine.connect() as conn:
+                        result = conn.execute(query, params)
+                        for row in result:
+                            products.append({
+                                "category": row[0],
+                                "categories": [row[0]] if row[0] else [],
+                                "stats": {
+                                    "views": {
+                                        "normalized": row[1] or 0
+                                    }
+                                }
+                            })
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Could not load products from database: {str(e)}")
         
-        # Log if no products found
         if not products:
             import logging
             logger = logging.getLogger(__name__)
-            logger.warning(f"No products found in JSON files at {data_path} for type {product_type}")
+            logger.warning(f"No products found in JSON files or database for type {product_type}")
             return TopCategoriesByViewsResponse(
                 data=[],
                 meta={
