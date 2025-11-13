@@ -5,7 +5,7 @@
 // Use local API if available, fallback to production
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://framer-marketplace-scraper-py-production.up.railway.app')
 
-async function fetchAPI<T>(endpoint: string): Promise<T> {
+async function fetchAPI<T>(endpoint: string, retries = 2): Promise<T> {
   // Determine API URL - prefer localhost when running locally
   const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
     ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000')
@@ -14,44 +14,96 @@ async function fetchAPI<T>(endpoint: string): Promise<T> {
   const url = `${apiUrl}${endpoint}`
   console.log('Fetching:', url)
   
-  try {
-    const response = await fetch(url, {
-      // Add timeout for better error handling (reduced for faster feedback)
-      signal: AbortSignal.timeout(10000) // 10 seconds
-    })
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('API Error:', response.status, response.statusText, errorText)
+  // Retry logic with exponential backoff
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds timeout
       
-      // Provide more user-friendly error messages
-      if (response.status === 502 || response.status === 503) {
-        throw new Error(`API is currently unavailable. Please check if the API server is running.`)
-      } else if (response.status === 500) {
-        throw new Error(`Server error: ${errorText.substring(0, 200)}`)
-      } else {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`)
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('API Error:', response.status, response.statusText, errorText)
+        
+        // Don't retry on client errors (4xx)
+        if (response.status >= 400 && response.status < 500) {
+          // Provide more user-friendly error messages
+          if (response.status === 404) {
+            throw new Error('Resource not found')
+          } else if (response.status === 429) {
+            throw new Error('Too many requests. Please try again later.')
+          } else {
+            throw new Error(`API Error: ${response.status} ${response.statusText}`)
+          }
+        }
+        
+        // Retry on server errors (5xx) if we have retries left
+        if (response.status >= 500 && attempt < retries) {
+          const delay = Math.pow(2, attempt) * 1000 // Exponential backoff: 1s, 2s, 4s
+          console.warn(`Server error ${response.status}, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries + 1})`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        
+        // Provide more user-friendly error messages
+        if (response.status === 502 || response.status === 503) {
+          throw new Error(`API is currently unavailable. Please check if the API server is running.`)
+        } else if (response.status === 500) {
+          throw new Error(`Server error: ${errorText.substring(0, 200)}`)
+        } else {
+          throw new Error(`API Error: ${response.status} ${response.statusText}`)
+        }
       }
+      
+      const data = await response.json()
+      console.log('API Response:', endpoint, 'OK')
+      return data
+    } catch (error: any) {
+      // Handle timeout
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        if (attempt < retries) {
+          const delay = Math.pow(2, attempt) * 1000 // Exponential backoff
+          console.warn(`Request timeout, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries + 1})`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        throw new Error('Request timeout - API is not responding. Please check if the API server is running.')
+      }
+      
+      // Handle network errors
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        if (attempt < retries) {
+          const delay = Math.pow(2, attempt) * 1000 // Exponential backoff
+          console.warn(`Network error, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries + 1})`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          continue
+        }
+        throw new Error('Cannot connect to API. Please check if the API server is running at ' + apiUrl)
+      }
+      
+      // If it's not a retryable error, throw immediately
+      if (attempt === retries) {
+        console.error('Fetch error (final attempt):', error)
+        throw error
+      }
+      
+      // For other errors, retry if we have attempts left
+      const delay = Math.pow(2, attempt) * 1000
+      console.warn(`Error occurred, retrying in ${delay}ms... (attempt ${attempt + 1}/${retries + 1})`, error)
+      await new Promise(resolve => setTimeout(resolve, delay))
     }
-    
-    const data = await response.json()
-    console.log('API Response:', endpoint, 'OK')
-    return data
-  } catch (error: any) {
-    console.error('Fetch error:', error)
-    
-    // Handle timeout
-    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-      throw new Error('Request timeout - API is not responding. Please check if the API server is running.')
-    }
-    
-    // Handle network errors
-    if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-      throw new Error('Cannot connect to API. Please check if the API server is running at ' + apiUrl)
-    }
-    
-    throw error
   }
+  
+  // This should never be reached, but TypeScript needs it
+  throw new Error('Failed to fetch after all retries')
 }
 
 // Creators API
@@ -147,7 +199,7 @@ export async function getTopCreatorsByTemplateViews(params?: {
     const query = `limit=${limit}&period_hours=${periodHours}`
     return await fetchAPI(`/api/creators/top-by-template-views?${query}`)
   } catch (error) {
-    console.warn('Dedicated endpoint not available, returning empty data:', error)
+    console.warn('Dedicated endpoint not available, [returning empty data / using products endpoint]:', error)
     // Return empty data instead of making many requests
     return {
       data: [],
@@ -170,7 +222,7 @@ export async function getTopTemplates(params?: {
     const query = `limit=${limit}&period_hours=${periodHours}`
     return await fetchAPI(`/api/products/top-templates?${query}`)
   } catch (error) {
-    console.warn('Dedicated endpoint not available, using products endpoint:', error)
+    console.warn('Dedicated endpoint not available, [returning empty data / using products endpoint]:', error)
     // Fallback to simple products endpoint
     const response = await getProducts({
       type: 'template',
@@ -203,7 +255,7 @@ export async function getTopComponents(params?: {
     const query = `limit=${limit}&period_hours=${periodHours}`
     return await fetchAPI(`/api/products/top-components?${query}`)
   } catch (error) {
-    console.warn('Dedicated endpoint not available, using products endpoint:', error)
+    console.warn('Dedicated endpoint not available, [returning empty data / using products endpoint]:', error)
     // Fallback to simple products endpoint
     const response = await getProducts({
       type: 'component',
@@ -238,7 +290,7 @@ export async function getTopCategories(params?: {
     const query = `limit=${limit}&period_hours=${periodHours}&product_type=${productType}`
     return await fetchAPI(`/api/products/categories/top-by-views?${query}`)
   } catch (error) {
-    console.warn('Dedicated endpoint not available, returning empty data:', error)
+    console.warn('Dedicated endpoint not available, [returning empty data / using products endpoint]:', error)
     // Return empty data instead of making many requests
     return {
       data: [],
@@ -261,7 +313,7 @@ export async function getTopFreeTemplates(params?: {
     const query = `limit=${limit}&period_hours=${periodHours}`
     return await fetchAPI(`/api/products/top-free-templates?${query}`)
   } catch (error) {
-    console.warn('Dedicated endpoint not available, using products endpoint:', error)
+    console.warn('Dedicated endpoint not available, [returning empty data / using products endpoint]:', error)
     // Fallback: get templates and filter free ones
     const response = await getProducts({
       type: 'template',
@@ -299,7 +351,7 @@ export async function getTopCreatorsByTemplateCount(params?: {
     const query = `limit=${limit}&period_hours=${periodHours}`
     return await fetchAPI(`/api/creators/top-by-template-count?${query}`)
   } catch (error) {
-    console.warn('Dedicated endpoint not available, returning empty data:', error)
+    console.warn('Dedicated endpoint not available, [returning empty data / using products endpoint]:', error)
     // Return empty data instead of making many requests
     return {
       data: [],
