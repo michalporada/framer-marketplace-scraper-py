@@ -122,7 +122,7 @@ export default function DashboardPage() {
   }, [period])
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="container mx-auto py-8 px-4 max-w-7xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground mt-2">
@@ -130,7 +130,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         <TopCreatorsByViews 
           period={period} 
           onPeriodChange={setPeriod}
@@ -289,14 +289,14 @@ function TopCreatorsByViews({
   }
 
   return (
-    <Card>
+    <Card className="min-w-0 w-full">
       <CardHeader>
         <CardTitle>Top Creators by Total Views</CardTitle>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-auto">
         {loading ? (
           <div className="space-y-3">
             {[...Array(10)].map((_, i) => (
@@ -464,14 +464,14 @@ function MostPopularTemplates({
   }
 
   return (
-    <Card>
+    <Card className="min-w-0 w-full">
       <CardHeader>
         <CardTitle>Most Popular Templates</CardTitle>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-auto">
         {loading ? (
           <div className="space-y-3">
             {[...Array(10)].map((_, i) => (
@@ -639,25 +639,15 @@ function SmallestCategories({
     }
   }
 
-  // Calculate total templates count for subtitle
-  const totalTemplates = mappedData.reduce((sum: number, cat: any) => sum + (cat.productsCount || 0), 0)
-
   return (
-    <Card>
+    <Card className="min-w-0 w-full">
       <CardHeader>
-        <div className="flex flex-col gap-1">
-          <CardTitle>Smallest Categories</CardTitle>
-          {!loading && !error && (
-            <p className="text-sm text-muted-foreground">
-              {totalTemplates.toLocaleString()} templates
-            </p>
-          )}
-        </div>
+        <CardTitle>Smallest Categories</CardTitle>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-auto">
         {loading ? (
           <div className="space-y-3">
             {[...Array(10)].map((_, i) => (
@@ -805,14 +795,14 @@ function MostPopularCategories({
   }
 
   return (
-    <Card>
+    <Card className="min-w-0 w-full">
       <CardHeader>
         <CardTitle>Most Popular Categories</CardTitle>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-auto">
         {loading ? (
           <div className="space-y-3">
             {[...Array(10)].map((_, i) => (
@@ -968,14 +958,14 @@ function MostPopularFreeTemplates({
   }
 
   return (
-    <Card>
+    <Card className="min-w-0 w-full">
       <CardHeader>
         <CardTitle>Most Popular Free Templates</CardTitle>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-auto">
         {loading ? (
           <div className="space-y-3">
             {[...Array(10)].map((_, i) => (
@@ -1132,7 +1122,7 @@ function CreatorsMostTemplates({
   const totalViews = mappedData.reduce((sum: number, creator: any) => sum + (creator.totalViews || 0), 0)
 
   return (
-    <Card>
+    <Card className="min-w-0 w-full">
       <CardHeader>
         <div className="flex flex-col gap-1">
           <CardTitle>Creators with Most Templates</CardTitle>
@@ -1146,7 +1136,7 @@ function CreatorsMostTemplates({
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-auto">
         {loading ? (
           <div className="space-y-3">
             {[...Array(10)].map((_, i) => (
