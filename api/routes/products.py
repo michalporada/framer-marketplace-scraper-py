@@ -2015,7 +2015,7 @@ async def get_all_categories_by_count(
             params["product_type"] = product_type
         
         # Query to get all categories with product counts from products table
-        query = text(
+        query_str = (
             """
             SELECT 
                 category as category_name,
@@ -2029,7 +2029,20 @@ async def get_all_categories_by_count(
             """
         )
         
-        result = execute_query(query, params)
+        result = execute_query(query_str, params)
+        
+        if result is None:
+            # Database error occurred
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": {
+                        "code": "DATABASE_ERROR",
+                        "message": "Failed to execute database query",
+                        "details": {},
+                    }
+                },
+            )
         
         categories = []
         for row in result:
