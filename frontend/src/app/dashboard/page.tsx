@@ -8,11 +8,48 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { ArrowUp, ArrowDown } from 'lucide-react'
+import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { getTopCreatorsByTemplateViews, getTopTemplates, getTopCategories, getSmallestCategories, getTopFreeTemplates, getTopCreatorsByTemplateCount, periodToHours } from '@/lib/api'
 import { TimePeriod } from '@/lib/types'
 
 type TimePeriodType = '1d' | '7d' | '30d'
+type SortDirection = 'asc' | 'desc' | null
+
+// Helper component for sortable table headers
+function SortableTableHead({
+  children,
+  sortKey,
+  currentSort,
+  onSort,
+  className
+}: {
+  children: React.ReactNode
+  sortKey: string
+  currentSort: { key: string | null; direction: SortDirection }
+  onSort: (key: string) => void
+  className?: string
+}) {
+  const isActive = currentSort.key === sortKey
+  const direction = isActive ? currentSort.direction : null
+
+  return (
+    <TableHead 
+      className={`cursor-pointer select-none hover:bg-muted/50 transition-colors ${className || ''}`}
+      onClick={() => onSort(sortKey)}
+    >
+      <div className="flex items-center gap-2">
+        {children}
+        {direction === 'asc' ? (
+          <ArrowUp className="h-3 w-3 opacity-70" />
+        ) : direction === 'desc' ? (
+          <ArrowDown className="h-3 w-3 opacity-70" />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-30" />
+        )}
+      </div>
+    </TableHead>
+  )
+}
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<TimePeriodType>('1d')
@@ -84,6 +121,7 @@ function TopCreatorsByViews({
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any[]>([])
   const [error, setError] = useState<string | undefined>()
+  const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   useEffect(() => {
     async function fetchData() {
@@ -93,13 +131,13 @@ function TopCreatorsByViews({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopCreatorsByTemplateViews({
-          limit: 5,
+          limit: 10,
           period_hours: periodHours
         })
 
         const creators = response.data || []
         
-        setData(creators.map((creator: any, index: number) => ({
+        const mappedData = creators.map((creator: any, index: number) => ({
           id: creator.username,
           rank: index + 1,
           name: creator.name || creator.username,
@@ -110,7 +148,9 @@ function TopCreatorsByViews({
             value: Math.abs(creator.views_change_percent),
             isPositive: creator.views_change_percent >= 0
           } : undefined
-        })))
+        }))
+        
+        setData(mappedData)
       } catch (err) {
         console.error('Error fetching top creators:', err)
         setError(err instanceof Error ? err.message : 'Failed to load data')
@@ -121,6 +161,49 @@ function TopCreatorsByViews({
 
     fetchData()
   }, [period])
+
+  // Sort data
+  const sortedData = [...data].sort((a, b) => {
+    if (!sort.key || !sort.direction) return 0
+    
+    let aVal: any
+    let bVal: any
+    
+    switch (sort.key) {
+      case 'name':
+        aVal = a.name?.toLowerCase() || ''
+        bVal = b.name?.toLowerCase() || ''
+        break
+      case 'views':
+        aVal = a.views || 0
+        bVal = b.views || 0
+        break
+      case 'change':
+        aVal = a.change?.value || 0
+        bVal = b.change?.value || 0
+        break
+      default:
+        return 0
+    }
+    
+    if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1
+    if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const handleSort = (key: string) => {
+    if (sort.key === key) {
+      if (sort.direction === 'asc') {
+        setSort({ key, direction: 'desc' })
+      } else if (sort.direction === 'desc') {
+        setSort({ key: null, direction: null })
+      } else {
+        setSort({ key, direction: 'asc' })
+      }
+    } else {
+      setSort({ key, direction: 'asc' })
+    }
+  }
 
   return (
     <Card>
@@ -133,7 +216,7 @@ function TopCreatorsByViews({
       <CardContent>
         {loading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
@@ -147,20 +230,26 @@ function TopCreatorsByViews({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
-                <TableHead>Creator</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Change</TableHead>
+                <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
+                  Creator
+                </SortableTableHead>
+                <SortableTableHead sortKey="views" currentSort={sort} onSort={handleSort} className="text-right">
+                  Views
+                </SortableTableHead>
+                <SortableTableHead sortKey="change" currentSort={sort} onSort={handleSort} className="text-right">
+                  Change
+                </SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.length === 0 ? (
+              {sortedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
               ) : (
-                data.map((row, index) => (
+                sortedData.map((row: any, index: number) => (
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
@@ -220,6 +309,7 @@ function MostPopularTemplates({
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any[]>([])
   const [error, setError] = useState<string | undefined>()
+  const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   useEffect(() => {
     async function fetchData() {
@@ -229,7 +319,7 @@ function MostPopularTemplates({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopTemplates({
-          limit: 5,
+          limit: 10,
           period_hours: periodHours
         })
 
@@ -260,6 +350,53 @@ function MostPopularTemplates({
     fetchData()
   }, [period])
 
+  // Sort data
+  const sortedData = [...data].sort((a, b) => {
+    if (!sort.key || !sort.direction) return 0
+    
+    let aVal: any
+    let bVal: any
+    
+    switch (sort.key) {
+      case 'name':
+        aVal = a.name?.toLowerCase() || ''
+        bVal = b.name?.toLowerCase() || ''
+        break
+      case 'price':
+        aVal = a.isFree ? 0 : (a.price || 0)
+        bVal = b.isFree ? 0 : (b.price || 0)
+        break
+      case 'views':
+        aVal = a.views || 0
+        bVal = b.views || 0
+        break
+      case 'change':
+        aVal = a.change?.value || 0
+        bVal = b.change?.value || 0
+        break
+      default:
+        return 0
+    }
+    
+    if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1
+    if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const handleSort = (key: string) => {
+    if (sort.key === key) {
+      if (sort.direction === 'asc') {
+        setSort({ key, direction: 'desc' })
+      } else if (sort.direction === 'desc') {
+        setSort({ key: null, direction: null })
+      } else {
+        setSort({ key, direction: 'asc' })
+      }
+    } else {
+      setSort({ key, direction: 'asc' })
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -271,7 +408,7 @@ function MostPopularTemplates({
       <CardContent>
         {loading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
@@ -285,21 +422,29 @@ function MostPopularTemplates({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
-                <TableHead>Template</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Change</TableHead>
+                <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
+                  Template
+                </SortableTableHead>
+                <SortableTableHead sortKey="price" currentSort={sort} onSort={handleSort} className="text-right">
+                  Price
+                </SortableTableHead>
+                <SortableTableHead sortKey="views" currentSort={sort} onSort={handleSort} className="text-right">
+                  Views
+                </SortableTableHead>
+                <SortableTableHead sortKey="change" currentSort={sort} onSort={handleSort} className="text-right">
+                  Change
+                </SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.length === 0 ? (
+              {sortedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
               ) : (
-                data.map((row, index) => (
+                sortedData.map((row, index) => (
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
@@ -353,6 +498,7 @@ function SmallestCategories({
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any[]>([])
   const [error, setError] = useState<string | undefined>()
+  const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   useEffect(() => {
     async function fetchData() {
@@ -361,7 +507,7 @@ function SmallestCategories({
 
       try {
         const response = await getSmallestCategories({
-          limit: 5,
+          limit: 10,
           product_type: 'template'
         })
 
@@ -389,6 +535,53 @@ function SmallestCategories({
     fetchData()
   }, [period])
 
+  // Sort data
+  const sortedData = [...data].sort((a, b) => {
+    if (!sort.key || !sort.direction) return 0
+    
+    let aVal: any
+    let bVal: any
+    
+    switch (sort.key) {
+      case 'name':
+        aVal = a.name?.toLowerCase() || ''
+        bVal = b.name?.toLowerCase() || ''
+        break
+      case 'productsCount':
+        aVal = a.productsCount || 0
+        bVal = b.productsCount || 0
+        break
+      case 'views':
+        aVal = a.views || 0
+        bVal = b.views || 0
+        break
+      case 'change':
+        aVal = a.change?.value || 0
+        bVal = b.change?.value || 0
+        break
+      default:
+        return 0
+    }
+    
+    if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1
+    if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const handleSort = (key: string) => {
+    if (sort.key === key) {
+      if (sort.direction === 'asc') {
+        setSort({ key, direction: 'desc' })
+      } else if (sort.direction === 'desc') {
+        setSort({ key: null, direction: null })
+      } else {
+        setSort({ key, direction: 'asc' })
+      }
+    } else {
+      setSort({ key, direction: 'asc' })
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -400,7 +593,7 @@ function SmallestCategories({
       <CardContent>
         {loading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
@@ -414,21 +607,29 @@ function SmallestCategories({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Templates</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Change</TableHead>
+                <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
+                  Category
+                </SortableTableHead>
+                <SortableTableHead sortKey="productsCount" currentSort={sort} onSort={handleSort} className="text-right">
+                  Templates
+                </SortableTableHead>
+                <SortableTableHead sortKey="views" currentSort={sort} onSort={handleSort} className="text-right">
+                  Views
+                </SortableTableHead>
+                <SortableTableHead sortKey="change" currentSort={sort} onSort={handleSort} className="text-right">
+                  Change
+                </SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.length === 0 ? (
+              {sortedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
               ) : (
-                data.map((row, index) => (
+                sortedData.map((row, index) => (
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
@@ -474,6 +675,7 @@ function MostPopularCategories({
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any[]>([])
   const [error, setError] = useState<string | undefined>()
+  const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   useEffect(() => {
     async function fetchData() {
@@ -483,7 +685,7 @@ function MostPopularCategories({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopCategories({
-          limit: 5,
+          limit: 10,
           period_hours: periodHours
         })
 
@@ -511,6 +713,53 @@ function MostPopularCategories({
     fetchData()
   }, [period])
 
+  // Sort data
+  const sortedData = [...data].sort((a, b) => {
+    if (!sort.key || !sort.direction) return 0
+    
+    let aVal: any
+    let bVal: any
+    
+    switch (sort.key) {
+      case 'name':
+        aVal = a.name?.toLowerCase() || ''
+        bVal = b.name?.toLowerCase() || ''
+        break
+      case 'productsCount':
+        aVal = a.productsCount || 0
+        bVal = b.productsCount || 0
+        break
+      case 'views':
+        aVal = a.views || 0
+        bVal = b.views || 0
+        break
+      case 'change':
+        aVal = a.change?.value || 0
+        bVal = b.change?.value || 0
+        break
+      default:
+        return 0
+    }
+    
+    if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1
+    if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const handleSort = (key: string) => {
+    if (sort.key === key) {
+      if (sort.direction === 'asc') {
+        setSort({ key, direction: 'desc' })
+      } else if (sort.direction === 'desc') {
+        setSort({ key: null, direction: null })
+      } else {
+        setSort({ key, direction: 'asc' })
+      }
+    } else {
+      setSort({ key, direction: 'asc' })
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -522,7 +771,7 @@ function MostPopularCategories({
       <CardContent>
         {loading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
@@ -536,21 +785,29 @@ function MostPopularCategories({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Products</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Change</TableHead>
+                <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
+                  Category
+                </SortableTableHead>
+                <SortableTableHead sortKey="productsCount" currentSort={sort} onSort={handleSort} className="text-right">
+                  Products
+                </SortableTableHead>
+                <SortableTableHead sortKey="views" currentSort={sort} onSort={handleSort} className="text-right">
+                  Views
+                </SortableTableHead>
+                <SortableTableHead sortKey="change" currentSort={sort} onSort={handleSort} className="text-right">
+                  Change
+                </SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.length === 0 ? (
+              {sortedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
               ) : (
-                data.map((row, index) => (
+                sortedData.map((row, index) => (
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
@@ -596,6 +853,7 @@ function MostPopularFreeTemplates({
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any[]>([])
   const [error, setError] = useState<string | undefined>()
+  const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   useEffect(() => {
     async function fetchData() {
@@ -605,7 +863,7 @@ function MostPopularFreeTemplates({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopFreeTemplates({
-          limit: 5,
+          limit: 10,
           period_hours: periodHours
         })
 
@@ -636,6 +894,49 @@ function MostPopularFreeTemplates({
     fetchData()
   }, [period])
 
+  // Sort data
+  const sortedData = [...data].sort((a, b) => {
+    if (!sort.key || !sort.direction) return 0
+    
+    let aVal: any
+    let bVal: any
+    
+    switch (sort.key) {
+      case 'name':
+        aVal = a.name?.toLowerCase() || ''
+        bVal = b.name?.toLowerCase() || ''
+        break
+      case 'views':
+        aVal = a.views || 0
+        bVal = b.views || 0
+        break
+      case 'change':
+        aVal = a.change?.value || 0
+        bVal = b.change?.value || 0
+        break
+      default:
+        return 0
+    }
+    
+    if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1
+    if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const handleSort = (key: string) => {
+    if (sort.key === key) {
+      if (sort.direction === 'asc') {
+        setSort({ key, direction: 'desc' })
+      } else if (sort.direction === 'desc') {
+        setSort({ key: null, direction: null })
+      } else {
+        setSort({ key, direction: 'asc' })
+      }
+    } else {
+      setSort({ key, direction: 'asc' })
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -647,7 +948,7 @@ function MostPopularFreeTemplates({
       <CardContent>
         {loading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
@@ -661,20 +962,26 @@ function MostPopularFreeTemplates({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
-                <TableHead>Template</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Change</TableHead>
+                <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
+                  Template
+                </SortableTableHead>
+                <SortableTableHead sortKey="views" currentSort={sort} onSort={handleSort} className="text-right">
+                  Views
+                </SortableTableHead>
+                <SortableTableHead sortKey="change" currentSort={sort} onSort={handleSort} className="text-right">
+                  Change
+                </SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.length === 0 ? (
+              {sortedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
               ) : (
-                data.map((row, index) => (
+                sortedData.map((row, index) => (
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
@@ -719,6 +1026,7 @@ function CreatorsMostTemplates({
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any[]>([])
   const [error, setError] = useState<string | undefined>()
+  const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   useEffect(() => {
     async function fetchData() {
@@ -728,7 +1036,7 @@ function CreatorsMostTemplates({
       try {
         const periodHours = periodToHours(period)
         const response = await getTopCreatorsByTemplateCount({
-          limit: 5,
+          limit: 10,
           period_hours: periodHours
         })
 
@@ -757,6 +1065,49 @@ function CreatorsMostTemplates({
     fetchData()
   }, [period])
 
+  // Sort data
+  const sortedData = [...data].sort((a, b) => {
+    if (!sort.key || !sort.direction) return 0
+    
+    let aVal: any
+    let bVal: any
+    
+    switch (sort.key) {
+      case 'name':
+        aVal = a.name?.toLowerCase() || ''
+        bVal = b.name?.toLowerCase() || ''
+        break
+      case 'templatesCount':
+        aVal = a.templatesCount || 0
+        bVal = b.templatesCount || 0
+        break
+      case 'change':
+        aVal = a.change?.value || 0
+        bVal = b.change?.value || 0
+        break
+      default:
+        return 0
+    }
+    
+    if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1
+    if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const handleSort = (key: string) => {
+    if (sort.key === key) {
+      if (sort.direction === 'asc') {
+        setSort({ key, direction: 'desc' })
+      } else if (sort.direction === 'desc') {
+        setSort({ key: null, direction: null })
+      } else {
+        setSort({ key, direction: 'asc' })
+      }
+    } else {
+      setSort({ key, direction: 'asc' })
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -768,7 +1119,7 @@ function CreatorsMostTemplates({
       <CardContent>
         {loading ? (
           <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
@@ -782,20 +1133,26 @@ function CreatorsMostTemplates({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
-                <TableHead>Creator</TableHead>
-                <TableHead className="text-right">Templates</TableHead>
-                <TableHead className="text-right">Change</TableHead>
+                <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
+                  Creator
+                </SortableTableHead>
+                <SortableTableHead sortKey="templatesCount" currentSort={sort} onSort={handleSort} className="text-right">
+                  Templates
+                </SortableTableHead>
+                <SortableTableHead sortKey="change" currentSort={sort} onSort={handleSort} className="text-right">
+                  Change
+                </SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.length === 0 ? (
+              {sortedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
               ) : (
-                data.map((row, index) => (
+                sortedData.map((row, index) => (
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
