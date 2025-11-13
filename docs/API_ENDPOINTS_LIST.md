@@ -131,6 +131,8 @@
 ### `GET /api/products/categories/comparison`
 **Opis:** Porównuje trendy kategorii między scrapami - łączna liczba views z procentowym wzrostem/spadkiem
 
+**Uwaga:** Endpoint używa automatycznego mapowania kategorii - produkty z podkategorii (np. "Education") są liczone również w nadrzędnych kategoriach (np. "Community"). Więcej informacji: [CATEGORY_MAPPING.md](./CATEGORY_MAPPING.md)
+
 **Query Parameters:**
 - `product_type` (optional): `template | component | vector | plugin`
 - `category` (optional): Nazwa kategorii (np. `Agency`)
@@ -164,6 +166,8 @@
 
 ### `GET /api/products/categories/{category_name}/views`
 **Opis:** Zwraca aktualną liczbę views i statystyki dla danej kategorii
+
+**Uwaga:** Endpoint używa automatycznego mapowania kategorii - produkty z podkategorii (np. "Education") są liczone również w nadrzędnych kategoriach (np. "Community"). Więcej informacji: [CATEGORY_MAPPING.md](./CATEGORY_MAPPING.md)
 
 **Path Parameters:**
 - `category_name` (required): Nazwa kategorii (np. `Agency`, `Portfolio`)
@@ -203,6 +207,85 @@
 
 **Error Codes:**
 - `404`: `CATEGORY_NOT_FOUND`
+- `422`: `INVALID_PRODUCT_TYPE`
+
+---
+
+### `GET /api/products/categories/top-by-views`
+**Opis:** Zwraca top kategorie według łącznej liczby views z procentową zmianą w określonym okresie
+
+**Uwaga:** Endpoint używa automatycznego mapowania kategorii - produkty z podkategorii (np. "Education") są liczone również w nadrzędnych kategoriach (np. "Community"). Więcej informacji: [CATEGORY_MAPPING.md](./CATEGORY_MAPPING.md)
+
+**Query Parameters:**
+- `limit` (default: 10, max: 100): Liczba kategorii do zwrócenia
+- `period_hours` (default: 24, max: 168): Okres w godzinach do porównania dla % zmiany
+- `product_type` (optional): `template | component | vector | plugin`
+
+**Response Model:** `TopCategoriesByViewsResponse`
+```json
+{
+  "data": [
+    {
+      "category_name": "Business",
+      "products_count": 2112,
+      "total_views": 20455279,
+      "views_change_percent": 2.5
+    }
+  ],
+  "meta": {
+    "timestamp": "2024-01-01T00:00:00Z",
+    "total_categories": 10
+  }
+}
+```
+
+**Cache:** ✅ 5 minut (TTL: 300s)
+
+**Data Source:** JSON files (dla aktualnych liczb produktów) + `product_history` table (dla obliczenia % zmiany)
+
+**Error Codes:**
+- `422`: `INVALID_PRODUCT_TYPE`
+
+---
+
+### `GET /api/products/categories/all-by-count`
+**Opis:** Zwraca wszystkie kategorie posortowane według liczby produktów (rosnąco)
+
+**Uwaga:** Endpoint używa automatycznego mapowania kategorii - produkty z podkategorii (np. "Education") są liczone również w nadrzędnych kategoriach (np. "Community"). Więcej informacji: [CATEGORY_MAPPING.md](./CATEGORY_MAPPING.md)
+
+**Query Parameters:**
+- `limit` (default: 100, max: 1000): Liczba kategorii do zwrócenia
+- `product_type` (default: `template`): `template | component | vector | plugin`
+
+**Response Model:** `TopCategoriesByViewsResponse`
+```json
+{
+  "data": [
+    {
+      "category_name": "Travel",
+      "products_count": 17,
+      "total_views": 101678,
+      "views_change_percent": null
+    },
+    {
+      "category_name": "Health",
+      "products_count": 106,
+      "total_views": 672200,
+      "views_change_percent": null
+    }
+  ],
+  "meta": {
+    "timestamp": "2024-01-01T00:00:00Z",
+    "total_categories": 106
+  }
+}
+```
+
+**Cache:** ✅ 5 minut (TTL: 300s)
+
+**Data Source:** JSON files (dla aktualnych liczb produktów) lub baza danych (fallback)
+
+**Error Codes:**
 - `422`: `INVALID_PRODUCT_TYPE`
 
 ---

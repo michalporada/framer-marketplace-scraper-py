@@ -34,19 +34,25 @@ Zaawansowany scraper do zbierania danych z Framer Marketplace, umożliwiający a
    - Porównywanie kategorii
    - Top produkty w kategorii
 
-6. **[STACK_TECHNICZNY.md](./documentation_sources/STACK_TECHNICZNY.md)** - Szczegółowy opis stacku technicznego, w tym:
+6. **[CATEGORY_MAPPING.md](./docs/CATEGORY_MAPPING.md)** - Dokumentacja mapowania kategorii:
+   - System grupowania podkategorii w nadrzędne kategorie
+   - Lista wszystkich zmapowanych kategorii (10 głównych kategorii, 50 podkategorii)
+   - Jak działa mapowanie w API
+   - Jak dodawać nowe mapowania
+
+7. **[STACK_TECHNICZNY.md](./documentation_sources/STACK_TECHNICZNY.md)** - Szczegółowy opis stacku technicznego, w tym:
    - Biblioteki Python i narzędzia
    - Opcje baz danych
    - GitHub Actions i Vercel
    - Rekomendacje deployment
 
-7. **[PROPOZYCJA_ARCHITEKTURY.md](./documentation_sources/PROPOZYCJA_ARCHITEKTURY.md)** - Propozycja struktury projektu:
+8. **[PROPOZYCJA_ARCHITEKTURY.md](./documentation_sources/PROPOZYCJA_ARCHITEKTURY.md)** - Propozycja struktury projektu:
    - Struktura folderów
    - Opis komponentów
    - Flow scrapowania
    - Deployment strategy
 
-8. **[REKOMENDACJE_SCRAPERA_FRAMER.md](./documentation_sources/REKOMENDACJE_SCRAPERA_FRAMER.md)** - Szczegółowa analiza Framer Marketplace:
+9. **[REKOMENDACJE_SCRAPERA_FRAMER.md](./documentation_sources/REKOMENDACJE_SCRAPERA_FRAMER.md)** - Szczegółowa analiza Framer Marketplace:
    - Analiza techniczna strony
    - Struktura URL-i i selektory CSS
    - Zalecane dane do zbierania
