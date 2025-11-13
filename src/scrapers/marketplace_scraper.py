@@ -105,7 +105,10 @@ class MarketplaceScraper:
             await self.client.aclose()
 
     async def scrape_product(
-        self, url: str, skip_if_processed: bool = True, save_checkpoint_immediately: bool = True
+        self,
+        url: str,
+        skip_if_processed: bool = True,
+        save_checkpoint_immediately: bool = True,
     ) -> bool:
         """Scrape a single product.
 
