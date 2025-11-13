@@ -104,12 +104,15 @@ class MarketplaceScraper:
         if self.client:
             await self.client.aclose()
 
-    async def scrape_product(self, url: str, skip_if_processed: bool = True) -> bool:
+    async def scrape_product(
+        self, url: str, skip_if_processed: bool = True, save_checkpoint_immediately: bool = True
+    ) -> bool:
         """Scrape a single product.
 
         Args:
             url: Product URL
             skip_if_processed: Skip if already processed (checkpoint)
+            save_checkpoint_immediately: If False, checkpoint is saved in batch (for performance)
 
         Returns:
             True if successful, False otherwise
@@ -203,7 +206,7 @@ class MarketplaceScraper:
                 self.metrics.record_product_scraped()
                 # Mark as processed in checkpoint
                 if settings.checkpoint_enabled:
-                    self.checkpoint_manager.add_processed(url)
+                    self.checkpoint_manager.add_processed(url, save_immediately=save_checkpoint_immediately)
                 logger.info(
                     "product_scraped",
                     product_id=product.id,
@@ -577,7 +580,12 @@ class MarketplaceScraper:
         refresh_milestones = [0.25, 0.5, 0.75, 1.0] if used_stale_cache else []
         refresh_attempted_at = set()
 
+        # Batch checkpoint saving: save every 50 products for better performance
+        checkpoint_batch_size = 50
+        last_checkpoint_save = 0
+
         async def scrape_with_semaphore(url: str, index: int, total: int):
+            nonlocal last_checkpoint_save
             async with semaphore:
                 current_progress = (index + 1) / total
 
@@ -604,7 +612,32 @@ class MarketplaceScraper:
                             refresh_attempted_at.add(milestone)
                             await self._attempt_sitemap_refresh(milestone)
 
-                return await self.scrape_product(url, skip_if_processed=skip_processed)
+                # Use batch checkpoint saving for better performance
+                result = await self.scrape_product(
+                    url,
+                    skip_if_processed=skip_processed,
+                    save_checkpoint_immediately=False,
+                )
+
+                # Save checkpoint periodically (every 50 products) for resume capability
+                if (
+                    settings.checkpoint_enabled
+                    and (index + 1) - last_checkpoint_save >= checkpoint_batch_size
+                ):
+                    checkpoint = self.checkpoint_manager.load_checkpoint()
+                    self.checkpoint_manager.save_checkpoint(
+                        checkpoint["processed_urls"],
+                        checkpoint["failed_urls"],
+                        self.stats,
+                    )
+                    last_checkpoint_save = index + 1
+                    logger.debug(
+                        "checkpoint_saved_batch",
+                        processed_count=len(checkpoint["processed_urls"]),
+                        index=index + 1,
+                    )
+
+                return result
 
         # Scrape with progress bar
         tasks = [scrape_with_semaphore(url, i, len(urls)) for i, url in enumerate(urls)]

@@ -25,6 +25,40 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
+      - name: Download previous checkpoint (if available, for resume)
+        id: download-checkpoint
+        continue-on-error: true
+        run: |
+          echo "🔍 Checking for previous checkpoint from last run..."
+          
+          # Try to find last run (successful or not) to resume from
+          LAST_RUN_ID=$(gh run list --workflow=scrape.yml --limit=1 --json databaseId,conclusion --jq '.[0] | select(.conclusion == "failure" or .conclusion == "cancelled") | .databaseId' 2>/dev/null || echo "")
+          
+          if [ -n "$LAST_RUN_ID" ] && [ "$LAST_RUN_ID" != "null" ]; then
+            echo "📥 Found previous failed/cancelled run: $LAST_RUN_ID"
+            echo "Attempting to download checkpoint..."
+            
+            # Try to download checkpoint artifact (if it exists)
+            gh run download $LAST_RUN_ID --name scraped-data-latest --dir data/ 2>/dev/null || \
+            gh run download $LAST_RUN_ID --name scraped-data-${{ github.run_number }} --dir data/ 2>/dev/null || \
+            echo "⚠️ Could not download checkpoint from previous run"
+            
+            # Check if checkpoint file exists
+            if [ -f "data/checkpoint.json" ]; then
+              echo "✅ Checkpoint found! Will resume from previous run."
+              echo "checkpoint_found=true" >> $GITHUB_OUTPUT
+              echo "Processed URLs count: $(jq '.processed_urls | length' data/checkpoint.json 2>/dev/null || echo 'unknown')"
+            else
+              echo "ℹ️ No checkpoint file found - will start fresh scrape"
+              echo "checkpoint_found=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "ℹ️ No previous failed run found - starting fresh scrape"
+            echo "checkpoint_found=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      
       - name: Add random jitter to avoid hitting same CloudFront edge
         run: |
           # Add random delay 0-60 seconds to avoid hitting same CloudFront edge
