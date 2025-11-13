@@ -240,6 +240,7 @@ function MostPopularTemplates({
           rank: index + 1,
           name: template.name,
           creator: template.creator_username || template.creator_name || 'Unknown',
+          creatorId: template.creator_username,
           views: template.views,
           isFree: template.is_free,
           price: template.price,
@@ -285,6 +286,7 @@ function MostPopularTemplates({
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Template</TableHead>
+                <TableHead className="text-right">Price</TableHead>
                 <TableHead>Creator</TableHead>
                 <TableHead className="text-right">Views</TableHead>
                 <TableHead className="text-right">Change</TableHead>
@@ -293,7 +295,7 @@ function MostPopularTemplates({
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
@@ -304,18 +306,31 @@ function MostPopularTemplates({
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium">{row.name}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          {row.isFree ? (
-                            <Badge variant="secondary" className="text-xs">Free</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-xs">
-                              {row.price ? `$${row.price.toFixed(2)}` : 'Paid'}
-                            </Badge>
-                          )}
-                        </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{row.creator}</TableCell>
+                    <TableCell className="text-right">
+                      {row.isFree ? (
+                        <Badge variant="secondary" className="text-xs">Free</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          {row.price ? `$${row.price.toFixed(2)}` : 'Paid'}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {row.creatorId ? (
+                        <Link 
+                          href={`https://www.framer.com/@${row.creatorId}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:underline transition-colors"
+                        >
+                          {row.creator}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">{row.creator}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
                       {row.change ? (
@@ -368,7 +383,8 @@ function MostPopularComponents({
           rank: index + 1,
           name: component.name,
           creator: component.creator_username || component.creator_name || 'Unknown',
-          views: component.views,
+          creatorId: component.creator_username,
+          views: component.views || component.views_normalized || 0,
           isFree: component.is_free,
           price: component.price,
           change: component.views_change_percent !== undefined && component.views_change_percent !== null ? {
@@ -443,7 +459,20 @@ function MostPopularComponents({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{row.creator}</TableCell>
+                    <TableCell>
+                      {row.creatorId ? (
+                        <Link 
+                          href={`https://www.framer.com/@${row.creatorId}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:underline transition-colors"
+                        >
+                          {row.creator}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">{row.creator}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
                       {row.change ? (
@@ -613,6 +642,8 @@ function MostPopularFreeTemplates({
           rank: index + 1,
           name: template.name,
           creator: template.creator_username || template.creator_name || 'Unknown',
+          creatorId: template.creator_username,
+          creatorAvatar: template.creator_avatar_url,
           views: template.views,
           isFree: template.is_free,
           change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
@@ -674,14 +705,34 @@ function MostPopularFreeTemplates({
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{row.name}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="secondary" className="text-xs">Free</Badge>
-                        </div>
-                      </div>
+                      <span className="font-medium">{row.name}</span>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{row.creator}</TableCell>
+                    <TableCell>
+                      {row.creatorId ? (
+                        <Link 
+                          href={`https://www.framer.com/@${row.creatorId}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                        >
+                          {row.creatorAvatar && (
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={row.creatorAvatar} alt={row.creator} />
+                              <AvatarFallback>{row.creator?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                          )}
+                        </Link>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {row.creatorAvatar && (
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={row.creatorAvatar} alt={row.creator} />
+                              <AvatarFallback>{row.creator?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
                       {row.change ? (
@@ -779,14 +830,13 @@ function CreatorsMostTemplates({
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Creator</TableHead>
                 <TableHead className="text-right">Templates</TableHead>
-                <TableHead className="text-right">Total Products</TableHead>
                 <TableHead className="text-right">Change</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
@@ -815,7 +865,6 @@ function CreatorsMostTemplates({
                       </div>
                     </TableCell>
                     <TableCell className="text-right">{row.templatesCount?.toLocaleString() || '-'}</TableCell>
-                    <TableCell className="text-right">{row.totalProducts?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
                       {row.change ? (
                         <Badge variant={row.change.isPositive ? 'default' : 'destructive'} className="flex items-center gap-1 w-fit">
