@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ArrowUp, ArrowDown } from 'lucide-react'
-import { getTopCreatorsByTemplateViews, getTopTemplates, getTopComponents, getTopCategories, getTopFreeTemplates, getTopCreatorsByTemplateCount, periodToHours } from '@/lib/api'
+import { getTopCreatorsByTemplateViews, getTopTemplates, getTopCategories, getSmallestCategories, getTopFreeTemplates, getTopCreatorsByTemplateCount, periodToHours } from '@/lib/api'
 import { TimePeriod } from '@/lib/types'
 
 type TimePeriodType = '1d' | '7d' | '30d'
@@ -29,7 +29,7 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <TopCreatorsByViews period={period} onPeriodChange={setPeriod} />
         <MostPopularTemplates period={period} onPeriodChange={setPeriod} />
-        <MostPopularComponents period={period} onPeriodChange={setPeriod} />
+        <SmallestCategories period={period} onPeriodChange={setPeriod} />
         <MostPopularCategories period={period} onPeriodChange={setPeriod} />
         <MostPopularFreeTemplates period={period} onPeriodChange={setPeriod} />
         <CreatorsMostTemplates period={period} onPeriodChange={setPeriod} />
@@ -343,7 +343,7 @@ function MostPopularTemplates({
   )
 }
 
-function MostPopularComponents({ 
+function SmallestCategories({ 
   period, 
   onPeriodChange 
 }: { 
@@ -361,29 +361,27 @@ function MostPopularComponents({
 
       try {
         const periodHours = periodToHours(period)
-        const response = await getTopComponents({
+        const response = await getSmallestCategories({
           limit: 5,
-          period_hours: periodHours
+          period_hours: periodHours,
+          product_type: 'template'
         })
 
-        const components = response.data || []
+        const categories = response.data || []
         
-        setData(components.map((component: any, index: number) => ({
-          id: component.product_id || component.id,
+        setData(categories.map((category: any, index: number) => ({
+          id: category.category_name || category.category,
           rank: index + 1,
-          name: component.name,
-          creator: component.creator_username || component.creator_name || component.creator?.username || component.creator?.name || 'Unknown',
-          creatorId: component.creator_username || component.creator?.username,
-          views: component.views || component.views_normalized || component.stats?.views?.normalized || 0,
-          isFree: component.is_free !== undefined ? component.is_free : (component.price === null || component.price === 0),
-          price: component.price,
-          change: component.views_change_percent !== undefined && component.views_change_percent !== null ? {
-            value: Math.abs(component.views_change_percent),
-            isPositive: component.views_change_percent >= 0
+          name: category.category_name || category.category,
+          productsCount: category.products_count || 0,
+          views: category.total_views || 0,
+          change: category.views_change_percent !== undefined && category.views_change_percent !== null ? {
+            value: Math.abs(category.views_change_percent),
+            isPositive: category.views_change_percent >= 0
           } : undefined
-        })).filter((item: any) => item.id && item.name)) // Filter out invalid items
+        })))
       } catch (err) {
-        console.error('Error fetching top components:', err)
+        console.error('Error fetching smallest categories:', err)
         setError(err instanceof Error ? err.message : 'Failed to load data')
       } finally {
         setLoading(false)
@@ -396,7 +394,7 @@ function MostPopularComponents({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Most Popular Components</CardTitle>
+        <CardTitle>Smallest Categories</CardTitle>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
@@ -418,8 +416,8 @@ function MostPopularComponents({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
-                <TableHead>Component</TableHead>
-                <TableHead>Creator</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-right">Templates</TableHead>
                 <TableHead className="text-right">Views</TableHead>
                 <TableHead className="text-right">Change</TableHead>
               </TableRow>
@@ -437,7 +435,7 @@ function MostPopularComponents({
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
                       <Link 
-                        href={`https://www.framer.com/marketplace/components/${row.id}/`}
+                        href={`https://www.framer.com/marketplace/templates/category/${row.id.toLowerCase().replace(/\s+/g, '-')}/`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-medium hover:underline transition-colors"
@@ -445,20 +443,7 @@ function MostPopularComponents({
                         {row.name}
                       </Link>
                     </TableCell>
-                    <TableCell>
-                      {row.creatorId ? (
-                        <Link 
-                          href={`https://www.framer.com/@${row.creatorId}/`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:underline transition-colors"
-                        >
-                          {row.creator}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">{row.creator}</span>
-                      )}
-                    </TableCell>
+                    <TableCell className="text-right">{row.productsCount?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
                       {row.change ? (

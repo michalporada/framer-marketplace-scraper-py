@@ -299,6 +299,42 @@ export async function getTopCategories(params?: {
   }
 }
 
+// Smallest Categories by Product Count
+// Uses the same endpoint but sorts by products_count ascending
+export async function getSmallestCategories(params?: {
+  limit?: number
+  period_hours?: number
+  product_type?: string
+}): Promise<{ data: any[]; meta?: any }> {
+  const limit = params?.limit || 5
+  const periodHours = params?.period_hours || 24
+  const productType = params?.product_type || 'template'
+  
+  try {
+    // Get more categories than needed, then sort and take smallest
+    const query = `limit=100&period_hours=${periodHours}&product_type=${productType}`
+    const response = await fetchAPI(`/api/products/categories/top-by-views?${query}`)
+    
+    // Sort by products_count ascending and take top N
+    const sorted = (response.data || []).sort((a: any, b: any) => {
+      const countA = a.products_count || 0
+      const countB = b.products_count || 0
+      return countA - countB
+    })
+    
+    return {
+      data: sorted.slice(0, limit),
+      meta: response.meta || { timestamp: new Date().toISOString() }
+    }
+  } catch (error) {
+    console.warn('Error fetching smallest categories:', error)
+    return {
+      data: [],
+      meta: { timestamp: new Date().toISOString() }
+    }
+  }
+}
+
 // Top Free Templates by Views
 // Simplified: Use dedicated endpoint if available, fallback to products endpoint
 export async function getTopFreeTemplates(params?: {
