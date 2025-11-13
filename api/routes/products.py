@@ -1626,9 +1626,11 @@ async def get_top_categories_by_views(
 ):
     """Get top categories by total views with percentage change.
 
-    This endpoint aggregates views_normalized from product_history for all products
-    in each category, calculates total views, and compares with period ago to calculate
-    percentage change.
+    This endpoint uses JSON files to get accurate product counts per category,
+    because products can have multiple categories and only the main one is stored in DB.
+    JSON files contain all categories for each product.
+    
+    For period comparison, it uses product_history from database to calculate views change.
 
     Args:
         limit: Number of top categories to return (1-100, default: 10)
@@ -1637,9 +1639,6 @@ async def get_top_categories_by_views(
 
     Returns:
         TopCategoriesByViewsResponse with top categories sorted by total views
-
-    Raises:
-        503: Database not available
     """
     # Validate product type
     if product_type and product_type not in ["template", "component", "vector", "plugin"]:
@@ -1656,104 +1655,122 @@ async def get_top_categories_by_views(
             },
         )
 
-    engine = get_db_engine()
-    if not engine:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": {
-                    "code": "DATABASE_NOT_AVAILABLE",
-                    "message": "Database connection not available",
-                    "details": {},
-                }
-            },
-        )
-
     try:
-        from sqlalchemy import text
-
-        # Get current time and period ago
-        now = datetime.utcnow()
-        period_ago = now - timedelta(hours=period_hours)
-
-        # Build WHERE clause for product type filter
-        where_clause = "WHERE category IS NOT NULL AND views_normalized IS NOT NULL"
-        params = {"now_time": now, "limit": limit}
-        if product_type:
-            where_clause += " AND type = :product_type"
-            params["product_type"] = product_type
-
-        # Query to get latest total views per category
-        query_latest = text(
-            """
-            WITH latest_views AS (
-                SELECT DISTINCT ON (product_id)
-                    product_id,
-                    category,
-                    views_normalized
-                FROM product_history
-            """ + where_clause + """
-                AND scraped_at <= :now_time
-                ORDER BY product_id, scraped_at DESC
+        # Load all products from JSON files (contains all categories, not just main one)
+        data_path = Path(settings.data_path)
+        
+        # Check if data path exists
+        if not data_path.exists():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Data path does not exist: {data_path}")
+            return TopCategoriesByViewsResponse(
+                data=[],
+                meta={
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "period_hours": period_hours,
+                    "limit": limit,
+                    "product_type": product_type,
+                },
             )
-            SELECT 
-                category,
-                SUM(views_normalized) as total_views,
-                COUNT(*) as products_count
-            FROM latest_views
-            GROUP BY category
-            ORDER BY total_views DESC
-            LIMIT :limit
-        """
-        )
-
-        # Query to get views from period ago
-        where_clause_period = "WHERE category IS NOT NULL AND views_normalized IS NOT NULL"
-        params_period = {"period_ago_time": period_ago}
-        if product_type:
-            where_clause_period += " AND type = :product_type"
-            params_period["product_type"] = product_type
-
-        query_period_ago = text(
-            """
-            WITH period_views AS (
-                SELECT DISTINCT ON (product_id)
-                    product_id,
-                    category,
-                    views_normalized
-                FROM product_history
-            """ + where_clause_period + """
-                AND scraped_at <= :period_ago_time
-                ORDER BY product_id, scraped_at DESC
+        
+        products = load_all_products_from_json(data_path, product_type)
+        
+        # Log if no products found
+        if not products:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"No products found in JSON files at {data_path} for type {product_type}")
+            return TopCategoriesByViewsResponse(
+                data=[],
+                meta={
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "period_hours": period_hours,
+                    "limit": limit,
+                    "product_type": product_type,
+                },
             )
-            SELECT 
-                category,
-                SUM(views_normalized) as total_views
-            FROM period_views
-            GROUP BY category
-        """
-        )
+        
+        # Count products per category (using all categories from each product)
+        category_counts: Dict[str, Dict[str, Any]] = {}
+        
+        for product in products:
+            # Get all categories for this product
+            categories_list = product.get("categories", [])
+            # Fallback to main category if categories list is empty
+            if not categories_list and product.get("category"):
+                categories_list = [product.get("category")]
+            
+            # Get views for this product
+            views = 0
+            if product.get("stats") and product.get("stats").get("views"):
+                views = product.get("stats").get("views").get("normalized") or 0
+            
+            # Count this product in all its categories
+            for category_name in categories_list:
+                if not category_name:
+                    continue
+                    
+                if category_name not in category_counts:
+                    category_counts[category_name] = {
+                        "products_count": 0,
+                        "total_views": 0
+                    }
+                
+                category_counts[category_name]["products_count"] += 1
+                category_counts[category_name]["total_views"] += views
+        
+        # Get period ago views from database for comparison
+        period_ago_data: Dict[str, int] = {}
+        engine = get_db_engine()
+        if engine:
+            try:
+                from sqlalchemy import text
+                now = datetime.utcnow()
+                period_ago = now - timedelta(hours=period_hours)
+                
+                # Build WHERE clause for product type filter
+                where_clause_period = "WHERE category IS NOT NULL AND views_normalized IS NOT NULL"
+                params_period = {"period_ago_time": period_ago}
+                if product_type:
+                    where_clause_period += " AND type = :product_type"
+                    params_period["product_type"] = product_type
 
-        with engine.connect() as conn:
-            # Get latest views aggregated by category
-            result_latest = conn.execute(query_latest, params)
-            latest_data = {}
-            for row in result_latest:
-                latest_data[row[0]] = {
-                    "total_views": int(row[1]) if row[1] else 0,
-                    "products_count": int(row[2]) if row[2] else 0,
-                }
+                query_period_ago = text(
+                    """
+                    WITH period_views AS (
+                        SELECT DISTINCT ON (product_id)
+                            product_id,
+                            category,
+                            views_normalized
+                        FROM product_history
+                    """ + where_clause_period + """
+                        AND scraped_at <= :period_ago_time
+                        ORDER BY product_id, scraped_at DESC
+                    )
+                    SELECT 
+                        category,
+                        SUM(views_normalized) as total_views
+                    FROM period_views
+                    GROUP BY category
+                """
+                )
 
-            # Get views from period ago
-            result_period = conn.execute(query_period_ago, params_period)
-            period_ago_data = {
-                row[0]: int(row[1]) if row[1] else 0 for row in result_period
-            }
-
-        # Calculate changes and build response
+                with engine.connect() as conn:
+                    result_period = conn.execute(query_period_ago, params_period)
+                    period_ago_data = {
+                        row[0]: int(row[1]) if row[1] else 0 for row in result_period
+                    }
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Could not get period ago data from database: {str(e)}")
+                # Continue without period comparison
+        
+        # Convert to list and calculate changes
         top_categories = []
-        for category_name, views_data in latest_data.items():
-            current_views = views_data["total_views"]
+        for category_name, data in category_counts.items():
+            current_views = data["total_views"]
             previous_views = period_ago_data.get(category_name, 0)
 
             # Calculate change
@@ -1766,15 +1783,16 @@ async def get_top_categories_by_views(
                 TopCategoryByViews(
                     category_name=category_name,
                     total_views=current_views,
-                    products_count=views_data["products_count"],
+                    products_count=data["products_count"],
                     views_change=views_change,
                     views_change_percent=round(views_change_percent, 2),
                 )
             )
-
-        # Sort by total_views (should already be sorted, but ensure it)
+        
+        # Sort by total_views descending and take top N
         top_categories.sort(key=lambda x: x.total_views, reverse=True)
-
+        top_categories = top_categories[:limit]
+        
         return TopCategoriesByViewsResponse(
             data=top_categories,
             meta={
@@ -1997,7 +2015,36 @@ async def get_all_categories_by_count(
     try:
         # Load all products from JSON files (contains all categories, not just main one)
         data_path = Path(settings.data_path)
+        
+        # Check if data path exists
+        if not data_path.exists():
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Data path does not exist: {data_path}")
+            return TopCategoriesByViewsResponse(
+                data=[],
+                meta={
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "limit": limit,
+                    "product_type": product_type,
+                },
+            )
+        
         products = load_all_products_from_json(data_path, product_type)
+        
+        # Log if no products found
+        if not products:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"No products found in JSON files at {data_path} for type {product_type}")
+            return TopCategoriesByViewsResponse(
+                data=[],
+                meta={
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "limit": limit,
+                    "product_type": product_type,
+                },
+            )
         
         # Count products per category (using all categories from each product)
         category_counts: Dict[str, Dict[str, Any]] = {}
