@@ -352,7 +352,9 @@ function TopCreatorsByViews({
                           {row.avatar && row.avatar.trim() ? (
                             <AvatarImage src={row.avatar} alt={row.name || row.id} />
                           ) : null}
-                          <AvatarFallback>{row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                          <AvatarFallback>
+                            {row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase() || '?'}
+                          </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
                           <Link 
@@ -1225,7 +1227,9 @@ function CreatorsMostTemplates({
                           {row.avatar && row.avatar.trim() ? (
                             <AvatarImage src={row.avatar} alt={row.name || row.id} />
                           ) : null}
-                          <AvatarFallback>{row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                          <AvatarFallback>
+                            {row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase() || '?'}
+                          </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
                           <Link 
