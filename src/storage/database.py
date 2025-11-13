@@ -39,7 +39,9 @@ class DatabaseStorage:
             )
             logger.info("database_connection_initialized")
         except Exception as e:
-            logger.error("database_connection_failed", error=str(e), error_type=type(e).__name__)
+            logger.error(
+                "database_connection_failed", error=str(e), error_type=type(e).__name__
+            )
             self.engine = None
 
     def is_available(self) -> bool:
@@ -72,20 +74,28 @@ class DatabaseStorage:
             return False
 
         if not product.url:
-            logger.warning("product_validation_failed", reason="missing_url", product_id=product.id)
+            logger.warning(
+                "product_validation_failed", reason="missing_url", product_id=product.id
+            )
             return False
 
         try:
             # Extract normalized values
-            views_raw = product.stats.views.raw if product.stats and product.stats.views else None
+            views_raw = (
+                product.stats.views.raw if product.stats and product.stats.views else None
+            )
             views_normalized = (
                 product.stats.views.normalized if product.stats and product.stats.views else None
             )
-            pages_raw = product.stats.pages.raw if product.stats and product.stats.pages else None
+            pages_raw = (
+                product.stats.pages.raw if product.stats and product.stats.pages else None
+            )
             pages_normalized = (
                 product.stats.pages.normalized if product.stats and product.stats.pages else None
             )
-            users_raw = product.stats.users.raw if product.stats and product.stats.users else None
+            users_raw = (
+                product.stats.users.raw if product.stats and product.stats.users else None
+            )
             users_normalized = (
                 product.stats.users.normalized if product.stats and product.stats.users else None
             )
@@ -184,8 +194,8 @@ class DatabaseStorage:
                     pages_count, thumbnail_url, screenshots_count,
                     scraped_at, created_at, updated_at
                 ) VALUES (
-                    :id, :name, :type, :category, CAST(:categories AS jsonb), :url, :price, :currency, :is_free,
-                    :description, :short_description,
+                    :id, :name, :type, :category, CAST(:categories AS jsonb), :url, :price,
+                    :currency, :is_free, :description, :short_description,
                     :creator_username, :creator_name, :creator_url,
                     :views_raw, :views_normalized,
                     :pages_raw, :pages_normalized,
@@ -345,8 +355,8 @@ class DatabaseStorage:
                 pages_count, thumbnail_url, screenshots_count,
                 scraped_at, created_at, updated_at
             ) VALUES (
-                :id, :name, :type, :category, CAST(:categories AS jsonb), :url, :price, :currency, :is_free,
-                :description, :short_description,
+                :id, :name, :type, :category, CAST(:categories AS jsonb), :url, :price,
+                :currency, :is_free, :description, :short_description,
                 :creator_username, :creator_name, :creator_url,
                 :views_raw, :views_normalized,
                 :pages_raw, :pages_normalized,
@@ -519,8 +529,8 @@ class DatabaseStorage:
                 pages_count, thumbnail_url, screenshots_count,
                 scraped_at, created_at, updated_at
             ) VALUES (
-                :id, :name, :type, :category, CAST(:categories AS jsonb), :url, :price, :currency, :is_free,
-                :description, :short_description,
+                :id, :name, :type, :category, CAST(:categories AS jsonb), :url, :price,
+                :currency, :is_free, :description, :short_description,
                 :creator_username, :creator_name, :creator_url,
                 :views_raw, :views_normalized,
                 :pages_raw, :pages_normalized,
@@ -837,7 +847,8 @@ class DatabaseStorage:
                     scraped_at, created_at, updated_at
                 ) VALUES (
                     :username, :name, :profile_url, :avatar_url, :bio, :website,
-                    CAST(:social_media AS jsonb), :total_products, :templates_count, :components_count,
+                    CAST(:social_media AS jsonb), :total_products, :templates_count,
+                    :components_count,
                     :vectors_count, :plugins_count, :total_sales,
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
