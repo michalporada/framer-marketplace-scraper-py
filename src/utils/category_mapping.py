@@ -34,6 +34,8 @@ CATEGORY_MAPPING: Dict[str, List[str]] = {
         "Finance",
         "Coaching",
         "Business Blog",
+        "Professional Services",
+        "Marketing",
     ],
     "Portfolio": [
         "Personal",
@@ -43,6 +45,45 @@ CATEGORY_MAPPING: Dict[str, List[str]] = {
         "Fashion",
         "Personal Blog",
         "Arts & Crafts",
+    ],
+    "Real Estate": [
+        "Realtor",
+        "Property Management",
+        "Construction",
+        "Architecture",
+        "Interior Design",
+    ],
+    "Health": [
+        "Fitness",
+        "Medical",
+        "Wellness",
+    ],
+    "Food": [
+        "Restaurant",
+        "Bar & Club",
+        "Catering",
+        "Food & Restaurant",
+    ],
+    "Technology": [
+        "AI",
+        "SaaS",
+        "App",
+        "Web3",
+        "Digital Products",
+        "Documentation",
+    ],
+    "Travel": [
+        "Travel Blog",
+    ],
+    "Blog": [
+        "Business Blog",
+        "Personal Blog",
+        "Travel Blog",
+    ],
+    "Services": [
+        "Professional Services",
+        "Coaching",
+        "Consulting",
     ],
 }
 
