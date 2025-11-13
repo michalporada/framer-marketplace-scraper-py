@@ -234,8 +234,8 @@ function TopCreatorsByViews({
   const mappedData = creators.map((creator: any, index: number) => ({
     id: creator.username,
     rank: index + 1,
-    name: creator.name || creator.username,
-    avatar: creator.avatar_url,
+    name: creator.name || creator.username, // Używamy pełnej nazwy (name) zamiast username
+    avatar: creator.avatar_url, // Avatar powinien być dostępny z API
     views: creator.total_views,
     templatesCount: creator.templates_count,
     change: creator.views_change_percent !== undefined && creator.views_change_percent !== null ? {
@@ -336,12 +336,10 @@ function TopCreatorsByViews({
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        {row.avatar && (
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={row.avatar} alt={row.name} />
-                            <AvatarFallback>{row.name?.charAt(0)?.toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                        )}
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={row.avatar} alt={row.name} />
+                          <AvatarFallback>{row.name?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                        </Avatar>
                         <div className="flex flex-col">
                           <Link 
                             href={`https://www.framer.com/@${row.id}/`}
@@ -402,8 +400,9 @@ function MostPopularTemplates({
     id: template.product_id,
     rank: index + 1,
     name: template.name,
-    creator: template.creator_username || template.creator_name || 'Unknown',
+    creator: template.creator_name || template.creator_username || 'Unknown',
     creatorId: template.creator_username,
+    category: template.category || null, // Kategoria może nie być dostępna w API
     views: template.views,
     isFree: template.is_free,
     price: template.price,
@@ -511,22 +510,31 @@ function MostPopularTemplates({
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
-                      <Link 
-                        href={`https://www.framer.com/marketplace/templates/${row.id}/`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium hover:underline transition-colors"
-                      >
-                        {row.name}
-                      </Link>
+                      <div className="flex flex-col">
+                        <Link 
+                          href={`https://www.framer.com/marketplace/templates/${row.id}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium hover:underline transition-colors"
+                        >
+                          {row.name}
+                        </Link>
+                        {(row.category || row.creator) && (
+                          <span className="text-xs text-muted-foreground">
+                            {row.category && row.creator ? `${row.category} • ${row.creator}` : row.category || row.creator}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       {row.isFree ? (
                         <Badge variant="secondary" className="text-xs">Free</Badge>
-                      ) : (
+                      ) : row.price ? (
                         <Badge variant="outline" className="text-xs">
-                          {row.price ? `$${row.price.toFixed(2)}` : 'Paid'}
+                          ${row.price.toFixed(2)}
                         </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">Paid</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
@@ -627,10 +635,20 @@ function SmallestCategories({
     }
   }
 
+  // Calculate total templates count for subtitle
+  const totalTemplates = mappedData.reduce((sum: number, cat: any) => sum + (cat.productsCount || 0), 0)
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Smallest Categories</CardTitle>
+        <div className="flex flex-col gap-1">
+          <CardTitle>Smallest Categories</CardTitle>
+          {!loading && !error && (
+            <p className="text-sm text-muted-foreground">
+              {totalTemplates.toLocaleString()} templates
+            </p>
+          )}
+        </div>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
@@ -655,9 +673,6 @@ function SmallestCategories({
                 <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
                   Category
                 </SortableTableHead>
-                <SortableTableHead sortKey="productsCount" currentSort={sort} onSort={handleSort} className="text-right">
-                  Templates
-                </SortableTableHead>
                 <SortableTableHead sortKey="views" currentSort={sort} onSort={handleSort} className="text-right">
                   Views
                 </SortableTableHead>
@@ -669,7 +684,7 @@ function SmallestCategories({
             <TableBody>
               {sortedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
@@ -687,7 +702,6 @@ function SmallestCategories({
                         {row.name}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-right">{row.productsCount?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
                       {row.change ? (
@@ -786,10 +800,20 @@ function MostPopularCategories({
     }
   }
 
+  // Calculate total templates count for subtitle
+  const totalTemplates = mappedData.reduce((sum: number, cat: any) => sum + (cat.productsCount || 0), 0)
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Most Popular Categories</CardTitle>
+        <div className="flex flex-col gap-1">
+          <CardTitle>Most Popular Categories</CardTitle>
+          {!loading && !error && (
+            <p className="text-sm text-muted-foreground">
+              {totalTemplates.toLocaleString()} templates
+            </p>
+          )}
+        </div>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
@@ -814,9 +838,6 @@ function MostPopularCategories({
                 <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
                   Category
                 </SortableTableHead>
-                <SortableTableHead sortKey="productsCount" currentSort={sort} onSort={handleSort} className="text-right">
-                  Products
-                </SortableTableHead>
                 <SortableTableHead sortKey="views" currentSort={sort} onSort={handleSort} className="text-right">
                   Views
                 </SortableTableHead>
@@ -828,7 +849,7 @@ function MostPopularCategories({
             <TableBody>
               {sortedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
@@ -846,7 +867,6 @@ function MostPopularCategories({
                         {row.name}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-right">{row.productsCount?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
                       {row.change ? (
@@ -890,9 +910,10 @@ function MostPopularFreeTemplates({
     id: template.product_id,
     rank: index + 1,
     name: template.name,
-    creator: template.creator_username || template.creator_name || 'Unknown',
+    creator: template.creator_name || template.creator_username || 'Unknown',
     creatorId: template.creator_username,
     creatorAvatar: template.creator_avatar_url,
+    category: template.category || null, // Kategoria może nie być dostępna w API
     views: template.views,
     isFree: template.is_free,
     change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
@@ -992,14 +1013,21 @@ function MostPopularFreeTemplates({
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
-                      <Link 
-                        href={`https://www.framer.com/marketplace/templates/${row.id}/`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium hover:underline transition-colors"
-                      >
-                        {row.name}
-                      </Link>
+                      <div className="flex flex-col">
+                        <Link 
+                          href={`https://www.framer.com/marketplace/templates/${row.id}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium hover:underline transition-colors"
+                        >
+                          {row.name}
+                        </Link>
+                        {(row.category || row.creator) && (
+                          <span className="text-xs text-muted-foreground">
+                            {row.category && row.creator ? `${row.category} • ${row.creator}` : row.category || row.creator}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
@@ -1043,10 +1071,11 @@ function CreatorsMostTemplates({
   const mappedData = creators.map((creator: any, index: number) => ({
     id: creator.username,
     rank: index + 1,
-    name: creator.name || creator.username,
-    avatar: creator.avatar_url,
+    name: creator.name || creator.username, // Używamy pełnej nazwy (name) zamiast username
+    avatar: creator.avatar_url, // Avatar powinien być dostępny z API
     templatesCount: creator.templates_count,
     totalProducts: creator.total_products,
+    totalViews: creator.total_views || null, // Total views może nie być dostępne w API
     change: creator.templates_change_percent !== undefined && creator.templates_change_percent !== null ? {
       value: Math.abs(creator.templates_change_percent),
       isPositive: creator.templates_change_percent >= 0
@@ -1096,10 +1125,20 @@ function CreatorsMostTemplates({
     }
   }
 
+  // Calculate total views for subtitle
+  const totalViews = mappedData.reduce((sum: number, creator: any) => sum + (creator.totalViews || 0), 0)
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Creators with Most Templates</CardTitle>
+        <div className="flex flex-col gap-1">
+          <CardTitle>Creators with Most Templates</CardTitle>
+          {!loading && !error && totalViews > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {totalViews.toLocaleString()} total views
+            </p>
+          )}
+        </div>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
@@ -1145,12 +1184,10 @@ function CreatorsMostTemplates({
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        {row.avatar && (
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={row.avatar} alt={row.name} />
-                            <AvatarFallback>{row.name?.charAt(0)?.toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                        )}
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={row.avatar} alt={row.name} />
+                          <AvatarFallback>{row.name?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                        </Avatar>
                         <div className="flex flex-col">
                           <Link 
                             href={`https://www.framer.com/@${row.id}/`}
