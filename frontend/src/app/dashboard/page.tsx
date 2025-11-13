@@ -231,19 +231,30 @@ function TopCreatorsByViews({
 
   // Mapuj dane z props
   const creators = responseData?.data || []
-  const mappedData = creators.map((creator: any, index: number) => ({
-    id: creator.username,
-    rank: index + 1,
-    // Używamy pełnej nazwy (name) zamiast username - preferuj name jeśli istnieje i nie jest pusty
-    name: (creator.name && creator.name.trim()) ? creator.name : creator.username,
-    avatar: creator.avatar_url || null, // Avatar URL z API
-    views: creator.total_views,
-    templatesCount: creator.templates_count,
-    change: creator.views_change_percent !== undefined && creator.views_change_percent !== null ? {
-      value: Math.abs(creator.views_change_percent),
-      isPositive: creator.views_change_percent >= 0
-    } : undefined
-  }))
+  const mappedData = creators.map((creator: any, index: number) => {
+    // Obsługa name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    const creatorName = creator.name && typeof creator.name === 'string' && creator.name.trim() 
+      ? creator.name.trim() 
+      : creator.username
+    
+    // Obsługa avatar_url - sprawdź czy istnieje i nie jest pusty/null/undefined
+    const avatarUrl = creator.avatar_url && typeof creator.avatar_url === 'string' && creator.avatar_url.trim()
+      ? creator.avatar_url.trim()
+      : null
+    
+    return {
+      id: creator.username,
+      rank: index + 1,
+      name: creatorName,
+      avatar: avatarUrl,
+      views: creator.total_views,
+      templatesCount: creator.templates_count,
+      change: creator.views_change_percent !== undefined && creator.views_change_percent !== null ? {
+        value: Math.abs(creator.views_change_percent),
+        isPositive: creator.views_change_percent >= 0
+      } : undefined
+    }
+  })
 
   // Sort data
   const sortedData = [...mappedData].sort((a, b) => {
@@ -338,9 +349,9 @@ function TopCreatorsByViews({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          {row.avatar && (
-                            <AvatarImage src={row.avatar} alt={row.name} />
-                          )}
+                          {row.avatar && row.avatar.trim() ? (
+                            <AvatarImage src={row.avatar} alt={row.name || row.id} />
+                          ) : null}
                           <AvatarFallback>{row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
@@ -1060,20 +1071,31 @@ function CreatorsMostTemplates({
 
   // Mapuj dane z props
   const creators = responseData?.data || []
-  const mappedData = creators.map((creator: any, index: number) => ({
-    id: creator.username,
-    rank: index + 1,
-    // Używamy pełnej nazwy (name) zamiast username - preferuj name jeśli istnieje i nie jest pusty
-    name: (creator.name && creator.name.trim()) ? creator.name : creator.username,
-    avatar: creator.avatar_url || null, // Avatar URL z API
-    templatesCount: creator.templates_count,
-    totalProducts: creator.total_products,
-    totalViews: creator.total_views || null, // Total views może nie być dostępne w API
-    change: creator.templates_change_percent !== undefined && creator.templates_change_percent !== null ? {
-      value: Math.abs(creator.templates_change_percent),
-      isPositive: creator.templates_change_percent >= 0
-    } : undefined
-  }))
+  const mappedData = creators.map((creator: any, index: number) => {
+    // Obsługa name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    const creatorName = creator.name && typeof creator.name === 'string' && creator.name.trim() 
+      ? creator.name.trim() 
+      : creator.username
+    
+    // Obsługa avatar_url - sprawdź czy istnieje i nie jest pusty/null/undefined
+    const avatarUrl = creator.avatar_url && typeof creator.avatar_url === 'string' && creator.avatar_url.trim()
+      ? creator.avatar_url.trim()
+      : null
+    
+    return {
+      id: creator.username,
+      rank: index + 1,
+      name: creatorName,
+      avatar: avatarUrl,
+      templatesCount: creator.templates_count,
+      totalProducts: creator.total_products,
+      totalViews: creator.total_views || null, // Total views może nie być dostępne w API
+      change: creator.templates_change_percent !== undefined && creator.templates_change_percent !== null ? {
+        value: Math.abs(creator.templates_change_percent),
+        isPositive: creator.templates_change_percent >= 0
+      } : undefined
+    }
+  })
 
   // Sort data
   const sortedData = [...mappedData].sort((a, b) => {
