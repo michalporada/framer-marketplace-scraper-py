@@ -165,4 +165,3 @@ def has_category_mapping(category: str) -> bool:
         True if category is in mapping, False otherwise
     """
     return category in CATEGORY_MAPPING or category in _SUBCATEGORY_TO_PARENT
-

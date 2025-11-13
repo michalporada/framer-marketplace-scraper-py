@@ -39,9 +39,7 @@ class DatabaseStorage:
             )
             logger.info("database_connection_initialized")
         except Exception as e:
-            logger.error(
-                "database_connection_failed", error=str(e), error_type=type(e).__name__
-            )
+            logger.error("database_connection_failed", error=str(e), error_type=type(e).__name__)
             self.engine = None
 
     def is_available(self) -> bool:
@@ -74,28 +72,20 @@ class DatabaseStorage:
             return False
 
         if not product.url:
-            logger.warning(
-                "product_validation_failed", reason="missing_url", product_id=product.id
-            )
+            logger.warning("product_validation_failed", reason="missing_url", product_id=product.id)
             return False
 
         try:
             # Extract normalized values
-            views_raw = (
-                product.stats.views.raw if product.stats and product.stats.views else None
-            )
+            views_raw = product.stats.views.raw if product.stats and product.stats.views else None
             views_normalized = (
                 product.stats.views.normalized if product.stats and product.stats.views else None
             )
-            pages_raw = (
-                product.stats.pages.raw if product.stats and product.stats.pages else None
-            )
+            pages_raw = product.stats.pages.raw if product.stats and product.stats.pages else None
             pages_normalized = (
                 product.stats.pages.normalized if product.stats and product.stats.pages else None
             )
-            users_raw = (
-                product.stats.users.raw if product.stats and product.stats.users else None
-            )
+            users_raw = product.stats.users.raw if product.stats and product.stats.users else None
             users_normalized = (
                 product.stats.users.normalized if product.stats and product.stats.users else None
             )
@@ -170,6 +160,7 @@ class DatabaseStorage:
 
             # Extract categories as JSON
             import json
+
             categories_json = None
             if product.categories:
                 categories_json = json.dumps(product.categories)
@@ -671,6 +662,7 @@ class DatabaseStorage:
 
         # Extract categories as JSON
         import json
+
         categories_json = None
         if product.categories:
             categories_json = json.dumps(product.categories)
@@ -921,9 +913,7 @@ class DatabaseStorage:
         """
         import json as json_lib
 
-        social_media_json = (
-            json_lib.dumps(creator.social_media) if creator.social_media else None
-        )
+        social_media_json = json_lib.dumps(creator.social_media) if creator.social_media else None
 
         return {
             "username": creator.username,
