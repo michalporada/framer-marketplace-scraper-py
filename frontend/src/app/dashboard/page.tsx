@@ -234,8 +234,9 @@ function TopCreatorsByViews({
   const mappedData = creators.map((creator: any, index: number) => ({
     id: creator.username,
     rank: index + 1,
-    name: creator.name || creator.username, // Używamy pełnej nazwy (name) zamiast username
-    avatar: creator.avatar_url, // Avatar powinien być dostępny z API
+    // Używamy pełnej nazwy (name) zamiast username - preferuj name jeśli istnieje i nie jest pusty
+    name: (creator.name && creator.name.trim()) ? creator.name : creator.username,
+    avatar: creator.avatar_url || null, // Avatar URL z API
     views: creator.total_views,
     templatesCount: creator.templates_count,
     change: creator.views_change_percent !== undefined && creator.views_change_percent !== null ? {
@@ -337,8 +338,10 @@ function TopCreatorsByViews({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={row.avatar} alt={row.name} />
-                          <AvatarFallback>{row.name?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                          {row.avatar && (
+                            <AvatarImage src={row.avatar} alt={row.name} />
+                          )}
+                          <AvatarFallback>{row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
                           <Link 
@@ -347,7 +350,7 @@ function TopCreatorsByViews({
                             rel="noopener noreferrer"
                             className="font-medium hover:underline transition-colors"
                           >
-                            {row.name}
+                            {row.name || row.id}
                           </Link>
                           {row.templatesCount && (
                             <span className="text-xs text-muted-foreground">
@@ -1071,8 +1074,9 @@ function CreatorsMostTemplates({
   const mappedData = creators.map((creator: any, index: number) => ({
     id: creator.username,
     rank: index + 1,
-    name: creator.name || creator.username, // Używamy pełnej nazwy (name) zamiast username
-    avatar: creator.avatar_url, // Avatar powinien być dostępny z API
+    // Używamy pełnej nazwy (name) zamiast username - preferuj name jeśli istnieje i nie jest pusty
+    name: (creator.name && creator.name.trim()) ? creator.name : creator.username,
+    avatar: creator.avatar_url || null, // Avatar URL z API
     templatesCount: creator.templates_count,
     totalProducts: creator.total_products,
     totalViews: creator.total_views || null, // Total views może nie być dostępne w API
@@ -1185,8 +1189,10 @@ function CreatorsMostTemplates({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={row.avatar} alt={row.name} />
-                          <AvatarFallback>{row.name?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                          {row.avatar && (
+                            <AvatarImage src={row.avatar} alt={row.name} />
+                          )}
+                          <AvatarFallback>{row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
                           <Link 
@@ -1195,7 +1201,7 @@ function CreatorsMostTemplates({
                             rel="noopener noreferrer"
                             className="font-medium hover:underline transition-colors"
                           >
-                            {row.name}
+                            {row.name || row.id}
                           </Link>
                         </div>
                       </div>
