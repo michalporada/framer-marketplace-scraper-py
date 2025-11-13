@@ -803,20 +803,10 @@ function MostPopularCategories({
     }
   }
 
-  // Calculate total templates count for subtitle
-  const totalTemplates = mappedData.reduce((sum: number, cat: any) => sum + (cat.productsCount || 0), 0)
-
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col gap-1">
-          <CardTitle>Most Popular Categories</CardTitle>
-          {!loading && !error && (
-            <p className="text-sm text-muted-foreground">
-              {totalTemplates.toLocaleString()} templates
-            </p>
-          )}
-        </div>
+        <CardTitle>Most Popular Categories</CardTitle>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
