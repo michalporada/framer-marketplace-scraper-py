@@ -523,18 +523,19 @@ async def get_top_free_templates(
                 row[0]: int(row[1]) if row[1] else 0 for row in result_period
             }
 
-        # Get product details (is_free, price) from products table
+        # Get product details (is_free, price, category) from products table
         # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         product_ids = list(latest_data.keys())
         products_details = {}
         if product_ids:
-            product_query = "SELECT id, is_free, price FROM products WHERE id = ANY(:product_ids::text[])"
+            product_query = "SELECT id, is_free, price, category FROM products WHERE id = ANY(:product_ids::text[])"
             product_rows = execute_query(product_query, {"product_ids": product_ids})
             if product_rows:
                 products_details = {
                     row["id"]: {
                         "is_free": row.get("is_free", False),
                         "price": float(row.get("price")) if row.get("price") else None,
+                        "category": row.get("category"),
                     }
                     for row in product_rows
                 }
