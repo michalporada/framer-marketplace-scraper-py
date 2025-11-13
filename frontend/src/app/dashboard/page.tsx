@@ -851,14 +851,21 @@ function MostPopularCategories({
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
-                      <Link 
-                        href={`https://www.framer.com/marketplace/templates/category/${row.id.toLowerCase().replace(/\s+/g, '-')}/`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium hover:underline transition-colors"
-                      >
-                        {row.name}
-                      </Link>
+                      <div className="flex flex-col">
+                        <Link 
+                          href={`https://www.framer.com/marketplace/templates/category/${row.id.toLowerCase().replace(/\s+/g, '-')}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium hover:underline transition-colors"
+                        >
+                          {row.name}
+                        </Link>
+                        {row.productsCount && (
+                          <span className="text-xs text-muted-foreground">
+                            {row.productsCount.toLocaleString()} templates
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
