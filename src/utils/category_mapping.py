@@ -5,7 +5,7 @@ Framer Marketplace category structure. This allows us to group products correctl
 without needing to scrape category pages.
 """
 
-from typing import Dict, List, Set
+from typing import Dict, List
 
 # Mapowanie podkategorii -> nadrzędne kategorie
 # Na podstawie analizy stron kategorii w Framer Marketplace
