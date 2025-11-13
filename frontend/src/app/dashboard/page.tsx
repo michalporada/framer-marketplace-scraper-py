@@ -349,9 +349,7 @@ function TopCreatorsByViews({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          {row.avatar && row.avatar.trim() ? (
-                            <AvatarImage src={row.avatar} alt={row.name || row.id} />
-                          ) : null}
+                          <AvatarImage src={row.avatar || undefined} alt={row.name || row.id} />
                           <AvatarFallback>
                             {row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase() || '?'}
                           </AvatarFallback>
@@ -1224,9 +1222,7 @@ function CreatorsMostTemplates({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          {row.avatar && row.avatar.trim() ? (
-                            <AvatarImage src={row.avatar} alt={row.name || row.id} />
-                          ) : null}
+                          <AvatarImage src={row.avatar || undefined} alt={row.name || row.id} />
                           <AvatarFallback>
                             {row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase() || '?'}
                           </AvatarFallback>
