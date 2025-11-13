@@ -232,6 +232,11 @@ function TopCreatorsByViews({
   // Mapuj dane z props
   const creators = responseData?.data || []
   const mappedData = creators.map((creator: any, index: number) => {
+    // Debug: sprawdź co przychodzi z API
+    if (index === 0 && typeof window !== 'undefined') {
+      console.log('Creator data from API:', creator)
+    }
+    
     // Obsługa name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
     const creatorName = (creator.name != null && creator.name !== '' && typeof creator.name === 'string' && creator.name.trim() !== '')
       ? creator.name.trim() 
@@ -240,7 +245,12 @@ function TopCreatorsByViews({
     // Obsługa avatar_url - sprawdź czy istnieje i nie jest pusty/null/undefined
     const avatarUrl = (creator.avatar_url != null && creator.avatar_url !== '' && typeof creator.avatar_url === 'string' && creator.avatar_url.trim() !== '')
       ? creator.avatar_url.trim()
-      : null
+      : undefined
+    
+    // Debug: sprawdź zmapowane dane
+    if (index === 0 && typeof window !== 'undefined') {
+      console.log('Mapped creator data:', { name: creatorName, avatar: avatarUrl, originalName: creator.name, originalAvatar: creator.avatar_url })
+    }
     
     return {
       id: creator.username,
@@ -1094,6 +1104,11 @@ function CreatorsMostTemplates({
   // Mapuj dane z props
   const creators = responseData?.data || []
   const mappedData = creators.map((creator: any, index: number) => {
+    // Debug: sprawdź co przychodzi z API
+    if (index === 0 && typeof window !== 'undefined') {
+      console.log('Creator data from API (Most Templates):', creator)
+    }
+    
     // Obsługa name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
     const creatorName = (creator.name != null && creator.name !== '' && typeof creator.name === 'string' && creator.name.trim() !== '')
       ? creator.name.trim() 
@@ -1102,7 +1117,12 @@ function CreatorsMostTemplates({
     // Obsługa avatar_url - sprawdź czy istnieje i nie jest pusty/null/undefined
     const avatarUrl = (creator.avatar_url != null && creator.avatar_url !== '' && typeof creator.avatar_url === 'string' && creator.avatar_url.trim() !== '')
       ? creator.avatar_url.trim()
-      : null
+      : undefined
+    
+    // Debug: sprawdź zmapowane dane
+    if (index === 0 && typeof window !== 'undefined') {
+      console.log('Mapped creator data (Most Templates):', { name: creatorName, avatar: avatarUrl, originalName: creator.name, originalAvatar: creator.avatar_url })
+    }
     
     return {
       id: creator.username,
