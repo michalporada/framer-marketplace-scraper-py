@@ -300,32 +300,22 @@ export async function getTopCategories(params?: {
 }
 
 // Smallest Categories by Product Count
-// Uses the same endpoint but sorts by products_count ascending
+// Uses new endpoint that queries products table directly for accurate counts
 export async function getSmallestCategories(params?: {
   limit?: number
   period_hours?: number
   product_type?: string
 }): Promise<{ data: any[]; meta?: any }> {
   const limit = params?.limit || 5
-  const periodHours = params?.period_hours || 24
   const productType = params?.product_type || 'template'
   
   try {
-    // Get more categories than needed, then sort and take smallest
-    const query = `limit=100&period_hours=${periodHours}&product_type=${productType}`
-    const response = await fetchAPI<{ data: any[]; meta?: any }>(`/api/products/categories/top-by-views?${query}`)
+    // Use new endpoint that uses products table for accurate product counts
+    const query = `limit=${limit}&product_type=${productType}`
+    const response = await fetchAPI<{ data: any[]; meta?: any }>(`/api/products/categories/all-by-count?${query}`)
     
-    // Sort by products_count ascending and take top N
-    const sorted = (response.data || []).sort((a: any, b: any) => {
-      const countA = a.products_count || 0
-      const countB = b.products_count || 0
-      return countA - countB
-    })
-    
-    return {
-      data: sorted.slice(0, limit),
-      meta: response.meta || { timestamp: new Date().toISOString() }
-    }
+    // Endpoint already returns sorted by products_count ASC, so just return it
+    return response
   } catch (error) {
     console.warn('Error fetching smallest categories:', error)
     return {

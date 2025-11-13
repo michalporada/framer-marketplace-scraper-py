@@ -360,10 +360,8 @@ function SmallestCategories({
       setError(undefined)
 
       try {
-        const periodHours = periodToHours(period)
         const response = await getSmallestCategories({
           limit: 5,
-          period_hours: periodHours,
           product_type: 'template'
         })
 

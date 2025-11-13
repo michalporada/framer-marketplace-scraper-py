@@ -1956,3 +1956,116 @@ async def get_category_views(
             "timestamp": datetime.utcnow().isoformat() + "Z",
         },
     )
+
+
+@router.get("/categories/all-by-count", response_model=TopCategoriesByViewsResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
+async def get_all_categories_by_count(
+    limit: int = Query(100, ge=1, le=1000, description="Number of categories to return"),
+    product_type: Optional[str] = Query(
+        "template", description="Filter by product type: template, component, vector, plugin"
+    ),
+):
+    """Get all categories sorted by product count.
+    
+    This endpoint uses the products table to get accurate product counts per category,
+    unlike top-by-views which uses product_history and may miss some products.
+    
+    Args:
+        limit: Number of categories to return (1-1000, default: 100)
+        product_type: Product type filter (default: template)
+    
+    Returns:
+        TopCategoriesByViewsResponse with categories sorted by product count
+    """
+    # Validate product type
+    if product_type and product_type not in ["template", "component", "vector", "plugin"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": {
+                    "code": "INVALID_PRODUCT_TYPE",
+                    "message": (
+                        "Invalid product type. Must be one of: template, component, vector, plugin"
+                    ),
+                    "details": {"type": product_type},
+                }
+            },
+        )
+    
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+    
+    try:
+        # Build WHERE clause
+        where_clause = "WHERE category IS NOT NULL AND views_normalized IS NOT NULL"
+        params = {"limit": limit}
+        if product_type:
+            where_clause += " AND type = :product_type"
+            params["product_type"] = product_type
+        
+        # Query to get all categories with product counts from products table
+        query = text(
+            """
+            SELECT 
+                category as category_name,
+                COUNT(*) as products_count,
+                SUM(views_normalized) as total_views
+            FROM products
+            """ + where_clause + """
+            GROUP BY category
+            ORDER BY products_count ASC
+            LIMIT :limit
+            """
+        )
+        
+        result = execute_query(query, params)
+        
+        categories = []
+        for row in result:
+            categories.append(
+                TopCategoryByViews(
+                    category_name=row["category_name"],
+                    total_views=row["total_views"] or 0,
+                    products_count=row["products_count"] or 0,
+                    views_change=0,
+                    views_change_percent=0.0,
+                )
+            )
+        
+        return TopCategoriesByViewsResponse(
+            data=categories,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "limit": limit,
+                "product_type": product_type,
+            },
+        )
+    
+    except Exception as e:
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Error getting categories by count: {type(e).__name__}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to get categories by count: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
