@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -171,7 +172,14 @@ function TopCreatorsByViews({
                           </Avatar>
                         )}
                         <div className="flex flex-col">
-                          <span className="font-medium">{row.name}</span>
+                          <Link 
+                            href={`https://www.framer.com/@${row.id}/`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium hover:underline transition-colors"
+                          >
+                            {row.name}
+                          </Link>
                           {row.templatesCount && (
                             <span className="text-xs text-muted-foreground">
                               {row.templatesCount} templates
@@ -795,7 +803,14 @@ function CreatorsMostTemplates({
                           </Avatar>
                         )}
                         <div className="flex flex-col">
-                          <span className="font-medium">{row.name}</span>
+                          <Link 
+                            href={`https://www.framer.com/@${row.id}/`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium hover:underline transition-colors"
+                          >
+                            {row.name}
+                          </Link>
                         </div>
                       </div>
                     </TableCell>
