@@ -18,13 +18,15 @@ async function fetchAPI<T>(endpoint: string, retries = 2): Promise<T> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 seconds timeout (reduced from 30s)
       
       const response = await fetch(url, {
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
         },
+        // Add cache control to avoid unnecessary preflight requests
+        cache: 'default',
       })
       
       clearTimeout(timeoutId)

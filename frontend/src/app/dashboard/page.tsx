@@ -53,6 +53,73 @@ function SortableTableHead({
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<TimePeriodType>('1d')
+  const [loading, setLoading] = useState(true)
+  const [dashboardData, setDashboardData] = useState<{
+    topCreators: any
+    topTemplates: any
+    smallestCategories: any
+    topCategories: any
+    topFreeTemplates: any
+    creatorsMostTemplates: any
+  }>({
+    topCreators: null,
+    topTemplates: null,
+    smallestCategories: null,
+    topCategories: null,
+    topFreeTemplates: null,
+    creatorsMostTemplates: null,
+  })
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    async function loadAllData() {
+      setLoading(true)
+      setErrors({})
+      
+      const periodHours = periodToHours(period)
+      
+      // ✅ RÓWNOLEGŁE ŁADOWANIE - wszystkie zapytania jednocześnie
+      const [
+        topCreatorsResult,
+        topTemplatesResult,
+        smallestCategoriesResult,
+        topCategoriesResult,
+        topFreeTemplatesResult,
+        creatorsMostTemplatesResult
+      ] = await Promise.allSettled([
+        getTopCreatorsByTemplateViews({ limit: 10, period_hours: periodHours }),
+        getTopTemplates({ limit: 10, period_hours: periodHours }),
+        getSmallestCategories({ limit: 10, product_type: 'template' }),
+        getTopCategories({ limit: 10, period_hours: periodHours }),
+        getTopFreeTemplates({ limit: 10, period_hours: periodHours }),
+        getTopCreatorsByTemplateCount({ limit: 10, period_hours: periodHours })
+      ])
+
+      // Przetwórz wyniki
+      setDashboardData({
+        topCreators: topCreatorsResult.status === 'fulfilled' ? topCreatorsResult.value : null,
+        topTemplates: topTemplatesResult.status === 'fulfilled' ? topTemplatesResult.value : null,
+        smallestCategories: smallestCategoriesResult.status === 'fulfilled' ? smallestCategoriesResult.value : null,
+        topCategories: topCategoriesResult.status === 'fulfilled' ? topCategoriesResult.value : null,
+        topFreeTemplates: topFreeTemplatesResult.status === 'fulfilled' ? topFreeTemplatesResult.value : null,
+        creatorsMostTemplates: creatorsMostTemplatesResult.status === 'fulfilled' ? creatorsMostTemplatesResult.value : null,
+      })
+
+      // Zapisz błędy
+      const newErrors: Record<string, string> = {}
+      if (topCreatorsResult.status === 'rejected') newErrors.topCreators = topCreatorsResult.reason?.message || 'Failed to load'
+      if (topTemplatesResult.status === 'rejected') newErrors.topTemplates = topTemplatesResult.reason?.message || 'Failed to load'
+      if (smallestCategoriesResult.status === 'rejected') newErrors.smallestCategories = smallestCategoriesResult.reason?.message || 'Failed to load'
+      if (topCategoriesResult.status === 'rejected') newErrors.topCategories = topCategoriesResult.reason?.message || 'Failed to load'
+      if (topFreeTemplatesResult.status === 'rejected') newErrors.topFreeTemplates = topFreeTemplatesResult.reason?.message || 'Failed to load'
+      if (creatorsMostTemplatesResult.status === 'rejected') newErrors.creatorsMostTemplates = creatorsMostTemplatesResult.reason?.message || 'Failed to load'
+      setErrors(newErrors)
+
+      setLoading(false)
+    }
+
+    loadAllData()
+  }, [period])
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -64,12 +131,48 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <TopCreatorsByViews period={period} onPeriodChange={setPeriod} />
-        <MostPopularTemplates period={period} onPeriodChange={setPeriod} />
-        <SmallestCategories period={period} onPeriodChange={setPeriod} />
-        <MostPopularCategories period={period} onPeriodChange={setPeriod} />
-        <MostPopularFreeTemplates period={period} onPeriodChange={setPeriod} />
-        <CreatorsMostTemplates period={period} onPeriodChange={setPeriod} />
+        <TopCreatorsByViews 
+          period={period} 
+          onPeriodChange={setPeriod}
+          data={dashboardData.topCreators}
+          loading={loading}
+          error={errors.topCreators}
+        />
+        <MostPopularTemplates 
+          period={period} 
+          onPeriodChange={setPeriod}
+          data={dashboardData.topTemplates}
+          loading={loading}
+          error={errors.topTemplates}
+        />
+        <SmallestCategories 
+          period={period} 
+          onPeriodChange={setPeriod}
+          data={dashboardData.smallestCategories}
+          loading={loading}
+          error={errors.smallestCategories}
+        />
+        <MostPopularCategories 
+          period={period} 
+          onPeriodChange={setPeriod}
+          data={dashboardData.topCategories}
+          loading={loading}
+          error={errors.topCategories}
+        />
+        <MostPopularFreeTemplates 
+          period={period} 
+          onPeriodChange={setPeriod}
+          data={dashboardData.topFreeTemplates}
+          loading={loading}
+          error={errors.topFreeTemplates}
+        />
+        <CreatorsMostTemplates 
+          period={period} 
+          onPeriodChange={setPeriod}
+          data={dashboardData.creatorsMostTemplates}
+          loading={loading}
+          error={errors.creatorsMostTemplates}
+        />
       </div>
     </div>
   )
@@ -113,57 +216,36 @@ function TimePeriodSelector({
 
 function TopCreatorsByViews({ 
   period, 
-  onPeriodChange 
+  onPeriodChange,
+  data: responseData,
+  loading,
+  error
 }: { 
   period: TimePeriodType
-  onPeriodChange: (period: TimePeriodType) => void 
+  onPeriodChange: (period: TimePeriodType) => void
+  data: any
+  loading: boolean
+  error?: string
 }) {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<any[]>([])
-  const [error, setError] = useState<string | undefined>()
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      setError(undefined)
-
-      try {
-        const periodHours = periodToHours(period)
-        const response = await getTopCreatorsByTemplateViews({
-          limit: 10,
-          period_hours: periodHours
-        })
-
-        const creators = response.data || []
-        
-        const mappedData = creators.map((creator: any, index: number) => ({
-          id: creator.username,
-          rank: index + 1,
-          name: creator.name || creator.username,
-          avatar: creator.avatar_url,
-          views: creator.total_views,
-          templatesCount: creator.templates_count,
-          change: creator.views_change_percent !== undefined && creator.views_change_percent !== null ? {
-            value: Math.abs(creator.views_change_percent),
-            isPositive: creator.views_change_percent >= 0
-          } : undefined
-        }))
-        
-        setData(mappedData)
-      } catch (err) {
-        console.error('Error fetching top creators:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load data')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [period])
+  // Mapuj dane z props
+  const creators = responseData?.data || []
+  const mappedData = creators.map((creator: any, index: number) => ({
+    id: creator.username,
+    rank: index + 1,
+    name: creator.name || creator.username,
+    avatar: creator.avatar_url,
+    views: creator.total_views,
+    templatesCount: creator.templates_count,
+    change: creator.views_change_percent !== undefined && creator.views_change_percent !== null ? {
+      value: Math.abs(creator.views_change_percent),
+      isPositive: creator.views_change_percent >= 0
+    } : undefined
+  }))
 
   // Sort data
-  const sortedData = [...data].sort((a, b) => {
+  const sortedData = [...mappedData].sort((a, b) => {
     if (!sort.key || !sort.direction) return 0
     
     let aVal: any
@@ -301,57 +383,38 @@ function TopCreatorsByViews({
 
 function MostPopularTemplates({ 
   period, 
-  onPeriodChange 
+  onPeriodChange,
+  data: responseData,
+  loading,
+  error
 }: { 
   period: TimePeriodType
-  onPeriodChange: (period: TimePeriodType) => void 
+  onPeriodChange: (period: TimePeriodType) => void
+  data: any
+  loading: boolean
+  error?: string
 }) {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<any[]>([])
-  const [error, setError] = useState<string | undefined>()
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      setError(undefined)
-
-      try {
-        const periodHours = periodToHours(period)
-        const response = await getTopTemplates({
-          limit: 10,
-          period_hours: periodHours
-        })
-
-        const templates = response.data || []
-        
-        setData(templates.map((template: any, index: number) => ({
-          id: template.product_id,
-          rank: index + 1,
-          name: template.name,
-          creator: template.creator_username || template.creator_name || 'Unknown',
-          creatorId: template.creator_username,
-          views: template.views,
-          isFree: template.is_free,
-          price: template.price,
-          change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
-            value: Math.abs(template.views_change_percent),
-            isPositive: template.views_change_percent >= 0
-          } : undefined
-        })))
-      } catch (err) {
-        console.error('Error fetching top templates:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load data')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [period])
+  // Mapuj dane z props
+  const templates = responseData?.data || []
+  const mappedData = templates.map((template: any, index: number) => ({
+    id: template.product_id,
+    rank: index + 1,
+    name: template.name,
+    creator: template.creator_username || template.creator_name || 'Unknown',
+    creatorId: template.creator_username,
+    views: template.views,
+    isFree: template.is_free,
+    price: template.price,
+    change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
+      value: Math.abs(template.views_change_percent),
+      isPositive: template.views_change_percent >= 0
+    } : undefined
+  }))
 
   // Sort data
-  const sortedData = [...data].sort((a, b) => {
+  const sortedData = [...mappedData].sort((a, b) => {
     if (!sort.key || !sort.direction) return 0
     
     let aVal: any
@@ -490,53 +553,35 @@ function MostPopularTemplates({
 
 function SmallestCategories({ 
   period, 
-  onPeriodChange 
+  onPeriodChange,
+  data: responseData,
+  loading,
+  error
 }: { 
   period: TimePeriodType
-  onPeriodChange: (period: TimePeriodType) => void 
+  onPeriodChange: (period: TimePeriodType) => void
+  data: any
+  loading: boolean
+  error?: string
 }) {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<any[]>([])
-  const [error, setError] = useState<string | undefined>()
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      setError(undefined)
-
-      try {
-        const response = await getSmallestCategories({
-          limit: 10,
-          product_type: 'template'
-        })
-
-        const categories = response.data || []
-        
-        setData(categories.map((category: any, index: number) => ({
-          id: category.category_name || category.category,
-          rank: index + 1,
-          name: category.category_name || category.category,
-          productsCount: category.products_count || 0,
-          views: category.total_views || 0,
-          change: category.views_change_percent !== undefined && category.views_change_percent !== null ? {
-            value: Math.abs(category.views_change_percent),
-            isPositive: category.views_change_percent >= 0
-          } : undefined
-        })))
-      } catch (err) {
-        console.error('Error fetching smallest categories:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load data')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [period])
+  // Mapuj dane z props
+  const categories = responseData?.data || []
+  const mappedData = categories.map((category: any, index: number) => ({
+    id: category.category_name || category.category,
+    rank: index + 1,
+    name: category.category_name || category.category,
+    productsCount: category.products_count || 0,
+    views: category.total_views || 0,
+    change: category.views_change_percent !== undefined && category.views_change_percent !== null ? {
+      value: Math.abs(category.views_change_percent),
+      isPositive: category.views_change_percent >= 0
+    } : undefined
+  }))
 
   // Sort data
-  const sortedData = [...data].sort((a, b) => {
+  const sortedData = [...mappedData].sort((a, b) => {
     if (!sort.key || !sort.direction) return 0
     
     let aVal: any
@@ -667,54 +712,35 @@ function SmallestCategories({
 
 function MostPopularCategories({ 
   period, 
-  onPeriodChange 
+  onPeriodChange,
+  data: responseData,
+  loading,
+  error
 }: { 
   period: TimePeriodType
-  onPeriodChange: (period: TimePeriodType) => void 
+  onPeriodChange: (period: TimePeriodType) => void
+  data: any
+  loading: boolean
+  error?: string
 }) {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<any[]>([])
-  const [error, setError] = useState<string | undefined>()
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      setError(undefined)
-
-      try {
-        const periodHours = periodToHours(period)
-        const response = await getTopCategories({
-          limit: 10,
-          period_hours: periodHours
-        })
-
-        const categories = response.data || []
-        
-        setData(categories.map((category: any, index: number) => ({
-          id: category.category_name,
-          rank: index + 1,
-          name: category.category_name,
-          views: category.total_views,
-          productsCount: category.products_count,
-          change: category.views_change_percent !== undefined && category.views_change_percent !== null ? {
-            value: Math.abs(category.views_change_percent),
-            isPositive: category.views_change_percent >= 0
-          } : undefined
-        })))
-      } catch (err) {
-        console.error('Error fetching top categories:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load data')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [period])
+  // Mapuj dane z props
+  const categories = responseData?.data || []
+  const mappedData = categories.map((category: any, index: number) => ({
+    id: category.category_name,
+    rank: index + 1,
+    name: category.category_name,
+    views: category.total_views,
+    productsCount: category.products_count,
+    change: category.views_change_percent !== undefined && category.views_change_percent !== null ? {
+      value: Math.abs(category.views_change_percent),
+      isPositive: category.views_change_percent >= 0
+    } : undefined
+  }))
 
   // Sort data
-  const sortedData = [...data].sort((a, b) => {
+  const sortedData = [...mappedData].sort((a, b) => {
     if (!sort.key || !sort.direction) return 0
     
     let aVal: any
@@ -845,57 +871,38 @@ function MostPopularCategories({
 
 function MostPopularFreeTemplates({ 
   period, 
-  onPeriodChange 
+  onPeriodChange,
+  data: responseData,
+  loading,
+  error
 }: { 
   period: TimePeriodType
-  onPeriodChange: (period: TimePeriodType) => void 
+  onPeriodChange: (period: TimePeriodType) => void
+  data: any
+  loading: boolean
+  error?: string
 }) {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<any[]>([])
-  const [error, setError] = useState<string | undefined>()
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      setError(undefined)
-
-      try {
-        const periodHours = periodToHours(period)
-        const response = await getTopFreeTemplates({
-          limit: 10,
-          period_hours: periodHours
-        })
-
-        const templates = response.data || []
-        
-        setData(templates.map((template: any, index: number) => ({
-          id: template.product_id,
-          rank: index + 1,
-          name: template.name,
-          creator: template.creator_username || template.creator_name || 'Unknown',
-          creatorId: template.creator_username,
-          creatorAvatar: template.creator_avatar_url,
-          views: template.views,
-          isFree: template.is_free,
-          change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
-            value: Math.abs(template.views_change_percent),
-            isPositive: template.views_change_percent >= 0
-          } : undefined
-        })))
-      } catch (err) {
-        console.error('Error fetching top free templates:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load data')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [period])
+  // Mapuj dane z props
+  const templates = responseData?.data || []
+  const mappedData = templates.map((template: any, index: number) => ({
+    id: template.product_id,
+    rank: index + 1,
+    name: template.name,
+    creator: template.creator_username || template.creator_name || 'Unknown',
+    creatorId: template.creator_username,
+    creatorAvatar: template.creator_avatar_url,
+    views: template.views,
+    isFree: template.is_free,
+    change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
+      value: Math.abs(template.views_change_percent),
+      isPositive: template.views_change_percent >= 0
+    } : undefined
+  }))
 
   // Sort data
-  const sortedData = [...data].sort((a, b) => {
+  const sortedData = [...mappedData].sort((a, b) => {
     if (!sort.key || !sort.direction) return 0
     
     let aVal: any
@@ -1018,55 +1025,36 @@ function MostPopularFreeTemplates({
 
 function CreatorsMostTemplates({ 
   period, 
-  onPeriodChange 
+  onPeriodChange,
+  data: responseData,
+  loading,
+  error
 }: { 
   period: TimePeriodType
-  onPeriodChange: (period: TimePeriodType) => void 
+  onPeriodChange: (period: TimePeriodType) => void
+  data: any
+  loading: boolean
+  error?: string
 }) {
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<any[]>([])
-  const [error, setError] = useState<string | undefined>()
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      setError(undefined)
-
-      try {
-        const periodHours = periodToHours(period)
-        const response = await getTopCreatorsByTemplateCount({
-          limit: 10,
-          period_hours: periodHours
-        })
-
-        const creators = response.data || []
-        
-        setData(creators.map((creator: any, index: number) => ({
-          id: creator.username,
-          rank: index + 1,
-          name: creator.name || creator.username,
-          avatar: creator.avatar_url,
-          templatesCount: creator.templates_count,
-          totalProducts: creator.total_products,
-          change: creator.templates_change_percent !== undefined && creator.templates_change_percent !== null ? {
-            value: Math.abs(creator.templates_change_percent),
-            isPositive: creator.templates_change_percent >= 0
-          } : undefined
-        })))
-      } catch (err) {
-        console.error('Error fetching top creators by template count:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load data')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [period])
+  // Mapuj dane z props
+  const creators = responseData?.data || []
+  const mappedData = creators.map((creator: any, index: number) => ({
+    id: creator.username,
+    rank: index + 1,
+    name: creator.name || creator.username,
+    avatar: creator.avatar_url,
+    templatesCount: creator.templates_count,
+    totalProducts: creator.total_products,
+    change: creator.templates_change_percent !== undefined && creator.templates_change_percent !== null ? {
+      value: Math.abs(creator.templates_change_percent),
+      isPositive: creator.templates_change_percent >= 0
+    } : undefined
+  }))
 
   // Sort data
-  const sortedData = [...data].sort((a, b) => {
+  const sortedData = [...mappedData].sort((a, b) => {
     if (!sort.key || !sort.direction) return 0
     
     let aVal: any
