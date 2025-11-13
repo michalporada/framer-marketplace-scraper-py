@@ -355,6 +355,7 @@ class TopProductByViews(BaseModel):
     type: str
     creator_username: Optional[str] = None
     creator_name: Optional[str] = None
+    category: Optional[str] = None
     views: int
     views_change: int = 0
     views_change_percent: float = 0.0
@@ -570,6 +571,7 @@ async def get_top_free_templates(
                     type="template",
                     creator_username=product_data["creator_username"],
                     creator_name=creator_info.get("name") if isinstance(creator_info, dict) else None,
+                    category=product_info.get("category"),
                     views=current_views,
                     views_change=views_change,
                     views_change_percent=round(views_change_percent, 2),
@@ -748,6 +750,7 @@ async def _get_top_products_by_type(
                     type=product_type,
                     creator_username=product_data["creator_username"],
                     creator_name=creator_info.get("name") if isinstance(creator_info, dict) else None,
+                    category=product_info.get("category"),
                     views=current_views,
                     views_change=views_change,
                     views_change_percent=round(views_change_percent, 2),

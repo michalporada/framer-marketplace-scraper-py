@@ -410,22 +410,33 @@ function MostPopularTemplates({
 
   // Mapuj dane z props
   const templates = responseData?.data || []
-  const mappedData = templates.map((template: any, index: number) => ({
-    id: template.product_id,
-    rank: index + 1,
-    name: template.name,
-    // Używamy pełnej nazwy (creator_name) zamiast username - preferuj name jeśli istnieje i nie jest pusty
-    creator: (template.creator_name && template.creator_name.trim()) ? template.creator_name : template.creator_username || 'Unknown',
-    creatorId: template.creator_username,
-    category: template.category || null, // Kategoria może nie być dostępna w API
-    views: template.views,
-    isFree: template.is_free,
-    price: template.price,
-    change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
-      value: Math.abs(template.views_change_percent),
-      isPositive: template.views_change_percent >= 0
-    } : undefined
-  }))
+  const mappedData = templates.map((template: any, index: number) => {
+    // Obsługa creator_name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    const creatorName = (template.creator_name != null && template.creator_name !== '' && typeof template.creator_name === 'string' && template.creator_name.trim() !== '')
+      ? template.creator_name.trim()
+      : template.creator_username || 'Unknown'
+    
+    // Obsługa category
+    const category = (template.category != null && template.category !== '' && typeof template.category === 'string' && template.category.trim() !== '')
+      ? template.category.trim()
+      : null
+    
+    return {
+      id: template.product_id,
+      rank: index + 1,
+      name: template.name,
+      creator: creatorName,
+      creatorId: template.creator_username,
+      category: category,
+      views: template.views,
+      isFree: template.is_free === true, // Explicit check for boolean true
+      price: template.price != null ? template.price : null,
+      change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
+        value: Math.abs(template.views_change_percent),
+        isPositive: template.views_change_percent >= 0
+      } : undefined
+    }
+  })
 
   // Sort data
   const sortedData = [...mappedData].sort((a, b) => {
@@ -908,22 +919,33 @@ function MostPopularFreeTemplates({
 
   // Mapuj dane z props
   const templates = responseData?.data || []
-  const mappedData = templates.map((template: any, index: number) => ({
-    id: template.product_id,
-    rank: index + 1,
-    name: template.name,
-    // Używamy pełnej nazwy (creator_name) zamiast username - preferuj name jeśli istnieje i nie jest pusty
-    creator: (template.creator_name && template.creator_name.trim()) ? template.creator_name : template.creator_username || 'Unknown',
-    creatorId: template.creator_username,
-    creatorAvatar: template.creator_avatar_url,
-    category: template.category || null, // Kategoria może nie być dostępna w API
-    views: template.views,
-    isFree: template.is_free,
-    change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
-      value: Math.abs(template.views_change_percent),
-      isPositive: template.views_change_percent >= 0
-    } : undefined
-  }))
+  const mappedData = templates.map((template: any, index: number) => {
+    // Obsługa creator_name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    const creatorName = (template.creator_name != null && template.creator_name !== '' && typeof template.creator_name === 'string' && template.creator_name.trim() !== '')
+      ? template.creator_name.trim()
+      : template.creator_username || 'Unknown'
+    
+    // Obsługa category
+    const category = (template.category != null && template.category !== '' && typeof template.category === 'string' && template.category.trim() !== '')
+      ? template.category.trim()
+      : null
+    
+    return {
+      id: template.product_id,
+      rank: index + 1,
+      name: template.name,
+      creator: creatorName,
+      creatorId: template.creator_username,
+      creatorAvatar: template.creator_avatar_url,
+      category: category,
+      views: template.views,
+      isFree: template.is_free === true, // Explicit check for boolean true
+      change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
+        value: Math.abs(template.views_change_percent),
+        isPositive: template.views_change_percent >= 0
+      } : undefined
+    }
+  })
 
   // Sort data
   const sortedData = [...mappedData].sort((a, b) => {
