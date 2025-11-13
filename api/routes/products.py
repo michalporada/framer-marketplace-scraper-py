@@ -1968,8 +1968,9 @@ async def get_all_categories_by_count(
 ):
     """Get all categories sorted by product count.
     
-    This endpoint uses the products table to get accurate product counts per category,
-    unlike top-by-views which uses product_history and may miss some products.
+    This endpoint uses JSON files to get accurate product counts per category,
+    because products can have multiple categories and only the main one is stored in DB.
+    JSON files contain all categories for each product.
     
     Args:
         limit: Number of categories to return (1-1000, default: 100)
@@ -1993,68 +1994,56 @@ async def get_all_categories_by_count(
             },
         )
     
-    engine = get_db_engine()
-    if not engine:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": {
-                    "code": "DATABASE_NOT_AVAILABLE",
-                    "message": "Database connection not available",
-                    "details": {},
-                }
-            },
-        )
-    
     try:
-        # Build WHERE clause
-        where_clause = "WHERE category IS NOT NULL AND views_normalized IS NOT NULL"
-        params = {"limit": limit}
-        if product_type:
-            where_clause += " AND type = :product_type"
-            params["product_type"] = product_type
+        # Load all products from JSON files (contains all categories, not just main one)
+        data_path = Path(settings.data_path)
+        products = load_all_products_from_json(data_path, product_type)
         
-        # Query to get all categories with product counts from products table
-        query_str = (
-            """
-            SELECT 
-                category as category_name,
-                COUNT(*) as products_count,
-                SUM(views_normalized) as total_views
-            FROM products
-            """ + where_clause + """
-            GROUP BY category
-            ORDER BY products_count ASC
-            LIMIT :limit
-            """
-        )
+        # Count products per category (using all categories from each product)
+        category_counts: Dict[str, Dict[str, Any]] = {}
         
-        result = execute_query(query_str, params)
-        
-        if result is None:
-            # Database error occurred
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "error": {
-                        "code": "DATABASE_ERROR",
-                        "message": "Failed to execute database query",
-                        "details": {},
+        for product in products:
+            # Get all categories for this product
+            categories_list = product.get("categories", [])
+            # Fallback to main category if categories list is empty
+            if not categories_list and product.get("category"):
+                categories_list = [product.get("category")]
+            
+            # Get views for this product
+            views = 0
+            if product.get("stats") and product.get("stats").get("views"):
+                views = product.get("stats").get("views").get("normalized") or 0
+            
+            # Count this product in all its categories
+            for category_name in categories_list:
+                if not category_name:
+                    continue
+                    
+                if category_name not in category_counts:
+                    category_counts[category_name] = {
+                        "products_count": 0,
+                        "total_views": 0
                     }
-                },
-            )
+                
+                category_counts[category_name]["products_count"] += 1
+                category_counts[category_name]["total_views"] += views
         
+        # Convert to list and sort by products_count
         categories = []
-        for row in result:
+        for category_name, data in category_counts.items():
             categories.append(
                 TopCategoryByViews(
-                    category_name=row["category_name"],
-                    total_views=row["total_views"] or 0,
-                    products_count=row["products_count"] or 0,
+                    category_name=category_name,
+                    total_views=data["total_views"],
+                    products_count=data["products_count"],
                     views_change=0,
                     views_change_percent=0.0,
                 )
             )
+        
+        # Sort by products_count ascending and take top N
+        categories.sort(key=lambda x: x.products_count)
+        categories = categories[:limit]
         
         return TopCategoriesByViewsResponse(
             data=categories,
