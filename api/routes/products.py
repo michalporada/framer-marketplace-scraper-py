@@ -13,6 +13,7 @@ from api.dependencies import execute_query, execute_query_one, get_db_engine
 from api.cache import cached
 from sqlalchemy import text
 from src.config.settings import settings
+from src.utils.category_mapping import expand_categories
 from src.models.creator import Creator
 from src.models.product import (
     NormalizedDate,
@@ -1746,12 +1747,15 @@ async def get_top_categories_by_views(
             if not categories_list and product.get("category"):
                 categories_list = [product.get("category")]
             
+            # Expand categories to include parent categories (e.g., Education -> Community)
+            categories_list = expand_categories(categories_list)
+            
             # Get views for this product
             views = 0
             if product.get("stats") and product.get("stats").get("views"):
                 views = product.get("stats").get("views").get("normalized") or 0
             
-            # Count this product in all its categories
+            # Count this product in all its categories (including expanded parent categories)
             for category_name in categories_list:
                 if not category_name:
                     continue
@@ -2147,12 +2151,15 @@ async def get_all_categories_by_count(
             if not categories_list and product.get("category"):
                 categories_list = [product.get("category")]
             
+            # Expand categories to include parent categories (e.g., Education -> Community)
+            categories_list = expand_categories(categories_list)
+            
             # Get views for this product
             views = 0
             if product.get("stats") and product.get("stats").get("views"):
                 views = product.get("stats").get("views").get("normalized") or 0
             
-            # Count this product in all its categories
+            # Count this product in all its categories (including expanded parent categories)
             for category_name in categories_list:
                 if not category_name:
                     continue
