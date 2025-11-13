@@ -523,27 +523,30 @@ async def get_top_free_templates(
             }
 
         # Get product details (is_free, price) from products table
+        # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         product_ids = list(latest_data.keys())
         products_details = {}
         if product_ids:
-            for product_id in product_ids:
-                product_query = "SELECT id, is_free, price FROM products WHERE id = :product_id"
-                product_row = execute_query_one(product_query, {"product_id": product_id})
-                if product_row:
-                    products_details[product_id] = {
-                        "is_free": product_row.get("is_free", False),
-                        "price": float(product_row.get("price")) if product_row.get("price") else None,
+            product_query = "SELECT id, is_free, price FROM products WHERE id = ANY(:product_ids::text[])"
+            product_rows = execute_query(product_query, {"product_ids": product_ids})
+            if product_rows:
+                products_details = {
+                    row["id"]: {
+                        "is_free": row.get("is_free", False),
+                        "price": float(row.get("price")) if row.get("price") else None,
                     }
+                    for row in product_rows
+                }
 
         # Get creator details
+        # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         creators_usernames = list(set([data["creator_username"] for data in latest_data.values() if data["creator_username"]]))
         creator_details = {}
         if creators_usernames:
-            for username in creators_usernames:
-                creator_query = "SELECT username, name FROM creators WHERE username = :username"
-                creator_row = execute_query_one(creator_query, {"username": username})
-                if creator_row:
-                    creator_details[username] = creator_row.get("name")
+            creator_query = "SELECT username, name FROM creators WHERE username = ANY(:usernames::text[])"
+            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            if creator_rows:
+                creator_details = {row["username"]: row.get("name") for row in creator_rows}
 
         # Calculate changes and build response
         top_products = []
@@ -698,27 +701,30 @@ async def _get_top_products_by_type(
             }
 
         # Get product details (is_free, price) from products table
+        # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         product_ids = list(latest_data.keys())
         products_details = {}
         if product_ids:
-            for product_id in product_ids:
-                product_query = "SELECT id, is_free, price FROM products WHERE id = :product_id"
-                product_row = execute_query_one(product_query, {"product_id": product_id})
-                if product_row:
-                    products_details[product_id] = {
-                        "is_free": product_row.get("is_free", False),
-                        "price": float(product_row.get("price")) if product_row.get("price") else None,
+            product_query = "SELECT id, is_free, price FROM products WHERE id = ANY(:product_ids::text[])"
+            product_rows = execute_query(product_query, {"product_ids": product_ids})
+            if product_rows:
+                products_details = {
+                    row["id"]: {
+                        "is_free": row.get("is_free", False),
+                        "price": float(row.get("price")) if row.get("price") else None,
                     }
+                    for row in product_rows
+                }
 
         # Get creator details
+        # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         creators_usernames = list(set([data["creator_username"] for data in latest_data.values() if data["creator_username"]]))
         creator_details = {}
         if creators_usernames:
-            for username in creators_usernames:
-                creator_query = "SELECT username, name FROM creators WHERE username = :username"
-                creator_row = execute_query_one(creator_query, {"username": username})
-                if creator_row:
-                    creator_details[username] = creator_row.get("name")
+            creator_query = "SELECT username, name FROM creators WHERE username = ANY(:usernames::text[])"
+            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            if creator_rows:
+                creator_details = {row["username"]: row.get("name") for row in creator_rows}
 
         # Calculate changes and build response
         top_products = []

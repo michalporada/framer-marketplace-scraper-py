@@ -344,17 +344,19 @@ async def get_top_creators_by_template_views(
             )
 
         # Get creator details (name, avatar) from creators table
-        # Use simple loop with prepared statements for safety
+        # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         creator_details = {}
         if creators_usernames:
-            for username in creators_usernames:
-                creator_query = "SELECT username, name, avatar_url FROM creators WHERE username = :username"
-                creator_row = execute_query_one(creator_query, {"username": username})
-                if creator_row:
-                    creator_details[username] = {
-                        "name": creator_row.get("name"),
-                        "avatar_url": creator_row.get("avatar_url"),
+            creator_query = "SELECT username, name, avatar_url FROM creators WHERE username = ANY(:usernames::text[])"
+            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            if creator_rows:
+                creator_details = {
+                    row["username"]: {
+                        "name": row.get("name"),
+                        "avatar_url": row.get("avatar_url"),
                     }
+                    for row in creator_rows
+                }
 
         # Calculate changes and build response
         top_creators = []
@@ -516,18 +518,21 @@ async def get_top_creators_by_template_count(
             }
 
         # Get creator details (name, avatar, total_products) from creators table
+        # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         creators_usernames = list(latest_data.keys())
         creator_details = {}
         if creators_usernames:
-            for username in creators_usernames:
-                creator_query = "SELECT username, name, avatar_url, total_products FROM creators WHERE username = :username"
-                creator_row = execute_query_one(creator_query, {"username": username})
-                if creator_row:
-                    creator_details[username] = {
-                        "name": creator_row.get("name"),
-                        "avatar_url": creator_row.get("avatar_url"),
-                        "total_products": creator_row.get("total_products", 0),
+            creator_query = "SELECT username, name, avatar_url, total_products FROM creators WHERE username = ANY(:usernames::text[])"
+            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            if creator_rows:
+                creator_details = {
+                    row["username"]: {
+                        "name": row.get("name"),
+                        "avatar_url": row.get("avatar_url"),
+                        "total_products": row.get("total_products", 0),
                     }
+                    for row in creator_rows
+                }
 
         # Calculate changes and build response
         top_creators = []
@@ -962,159 +967,6 @@ async def get_creator_products_growth(
                 }
             },
         )
-        from sqlalchemy import text
-
-        # Get current time and period ago
-        now = datetime.utcnow()
-        period_ago = now - timedelta(hours=period_hours)
-
-        # Query to get latest total views per creator for templates
-        # Uses DISTINCT ON to get the most recent scrape for each product
-        # Then aggregates by creator_username
-        query_latest = text(
-            """
-            WITH latest_views AS (
-                SELECT DISTINCT ON (product_id)
-                    product_id,
-                    creator_username,
-                    views_normalized
-                FROM product_history
-                WHERE type = 'template'
-                    AND views_normalized IS NOT NULL
-                    AND scraped_at <= :now_time
-                ORDER BY product_id, scraped_at DESC
-            )
-            SELECT 
-                creator_username,
-                SUM(views_normalized) as total_views,
-                COUNT(*) as templates_count
-            FROM latest_views
-            GROUP BY creator_username
-            ORDER BY total_views DESC
-            LIMIT :limit
-        """
-        )
-
-        # Query to get views from period ago
-        query_period_ago = text(
-            """
-            WITH period_views AS (
-                SELECT DISTINCT ON (product_id)
-                    product_id,
-                    creator_username,
-                    views_normalized
-                FROM product_history
-                WHERE type = 'template'
-                    AND views_normalized IS NOT NULL
-                    AND scraped_at <= :period_ago_time
-                ORDER BY product_id, scraped_at DESC
-            )
-            SELECT 
-                creator_username,
-                SUM(views_normalized) as total_views
-            FROM period_views
-            GROUP BY creator_username
-        """
-        )
-
-        with engine.connect() as conn:
-            # Get latest views aggregated by creator
-            result_latest = conn.execute(
-                query_latest, {"now_time": now, "limit": limit}
-            )
-            latest_data = {}
-            for row in result_latest:
-                latest_data[row[0]] = {
-                    "total_views": int(row[1]) if row[1] else 0,
-                    "templates_count": int(row[2]) if row[2] else 0,
-                }
-
-            # Get views from period ago
-            result_period = conn.execute(
-                query_period_ago, {"period_ago_time": period_ago}
-            )
-            period_ago_data = {
-                row[0]: int(row[1]) if row[1] else 0 for row in result_period
-            }
-
-        # Get creator details (name, avatar) from creators table
-        creators_usernames = list(latest_data.keys())
-        if not creators_usernames:
-            return TopCreatorsByViewsResponse(
-                data=[],
-                meta={
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
-                    "period_hours": period_hours,
-                },
-            )
-
-        # Get creator details (name, avatar) from creators table
-        # Use simple loop with prepared statements for safety
-        creator_details = {}
-        if creators_usernames:
-            for username in creators_usernames:
-                creator_query = "SELECT username, name, avatar_url FROM creators WHERE username = :username"
-                creator_row = execute_query_one(creator_query, {"username": username})
-                if creator_row:
-                    creator_details[username] = {
-                        "name": creator_row.get("name"),
-                        "avatar_url": creator_row.get("avatar_url"),
-                    }
-
-        # Calculate changes and build response
-        top_creators = []
-        for username, views_data in latest_data.items():
-            current_views = views_data["total_views"]
-            previous_views = period_ago_data.get(username, 0)
-
-            # Calculate change
-            views_change = current_views - previous_views
-            views_change_percent = 0.0
-            if previous_views > 0:
-                views_change_percent = (views_change / previous_views) * 100
-
-            creator_info = creator_details.get(username, {})
-            top_creators.append(
-                TopCreatorByViews(
-                    username=username,
-                    name=creator_info.get("name"),
-                    avatar_url=creator_info.get("avatar_url"),
-                    total_views=current_views,
-                    templates_count=views_data["templates_count"],
-                    views_change=views_change,
-                    views_change_percent=round(views_change_percent, 2),
-                )
-            )
-
-        # Sort by total_views (should already be sorted, but ensure it)
-        top_creators.sort(key=lambda x: x.total_views, reverse=True)
-
-        return TopCreatorsByViewsResponse(
-            data=top_creators,
-            meta={
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "period_hours": period_hours,
-                "limit": limit,
-            },
-        )
-
-    except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.error(
-            f"Error calculating top creators by template views: {type(e).__name__}: {str(e)}"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": {
-                    "code": "INTERNAL_ERROR",
-                    "message": f"Failed to calculate top creators: {str(e)}",
-                    "details": {},
-                }
-            },
-        )
 
 
 class TopCreatorByTemplateCount(BaseModel):
@@ -1242,18 +1094,21 @@ async def get_top_creators_by_template_count(
             }
 
         # Get creator details (name, avatar, total_products) from creators table
+        # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         creators_usernames = list(latest_data.keys())
         creator_details = {}
         if creators_usernames:
-            for username in creators_usernames:
-                creator_query = "SELECT username, name, avatar_url, total_products FROM creators WHERE username = :username"
-                creator_row = execute_query_one(creator_query, {"username": username})
-                if creator_row:
-                    creator_details[username] = {
-                        "name": creator_row.get("name"),
-                        "avatar_url": creator_row.get("avatar_url"),
-                        "total_products": creator_row.get("total_products", 0),
+            creator_query = "SELECT username, name, avatar_url, total_products FROM creators WHERE username = ANY(:usernames::text[])"
+            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            if creator_rows:
+                creator_details = {
+                    row["username"]: {
+                        "name": row.get("name"),
+                        "avatar_url": row.get("avatar_url"),
+                        "total_products": row.get("total_products", 0),
                     }
+                    for row in creator_rows
+                }
 
         # Calculate changes and build response
         top_creators = []
