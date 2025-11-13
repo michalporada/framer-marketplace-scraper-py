@@ -158,12 +158,18 @@ class DatabaseStorage:
                 else None
             )
 
+            # Extract categories as JSON
+            import json
+            categories_json = None
+            if product.categories:
+                categories_json = json.dumps(product.categories)
+
             # Use INSERT ... ON CONFLICT to handle duplicates
             # We insert a new record with scraped_at timestamp for history tracking
             insert_sql = text(
                 """
                 INSERT INTO products (
-                    id, name, type, category, url, price, currency, is_free,
+                    id, name, type, category, categories, url, price, currency, is_free,
                     description, short_description,
                     creator_username, creator_name, creator_url,
                     views_raw, views_normalized,
@@ -178,7 +184,7 @@ class DatabaseStorage:
                     pages_count, thumbnail_url, screenshots_count,
                     scraped_at, created_at, updated_at
                 ) VALUES (
-                    :id, :name, :type, :category, :url, :price, :currency, :is_free,
+                    :id, :name, :type, :category, CAST(:categories AS jsonb), :url, :price, :currency, :is_free,
                     :description, :short_description,
                     :creator_username, :creator_name, :creator_url,
                     :views_raw, :views_normalized,
@@ -197,6 +203,7 @@ class DatabaseStorage:
                     name = EXCLUDED.name,
                     type = EXCLUDED.type,
                     category = EXCLUDED.category,
+                    categories = CAST(EXCLUDED.categories AS jsonb),
                     url = EXCLUDED.url,
                     price = EXCLUDED.price,
                     currency = EXCLUDED.currency,
@@ -240,6 +247,7 @@ class DatabaseStorage:
                         "name": product.name,
                         "type": product.type,
                         "category": product.category,
+                        "categories": categories_json,
                         "url": str(product.url),
                         "price": product.price,
                         "currency": product.currency,
@@ -322,7 +330,7 @@ class DatabaseStorage:
         return text(
             """
             INSERT INTO products (
-                id, name, type, category, url, price, currency, is_free,
+                id, name, type, category, categories, url, price, currency, is_free,
                 description, short_description,
                 creator_username, creator_name, creator_url,
                 views_raw, views_normalized,
@@ -337,7 +345,7 @@ class DatabaseStorage:
                 pages_count, thumbnail_url, screenshots_count,
                 scraped_at, created_at, updated_at
             ) VALUES (
-                :id, :name, :type, :category, :url, :price, :currency, :is_free,
+                :id, :name, :type, :category, CAST(:categories AS jsonb), :url, :price, :currency, :is_free,
                 :description, :short_description,
                 :creator_username, :creator_name, :creator_url,
                 :views_raw, :views_normalized,
@@ -356,6 +364,7 @@ class DatabaseStorage:
                 name = EXCLUDED.name,
                 type = EXCLUDED.type,
                 category = EXCLUDED.category,
+                categories = CAST(EXCLUDED.categories AS jsonb),
                 url = EXCLUDED.url,
                 price = EXCLUDED.price,
                 currency = EXCLUDED.currency,
@@ -495,7 +504,7 @@ class DatabaseStorage:
         return text(
             """
             INSERT INTO products (
-                id, name, type, category, url, price, currency, is_free,
+                id, name, type, category, categories, url, price, currency, is_free,
                 description, short_description,
                 creator_username, creator_name, creator_url,
                 views_raw, views_normalized,
@@ -510,7 +519,7 @@ class DatabaseStorage:
                 pages_count, thumbnail_url, screenshots_count,
                 scraped_at, created_at, updated_at
             ) VALUES (
-                :id, :name, :type, :category, :url, :price, :currency, :is_free,
+                :id, :name, :type, :category, CAST(:categories AS jsonb), :url, :price, :currency, :is_free,
                 :description, :short_description,
                 :creator_username, :creator_name, :creator_url,
                 :views_raw, :views_normalized,
@@ -529,6 +538,7 @@ class DatabaseStorage:
                 name = EXCLUDED.name,
                 type = EXCLUDED.type,
                 category = EXCLUDED.category,
+                categories = CAST(EXCLUDED.categories AS jsonb),
                 url = EXCLUDED.url,
                 price = EXCLUDED.price,
                 currency = EXCLUDED.currency,
@@ -649,11 +659,18 @@ class DatabaseStorage:
             else None
         )
 
+        # Extract categories as JSON
+        import json
+        categories_json = None
+        if product.categories:
+            categories_json = json.dumps(product.categories)
+
         return {
             "id": product.id,
             "name": product.name,
             "type": product.type,
             "category": product.category,
+            "categories": categories_json,
             "url": str(product.url),
             "price": product.price,
             "currency": product.currency,

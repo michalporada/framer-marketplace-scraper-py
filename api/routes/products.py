@@ -1681,6 +1681,7 @@ async def get_top_categories_by_views(
                         """
                         SELECT 
                             category,
+                            categories,
                             views_normalized,
                             id
                         FROM products
@@ -1688,15 +1689,31 @@ async def get_top_categories_by_views(
                     )
                     query = text(query_str)
                     
+                    import json
                     with engine.connect() as conn:
                         result = conn.execute(query, params)
                         for row in result:
+                            # Use categories JSONB if available, fallback to category
+                            categories_list = []
+                            if row[1]:  # categories JSONB column
+                                try:
+                                    if isinstance(row[1], str):
+                                        categories_list = json.loads(row[1])
+                                    else:
+                                        categories_list = row[1]  # Already parsed JSONB
+                                except (json.JSONDecodeError, TypeError):
+                                    pass
+                            
+                            # Fallback to main category if categories list is empty
+                            if not categories_list and row[0]:
+                                categories_list = [row[0]]
+                            
                             products.append({
                                 "category": row[0],
-                                "categories": [row[0]] if row[0] else [],
+                                "categories": categories_list,
                                 "stats": {
                                     "views": {
-                                        "normalized": row[1] or 0
+                                        "normalized": row[2] or 0
                                     }
                                 }
                             })
@@ -2066,6 +2083,7 @@ async def get_all_categories_by_count(
                         """
                         SELECT 
                             category,
+                            categories,
                             views_normalized,
                             id
                         FROM products
@@ -2073,15 +2091,31 @@ async def get_all_categories_by_count(
                     )
                     query = text(query_str)
                     
+                    import json
                     with engine.connect() as conn:
                         result = conn.execute(query, params)
                         for row in result:
+                            # Use categories JSONB if available, fallback to category
+                            categories_list = []
+                            if row[1]:  # categories JSONB column
+                                try:
+                                    if isinstance(row[1], str):
+                                        categories_list = json.loads(row[1])
+                                    else:
+                                        categories_list = row[1]  # Already parsed JSONB
+                                except (json.JSONDecodeError, TypeError):
+                                    pass
+                            
+                            # Fallback to main category if categories list is empty
+                            if not categories_list and row[0]:
+                                categories_list = [row[0]]
+                            
                             products.append({
                                 "category": row[0],
-                                "categories": [row[0]] if row[0] else [],
+                                "categories": categories_list,
                                 "stats": {
                                     "views": {
-                                        "normalized": row[1] or 0
+                                        "normalized": row[2] or 0
                                     }
                                 }
                             })

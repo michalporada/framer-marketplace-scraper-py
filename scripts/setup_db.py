@@ -34,6 +34,7 @@ def setup_postgresql():
             name VARCHAR(500) NOT NULL,
             type VARCHAR(50) NOT NULL,
             category VARCHAR(255),
+            categories JSONB,
             url TEXT NOT NULL UNIQUE,
             price DECIMAL(10, 2),
             currency VARCHAR(10) DEFAULT 'USD',
@@ -150,6 +151,7 @@ def setup_postgresql():
         -- Indexes
         CREATE INDEX IF NOT EXISTS idx_products_type ON products(type);
         CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+        CREATE INDEX IF NOT EXISTS idx_products_categories ON products USING GIN (categories);
         CREATE INDEX IF NOT EXISTS idx_products_creator ON products(creator_username);
         CREATE INDEX IF NOT EXISTS idx_products_scraped_at ON products(scraped_at);
         CREATE INDEX IF NOT EXISTS idx_creators_scraped_at ON creators(scraped_at);
