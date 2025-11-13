@@ -209,7 +209,9 @@ class MarketplaceScraper:
                 self.metrics.record_product_scraped()
                 # Mark as processed in checkpoint
                 if settings.checkpoint_enabled:
-                    self.checkpoint_manager.add_processed(url, save_immediately=save_checkpoint_immediately)
+                    self.checkpoint_manager.add_processed(
+                        url, save_immediately=save_checkpoint_immediately
+                    )
                 logger.info(
                     "product_scraped",
                     product_id=product.id,
