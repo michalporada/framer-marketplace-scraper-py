@@ -351,13 +351,16 @@ async def get_top_creators_by_template_views(
             creator_query = "SELECT username, name, avatar_url FROM creators WHERE username = ANY(:usernames::text[])"
             creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
             if creator_rows:
-                creator_details = {
-                    row["username"]: {
+                for row in creator_rows:
+                    # Debug: sprawdź format danych
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    if len(creator_details) == 0:  # Log tylko dla pierwszego rekordu
+                        logger.info(f"Creator row sample: {row}, type: {type(row)}")
+                    creator_details[row["username"]] = {
                         "name": row.get("name"),
                         "avatar_url": row.get("avatar_url"),
                     }
-                    for row in creator_rows
-                }
 
         # Calculate changes and build response
         top_creators = []
