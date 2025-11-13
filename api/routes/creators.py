@@ -348,19 +348,30 @@ async def get_top_creators_by_template_views(
         # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         creator_details = {}
         if creators_usernames:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Fetching creator details for usernames: {creators_usernames[:3]}...")  # Log first 3
+            
             creator_query = "SELECT username, name, avatar_url FROM creators WHERE username = ANY(:usernames::text[])"
             creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            
             if creator_rows:
+                logger.info(f"Found {len(creator_rows)} creator rows")
                 for row in creator_rows:
-                    # Debug: sprawdź format danych
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    if len(creator_details) == 0:  # Log tylko dla pierwszego rekordu
-                        logger.info(f"Creator row sample: {row}, type: {type(row)}")
-                    creator_details[row["username"]] = {
-                        "name": row.get("name"),
-                        "avatar_url": row.get("avatar_url"),
+                    username = row.get("username")
+                    name = row.get("name")
+                    avatar_url = row.get("avatar_url")
+                    
+                    # Debug: sprawdź format danych dla pierwszego rekordu
+                    if len(creator_details) == 0:
+                        logger.info(f"First creator row: username={username}, name={name}, avatar_url={avatar_url}")
+                    
+                    creator_details[username] = {
+                        "name": name,
+                        "avatar_url": avatar_url,
                     }
+            else:
+                logger.warning(f"No creator rows found for usernames: {creators_usernames[:3]}...")
 
         # Calculate changes and build response
         top_creators = []
@@ -375,11 +386,18 @@ async def get_top_creators_by_template_views(
                 views_change_percent = (views_change / previous_views) * 100
 
             creator_info = creator_details.get(username, {})
+            
+            # Debug: sprawdź czy znaleziono dane kreatora
+            if not creator_info:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Creator info not found for username: {username}, available keys: {list(creator_details.keys())[:3]}")
+            
             top_creators.append(
                 TopCreatorByViews(
                     username=username,
-                    name=creator_info.get("name"),
-                    avatar_url=creator_info.get("avatar_url"),
+                    name=creator_info.get("name") if creator_info else None,
+                    avatar_url=creator_info.get("avatar_url") if creator_info else None,
                     total_views=current_views,
                     templates_count=views_data["templates_count"],
                     views_change=views_change,
