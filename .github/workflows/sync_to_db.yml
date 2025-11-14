@@ -154,7 +154,34 @@ jobs:
             done
           fi
       
+      - name: Check if sync already ran (prevent duplicate syncs)
+        id: check-recent-sync
+        if: github.event_name == 'schedule'
+        run: |
+          echo "🔍 Checking if sync was already run recently by workflow_run trigger..."
+          
+          # Get current date in UTC (YYYY-MM-DD format)
+          TODAY=$(date -u +%Y-%m-%d)
+          echo "Today's date (UTC): $TODAY"
+          
+          # Check for successful sync runs triggered by workflow_run today
+          # This prevents duplicate syncs when schedule runs at 8:00 UTC
+          # but workflow_run already triggered sync earlier (e.g., at 2:30 UTC)
+          RECENT_SYNC=$(gh run list --workflow=sync_to_db.yml --status=success --limit=10 --json databaseId,createdAt,event --jq ".[] | select(.event == \"workflow_run\") | select(.createdAt | startswith(\"$TODAY\")) | .databaseId" 2>/dev/null | head -1 || echo "")
+          
+          if [ -n "$RECENT_SYNC" ] && [ "$RECENT_SYNC" != "null" ]; then
+            echo "✅ Found sync run triggered by workflow_run today: $RECENT_SYNC"
+            echo "⏭️ Skipping scheduled sync to prevent duplicate execution"
+            echo "already_synced=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No sync found for today triggered by workflow_run - proceeding with scheduled sync"
+            echo "already_synced=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      
       - name: Sync JSON to Database
+        if: github.event_name != 'schedule' || steps.check-recent-sync.outputs.already_synced != 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
