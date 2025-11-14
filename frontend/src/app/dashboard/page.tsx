@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
-import { getTopCreatorsByTemplateViews, getTopTemplates, getTopCategories, getSmallestCategories, getTopFreeTemplates, getTopCreatorsByTemplateCount, periodToHours } from '@/lib/api'
+import { getTopCreatorsByTemplateViews, getTopTemplates, getTopCategories, getTopFreeTemplates, getTopCreatorsByTemplateCount, periodToHours } from '@/lib/api'
 import { TimePeriod } from '@/lib/types'
 
 type TimePeriodType = '1d' | '7d' | '30d'
@@ -57,14 +57,14 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<{
     topCreators: any
     topTemplates: any
-    smallestCategories: any
+    topGainers: any
     topCategories: any
     topFreeTemplates: any
     creatorsMostTemplates: any
   }>({
     topCreators: null,
     topTemplates: null,
-    smallestCategories: null,
+    topGainers: null,
     topCategories: null,
     topFreeTemplates: null,
     creatorsMostTemplates: null,
@@ -82,24 +82,40 @@ export default function DashboardPage() {
       const [
         topCreatorsResult,
         topTemplatesResult,
-        smallestCategoriesResult,
+        topGainersResult,
         topCategoriesResult,
         topFreeTemplatesResult,
         creatorsMostTemplatesResult
       ] = await Promise.allSettled([
         getTopCreatorsByTemplateViews({ limit: 10, period_hours: periodHours }),
         getTopTemplates({ limit: 10, period_hours: periodHours }),
-        getSmallestCategories({ limit: 10, product_type: 'template' }),
+        getTopTemplates({ limit: 100, period_hours: periodHours }), // Pobierz więcej, żeby móc posortować według views_change_percent
         getTopCategories({ limit: 10, period_hours: periodHours }),
         getTopFreeTemplates({ limit: 10, period_hours: periodHours }),
         getTopCreatorsByTemplateCount({ limit: 10, period_hours: periodHours })
       ])
 
-      // Przetwórz wyniki
+      // Przetwórz wyniki - dla topGainers posortuj według views_change_percent
+      let topGainersData = null
+      if (topGainersResult.status === 'fulfilled' && topGainersResult.value?.data) {
+        const templates = [...topGainersResult.value.data]
+        // Sortuj według views_change_percent (największy wzrost)
+        templates.sort((a: any, b: any) => {
+          const aChange = a.views_change_percent ?? -Infinity
+          const bChange = b.views_change_percent ?? -Infinity
+          return bChange - aChange // Malejąco
+        })
+        // Weź top 10
+        topGainersData = {
+          ...topGainersResult.value,
+          data: templates.slice(0, 10)
+        }
+      }
+
       setDashboardData({
         topCreators: topCreatorsResult.status === 'fulfilled' ? topCreatorsResult.value : null,
         topTemplates: topTemplatesResult.status === 'fulfilled' ? topTemplatesResult.value : null,
-        smallestCategories: smallestCategoriesResult.status === 'fulfilled' ? smallestCategoriesResult.value : null,
+        topGainers: topGainersData,
         topCategories: topCategoriesResult.status === 'fulfilled' ? topCategoriesResult.value : null,
         topFreeTemplates: topFreeTemplatesResult.status === 'fulfilled' ? topFreeTemplatesResult.value : null,
         creatorsMostTemplates: creatorsMostTemplatesResult.status === 'fulfilled' ? creatorsMostTemplatesResult.value : null,
@@ -109,7 +125,7 @@ export default function DashboardPage() {
       const newErrors: Record<string, string> = {}
       if (topCreatorsResult.status === 'rejected') newErrors.topCreators = topCreatorsResult.reason?.message || 'Failed to load'
       if (topTemplatesResult.status === 'rejected') newErrors.topTemplates = topTemplatesResult.reason?.message || 'Failed to load'
-      if (smallestCategoriesResult.status === 'rejected') newErrors.smallestCategories = smallestCategoriesResult.reason?.message || 'Failed to load'
+      if (topGainersResult.status === 'rejected') newErrors.topGainers = topGainersResult.reason?.message || 'Failed to load'
       if (topCategoriesResult.status === 'rejected') newErrors.topCategories = topCategoriesResult.reason?.message || 'Failed to load'
       if (topFreeTemplatesResult.status === 'rejected') newErrors.topFreeTemplates = topFreeTemplatesResult.reason?.message || 'Failed to load'
       if (creatorsMostTemplatesResult.status === 'rejected') newErrors.creatorsMostTemplates = creatorsMostTemplatesResult.reason?.message || 'Failed to load'
@@ -145,12 +161,12 @@ export default function DashboardPage() {
           loading={loading}
           error={errors.topTemplates}
         />
-        <SmallestCategories 
+        <TopGainers 
           period={period} 
           onPeriodChange={setPeriod}
-          data={dashboardData.smallestCategories}
+          data={dashboardData.topGainers}
           loading={loading}
-          error={errors.smallestCategories}
+          error={errors.topGainers}
         />
         <MostPopularCategories 
           period={period} 
@@ -595,7 +611,7 @@ function MostPopularTemplates({
   )
 }
 
-function SmallestCategories({ 
+function TopGainers({ 
   period, 
   onPeriodChange,
   data: responseData,
@@ -611,18 +627,34 @@ function SmallestCategories({
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   // Mapuj dane z props
-  const categories = responseData?.data || []
-  const mappedData = categories.map((category: any, index: number) => ({
-    id: category.category_name || category.category,
-    rank: index + 1,
-    name: category.category_name || category.category,
-    productsCount: category.products_count || 0,
-    views: category.total_views || 0,
-    change: category.views_change_percent !== undefined && category.views_change_percent !== null ? {
-      value: Math.abs(category.views_change_percent),
-      isPositive: category.views_change_percent >= 0
-    } : undefined
-  }))
+  const templates = responseData?.data || []
+  const mappedData = templates.map((template: any, index: number) => {
+    // Obsługa creator_name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    const creatorName = (template.creator_name != null && template.creator_name !== '' && typeof template.creator_name === 'string' && template.creator_name.trim() !== '')
+      ? template.creator_name.trim()
+      : template.creator_username || 'Unknown'
+    
+    // Obsługa category
+    const category = (template.category != null && template.category !== '' && typeof template.category === 'string' && template.category.trim() !== '')
+      ? template.category.trim()
+      : null
+    
+    return {
+      id: template.product_id,
+      rank: index + 1,
+      name: template.name,
+      creator: creatorName,
+      creatorId: template.creator_username,
+      category: category,
+      views: template.views,
+      isFree: template.is_free === true, // Explicit check for boolean true
+      price: template.price != null ? template.price : null,
+      change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
+        value: Math.abs(template.views_change_percent),
+        isPositive: template.views_change_percent >= 0
+      } : undefined
+    }
+  })
 
   // Sort data
   const sortedData = [...mappedData].sort((a, b) => {
@@ -636,9 +668,9 @@ function SmallestCategories({
         aVal = a.name?.toLowerCase() || ''
         bVal = b.name?.toLowerCase() || ''
         break
-      case 'productsCount':
-        aVal = a.productsCount || 0
-        bVal = b.productsCount || 0
+      case 'price':
+        aVal = a.isFree ? 0 : (a.price || 0)
+        bVal = b.isFree ? 0 : (b.price || 0)
         break
       case 'views':
         aVal = a.views || 0
@@ -674,7 +706,7 @@ function SmallestCategories({
   return (
     <Card className="min-w-0 w-full">
       <CardHeader>
-        <CardTitle>Smallest Categories</CardTitle>
+        <CardTitle>Top Gainers</CardTitle>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
@@ -697,7 +729,10 @@ function SmallestCategories({
               <TableRow>
                 <TableHead className="w-12">#</TableHead>
                 <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
-                  Category
+                  Template
+                </SortableTableHead>
+                <SortableTableHead sortKey="price" currentSort={sort} onSort={handleSort} className="text-right">
+                  Price
                 </SortableTableHead>
                 <SortableTableHead sortKey="views" currentSort={sort} onSort={handleSort} className="text-right">
                   Views
@@ -710,7 +745,7 @@ function SmallestCategories({
             <TableBody>
               {sortedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
@@ -719,14 +754,32 @@ function SmallestCategories({
                   <TableRow key={row.id || index}>
                     <TableCell className="font-medium">{row.rank}</TableCell>
                     <TableCell>
-                      <Link 
-                        href={`https://www.framer.com/marketplace/templates/category/${row.id.toLowerCase().replace(/\s+/g, '-')}/`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium hover:underline transition-colors"
-                      >
-                        {row.name}
-                      </Link>
+                      <div className="flex flex-col">
+                        <Link 
+                          href={`https://www.framer.com/marketplace/templates/${row.id}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium hover:underline transition-colors"
+                        >
+                          {row.name}
+                        </Link>
+                        {(row.category || row.creator) && (
+                          <span className="text-xs text-muted-foreground">
+                            {row.category && row.creator ? `${row.category} • ${row.creator}` : row.category || row.creator}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.isFree ? (
+                        <Badge variant="secondary" className="text-xs">Free</Badge>
+                      ) : row.price ? (
+                        <Badge variant="outline" className="text-xs">
+                          ${row.price.toFixed(2)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">Paid</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
