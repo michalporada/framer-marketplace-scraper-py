@@ -1781,6 +1781,7 @@ async def get_top_categories_by_views(
                 category_counts[category_name]["total_views"] += views
         
         # Get period ago views from database for comparison
+        # Use the same category logic as current_views (all categories + expanded)
         period_ago_data: Dict[str, int] = {}
         engine = get_db_engine()
         if engine:
@@ -1796,31 +1797,49 @@ async def get_top_categories_by_views(
                     where_clause_period += " AND type = :product_type"
                     params_period["product_type"] = product_type
 
+                # Get all products from period ago (not aggregated by category yet)
+                # We need to apply the same expand_categories logic as current_views
                 query_period_ago = text(
                     """
-                    WITH period_views AS (
-                        SELECT DISTINCT ON (product_id)
-                            product_id,
-                            category,
-                            views_normalized
-                        FROM product_history
+                    SELECT DISTINCT ON (product_id)
+                        product_id,
+                        category,
+                        views_normalized
+                    FROM product_history
                     """ + where_clause_period + """
                         AND scraped_at <= :period_ago_time
-                        ORDER BY product_id, scraped_at DESC
-                    )
-                    SELECT 
-                        category,
-                        SUM(views_normalized) as total_views
-                    FROM period_views
-                    GROUP BY category
+                    ORDER BY product_id, scraped_at DESC
                 """
                 )
 
                 with engine.connect() as conn:
                     result_period = conn.execute(query_period_ago, params_period)
-                    period_ago_data = {
-                        row[0]: int(row[1]) if row[1] else 0 for row in result_period
-                    }
+                    
+                    # Apply the same category logic as current_views
+                    period_ago_category_counts: Dict[str, int] = {}
+                    for row in result_period:
+                        product_id = row[0]
+                        main_category = row[1]
+                        views = int(row[2]) if row[2] else 0
+                        
+                        if not main_category:
+                            continue
+                        
+                        # Use the same expand_categories logic as current_views
+                        categories_list = [main_category]
+                        categories_list = expand_categories(categories_list)
+                        
+                        # Count views in all categories (including expanded parent categories)
+                        for category_name in categories_list:
+                            if not category_name:
+                                continue
+                            
+                            if category_name not in period_ago_category_counts:
+                                period_ago_category_counts[category_name] = 0
+                            
+                            period_ago_category_counts[category_name] += views
+                    
+                    period_ago_data = period_ago_category_counts
             except Exception as e:
                 import logging
                 logger = logging.getLogger(__name__)

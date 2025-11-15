@@ -835,9 +835,9 @@ function MostPopularCategories({
     name: category.category_name,
     views: category.total_views,
     productsCount: category.products_count,
-      change: category.views_change !== undefined && category.views_change !== null ? {
-        value: Math.abs(category.views_change),
-        isPositive: category.views_change >= 0
+      change: category.views_change_percent !== undefined && category.views_change_percent !== null ? {
+        value: Math.abs(category.views_change_percent),
+        isPositive: category.views_change_percent >= 0
       } : undefined
   }))
 
@@ -957,7 +957,7 @@ function MostPopularCategories({
                       {row.change ? (
                         <Badge variant={row.change.isPositive ? 'default' : 'destructive'} className="flex items-center gap-1 w-fit">
                           {row.change.isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {row.change.value.toLocaleString()}
+                          {row.change.value.toFixed(1)}%
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
