@@ -149,37 +149,81 @@ class ProductParser:
             # Extract price based on product type
             price = None
             is_free = False
-            # Try button text (more reliable for product pages)
-            price_button = soup.find(
-                "button", string=re.compile(r"(Purchase|Preview|Open|Copy)", re.I)
-            )
-            if price_button:
-                button_text = price_button.get_text().strip()
-                # Check for free indicators
-                if any(
-                    free in button_text.lower()
+            # Try button or link text (more reliable for product pages)
+            # Find all buttons and links, check their text content (text may be in nested elements)
+            price_element = None
+            # Check buttons first
+            buttons = soup.find_all("button")
+            for btn in buttons:
+                btn_text = btn.get_text().strip()
+                if re.search(r"(Purchase|Preview|Open|Copy|Use for)", btn_text, re.I):
+                    price_element = btn
+                    break
+            
+            # If not found in buttons, check links (some products use <a> instead of <button>)
+            if not price_element:
+                links = soup.find_all("a")
+                for link in links:
+                    link_text = link.get_text().strip()
+                    if re.search(r"(Purchase|Preview|Open|Copy|Use for)", link_text, re.I):
+                        price_element = link
+                        break
+            
+            if price_element:
+                element_text = price_element.get_text().strip()
+                # Check for free indicators - prioritize "free" keyword
+                element_text_lower = element_text.lower()
+                if "free" in element_text_lower:
+                    is_free = True
+                    price = None
+                elif any(
+                    free in element_text_lower
                     for free in ["preview", "open in framer", "copy component", "copy vectors"]
                 ):
                     is_free = True
                     price = None
                 else:
-                    # Extract price from button text (e.g., "Purchase for $49")
-                    price_match = re.search(r"\$([\d.]+)", button_text)
+                    # Extract price from element text (e.g., "Purchase for $49")
+                    price_match = re.search(r"\$([\d.]+)", element_text)
                     if price_match:
                         price = float(price_match.group(1))
                         is_free = False
 
-            # Fallback to span elements
+            # Fallback to span elements - but only in main product section, not "More from" section
             if price is None and not is_free:
-                price_elem = soup.select_one('span:contains("$"), span:contains("Free")')
+                # Try to find main content area first (avoid "More from" section)
+                main_content = soup.find("main") or soup.find("article") or soup
+                # Look for price in main content area only
+                price_elem = None
+                
+                # First try to find span with $ or Free text in main content
+                if main_content:
+                    for span in main_content.find_all("span"):
+                        span_text = span.get_text().strip()
+                        if "$" in span_text or "Free" in span_text.lower():
+                            price_elem = span
+                            break
+                
                 if not price_elem:
+                    # Fallback to full soup but exclude sections with "More from" or "Related"
                     for selector in [
                         '[class*="price"]',
                         '[class*="Price"]',
                         'span[class*="normalMeta"]',
                     ]:
-                        price_elem = soup.select_one(selector)
+                        # Try to find in main content first
+                        if main_content:
+                            price_elem = main_content.select_one(selector)
+                        if not price_elem:
+                            price_elem = soup.select_one(selector)
                         if price_elem:
+                            # Make sure it's not in "More from" or "Related" section
+                            parent = price_elem.find_parent(['section', 'div'])
+                            if parent:
+                                parent_text = parent.get_text().lower()
+                                if "more from" in parent_text or "related" in parent_text:
+                                    price_elem = None
+                                    continue
                             break
 
                 if price_elem:
