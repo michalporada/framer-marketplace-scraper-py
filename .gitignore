@@ -51,6 +51,7 @@ logs.*.json
 # Testing
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 .tox/
 
@@ -65,4 +66,8 @@ checkpoint.json
 # Exports (large files)
 data/exports/*.csv
 !data/exports/.gitkeep
+
+# Cache files
+data/sitemap_cache.xml
+data/*.log
 
