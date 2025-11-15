@@ -462,7 +462,8 @@ function MostPopularTemplates({
       category: category,
       views: template.views,
       isFree: template.is_free === true, // Explicit check for boolean true
-      price: template.price != null ? template.price : null,
+      // For free templates, always set price to null, regardless of API response
+      price: template.is_free === true ? null : (template.price != null ? template.price : null),
       change: template.views_change !== undefined && template.views_change !== null ? {
         value: Math.abs(template.views_change),
         isPositive: template.views_change >= 0
@@ -657,7 +658,8 @@ function TopGainers({
       category: category,
       views: template.views,
       isFree: template.is_free === true, // Explicit check for boolean true
-      price: template.price != null ? template.price : null,
+      // For free templates, always set price to null, regardless of API response
+      price: template.is_free === true ? null : (template.price != null ? template.price : null),
       change: template.views_change !== undefined && template.views_change !== null ? {
         value: Math.abs(template.views_change),
         isPositive: template.views_change >= 0
