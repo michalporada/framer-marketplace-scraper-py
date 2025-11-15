@@ -1855,8 +1855,18 @@ async def get_top_categories_by_views(
             # Calculate change
             views_change = current_views - previous_views
             views_change_percent = 0.0
-            if previous_views > 0:
+            
+            # Only calculate percentage change if previous_views is meaningful (>= 100)
+            # This prevents extreme percentages when previous_views is very small (e.g., 1-10)
+            # For very small previous_views, percentage change is not meaningful
+            if previous_views >= 100:
                 views_change_percent = (views_change / previous_views) * 100
+                # Cap maximum percentage change at 1000% to avoid extreme values
+                # Values above 1000% are not meaningful and indicate data issues or new categories
+                if views_change_percent > 1000:
+                    views_change_percent = 1000.0
+                elif views_change_percent < -1000:
+                    views_change_percent = -1000.0
 
             top_categories.append(
                 TopCategoryByViews(
