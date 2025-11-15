@@ -566,9 +566,17 @@ async def get_top_free_templates(
             creator_name = creator_details.get(product_data["creator_username"] or "")
             
             # For free templates endpoint, is_free should always be True
+            # Ensure is_free is a proper boolean
+            is_free_raw = product_info.get("is_free", True)
+            if isinstance(is_free_raw, bool):
+                is_free = is_free_raw
+            elif isinstance(is_free_raw, str):
+                is_free = is_free_raw.lower() in ("true", "1", "yes")
+            else:
+                is_free = bool(is_free_raw) if is_free_raw is not None else True
+            
             # Always set price to None for free templates, regardless of database value
-            is_free = product_info.get("is_free", True)
-            price = None  # Free templates should never have a price
+            price = None
 
             top_products.append(
                 TopProductByViews(
@@ -751,9 +759,30 @@ async def _get_top_products_by_type(
             creator_name = creator_details.get(product_data["creator_username"] or "")
             
             # Determine is_free and price
-            is_free = product_info.get("is_free", False)
+            # Ensure is_free is a proper boolean (handle None, string "true"/"false", etc.)
+            is_free_raw = product_info.get("is_free", False)
+            if isinstance(is_free_raw, bool):
+                is_free = is_free_raw
+            elif isinstance(is_free_raw, str):
+                is_free = is_free_raw.lower() in ("true", "1", "yes")
+            else:
+                is_free = bool(is_free_raw) if is_free_raw is not None else False
+            
             # For free products, always set price to None, regardless of database value
-            price = None if is_free else product_info.get("price")
+            # For paid products, only set price if it's a valid positive number
+            if is_free:
+                price = None
+            else:
+                price_raw = product_info.get("price")
+                if price_raw is None:
+                    price = None
+                else:
+                    try:
+                        price_float = float(price_raw)
+                        # Only set price if it's a positive number
+                        price = price_float if price_float > 0 else None
+                    except (ValueError, TypeError):
+                        price = None
 
             top_products.append(
                 TopProductByViews(

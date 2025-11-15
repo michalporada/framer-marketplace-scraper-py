@@ -461,9 +461,15 @@ function MostPopularTemplates({
       creatorId: template.creator_username,
       category: category,
       views: template.views,
-      isFree: template.is_free === true, // Explicit check for boolean true
-      // For free templates, always set price to null, regardless of API response
-      price: template.is_free === true ? null : (template.price != null ? template.price : null),
+      // Ensure is_free is properly handled (handle boolean, string, null, undefined)
+      isFree: template.is_free === true || template.is_free === "true" || template.is_free === 1,
+      // For free templates, always set price to null
+      // For paid templates, only set price if it's a valid positive number
+      price: (template.is_free === true || template.is_free === "true" || template.is_free === 1)
+        ? null
+        : (template.price != null && typeof template.price === 'number' && template.price > 0)
+          ? template.price
+          : null,
       change: template.views_change !== undefined && template.views_change !== null ? {
         value: Math.abs(template.views_change),
         isPositive: template.views_change >= 0
@@ -588,7 +594,7 @@ function MostPopularTemplates({
                     <TableCell className="text-right">
                       {row.isFree ? (
                         <Badge variant="secondary" className="text-xs">Free</Badge>
-                      ) : row.price ? (
+                      ) : (row.price != null && typeof row.price === 'number' && row.price > 0) ? (
                         <Badge variant="outline" className="text-xs">
                           ${row.price.toFixed(2)}
                         </Badge>
@@ -657,9 +663,15 @@ function TopGainers({
       creatorId: template.creator_username,
       category: category,
       views: template.views,
-      isFree: template.is_free === true, // Explicit check for boolean true
-      // For free templates, always set price to null, regardless of API response
-      price: template.is_free === true ? null : (template.price != null ? template.price : null),
+      // Ensure is_free is properly handled (handle boolean, string, null, undefined)
+      isFree: template.is_free === true || template.is_free === "true" || template.is_free === 1,
+      // For free templates, always set price to null
+      // For paid templates, only set price if it's a valid positive number
+      price: (template.is_free === true || template.is_free === "true" || template.is_free === 1)
+        ? null
+        : (template.price != null && typeof template.price === 'number' && template.price > 0)
+          ? template.price
+          : null,
       change: template.views_change !== undefined && template.views_change !== null ? {
         value: Math.abs(template.views_change),
         isPositive: template.views_change >= 0
@@ -784,7 +796,7 @@ function TopGainers({
                     <TableCell className="text-right">
                       {row.isFree ? (
                         <Badge variant="secondary" className="text-xs">Free</Badge>
-                      ) : row.price ? (
+                      ) : (row.price != null && typeof row.price === 'number' && row.price > 0) ? (
                         <Badge variant="outline" className="text-xs">
                           ${row.price.toFixed(2)}
                         </Badge>
