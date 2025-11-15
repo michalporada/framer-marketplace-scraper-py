@@ -563,7 +563,7 @@ async def get_top_free_templates(
                 views_change_percent = (views_change / previous_views) * 100
 
             product_info = products_details.get(product_id, {})
-            creator_info = creator_details.get(product_data["creator_username"] or "", {})
+            creator_name = creator_details.get(product_data["creator_username"] or "")
 
             top_products.append(
                 TopProductByViews(
@@ -571,7 +571,7 @@ async def get_top_free_templates(
                     name=product_data["name"],
                     type="template",
                     creator_username=product_data["creator_username"],
-                    creator_name=creator_info.get("name") if isinstance(creator_info, dict) else None,
+                    creator_name=creator_name if creator_name else None,
                     category=product_info.get("category"),
                     views=current_views,
                     views_change=views_change,
@@ -743,7 +743,7 @@ async def _get_top_products_by_type(
                 views_change_percent = (views_change / previous_views) * 100
 
             product_info = products_details.get(product_id, {})
-            creator_info = creator_details.get(product_data["creator_username"] or "", {})
+            creator_name = creator_details.get(product_data["creator_username"] or "")
 
             top_products.append(
                 TopProductByViews(
@@ -751,7 +751,7 @@ async def _get_top_products_by_type(
                     name=product_data["name"],
                     type=product_type,
                     creator_username=product_data["creator_username"],
-                    creator_name=creator_info.get("name") if isinstance(creator_info, dict) else None,
+                    creator_name=creator_name if creator_name else None,
                     category=product_info.get("category"),
                     views=current_views,
                     views_change=views_change,

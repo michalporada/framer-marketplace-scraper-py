@@ -438,9 +438,12 @@ function MostPopularTemplates({
   const templates = responseData?.data || []
   const mappedData = templates.map((template: any, index: number) => {
     // Obsługa creator_name - zawsze używaj name z bazy danych, nie username
+    // Fallback do creator_username jeśli creator_name nie jest dostępne
     const creatorName = (template.creator_name != null && template.creator_name !== '' && typeof template.creator_name === 'string' && template.creator_name.trim() !== '')
       ? template.creator_name.trim()
-      : 'Unknown'
+      : (template.creator_username && typeof template.creator_username === 'string' && template.creator_username.trim() !== '')
+        ? template.creator_username.trim()
+        : 'Unknown'
     
     // Obsługa category
     const category = (template.category != null && template.category !== '' && typeof template.category === 'string' && template.category.trim() !== '')
@@ -630,9 +633,12 @@ function TopGainers({
   const templates = responseData?.data || []
   const mappedData = templates.map((template: any, index: number) => {
     // Obsługa creator_name - zawsze używaj name z bazy danych, nie username
+    // Fallback do creator_username jeśli creator_name nie jest dostępne
     const creatorName = (template.creator_name != null && template.creator_name !== '' && typeof template.creator_name === 'string' && template.creator_name.trim() !== '')
       ? template.creator_name.trim()
-      : 'Unknown'
+      : (template.creator_username && typeof template.creator_username === 'string' && template.creator_username.trim() !== '')
+        ? template.creator_username.trim()
+        : 'Unknown'
     
     // Obsługa category
     const category = (template.category != null && template.category !== '' && typeof template.category === 'string' && template.category.trim() !== '')
