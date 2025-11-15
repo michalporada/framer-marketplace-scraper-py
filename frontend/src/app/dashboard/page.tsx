@@ -254,9 +254,12 @@ function TopCreatorsByViews({
     }
     
     // Obsługa name - zawsze używaj name z bazy danych, nie username
+    // Fallback do username jeśli name nie jest dostępne
     const creatorName = (creator.name != null && creator.name !== '' && typeof creator.name === 'string' && creator.name.trim() !== '')
       ? creator.name.trim() 
-      : 'Unknown'
+      : (creator.username && typeof creator.username === 'string' && creator.username.trim() !== '')
+        ? creator.username.trim()
+        : 'Unknown'
     
     // Obsługa avatar_url - sprawdź czy istnieje i nie jest pusty/null/undefined
     const avatarUrl = (creator.avatar_url != null && creator.avatar_url !== '' && typeof creator.avatar_url === 'string' && creator.avatar_url.trim() !== '')
@@ -990,9 +993,12 @@ function MostPopularFreeTemplates({
   const templates = responseData?.data || []
   const mappedData = templates.map((template: any, index: number) => {
     // Obsługa creator_name - zawsze używaj name z bazy danych, nie username
+    // Fallback do creator_username jeśli creator_name nie jest dostępne
     const creatorName = (template.creator_name != null && template.creator_name !== '' && typeof template.creator_name === 'string' && template.creator_name.trim() !== '')
       ? template.creator_name.trim()
-      : 'Unknown'
+      : (template.creator_username && typeof template.creator_username === 'string' && template.creator_username.trim() !== '')
+        ? template.creator_username.trim()
+        : 'Unknown'
     
     // Obsługa category
     const category = (template.category != null && template.category !== '' && typeof template.category === 'string' && template.category.trim() !== '')
