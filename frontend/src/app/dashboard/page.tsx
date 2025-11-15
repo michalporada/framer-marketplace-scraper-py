@@ -253,10 +253,10 @@ function TopCreatorsByViews({
       console.log('Creator data from API:', creator)
     }
     
-    // Obsługa name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    // Obsługa name - zawsze używaj name z bazy danych, nie username
     const creatorName = (creator.name != null && creator.name !== '' && typeof creator.name === 'string' && creator.name.trim() !== '')
       ? creator.name.trim() 
-      : creator.username || 'Unknown'
+      : 'Unknown'
     
     // Obsługa avatar_url - sprawdź czy istnieje i nie jest pusty/null/undefined
     const avatarUrl = (creator.avatar_url != null && creator.avatar_url !== '' && typeof creator.avatar_url === 'string' && creator.avatar_url.trim() !== '')
@@ -375,9 +375,9 @@ function TopCreatorsByViews({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={row.avatar || undefined} alt={row.name || row.id} />
+                          <AvatarImage src={row.avatar || undefined} alt={row.name || 'Unknown'} />
                           <AvatarFallback>
-                            {row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase() || '?'}
+                            {row.name?.charAt(0)?.toUpperCase() || '?'}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
@@ -387,7 +387,7 @@ function TopCreatorsByViews({
                             rel="noopener noreferrer"
                             className="font-medium hover:underline transition-colors"
                           >
-                            {row.name || row.id}
+                            {row.name}
                           </Link>
                           {row.templatesCount && (
                             <span className="text-xs text-muted-foreground">
@@ -437,10 +437,10 @@ function MostPopularTemplates({
   // Mapuj dane z props
   const templates = responseData?.data || []
   const mappedData = templates.map((template: any, index: number) => {
-    // Obsługa creator_name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    // Obsługa creator_name - zawsze używaj name z bazy danych, nie username
     const creatorName = (template.creator_name != null && template.creator_name !== '' && typeof template.creator_name === 'string' && template.creator_name.trim() !== '')
       ? template.creator_name.trim()
-      : template.creator_username || 'Unknown'
+      : 'Unknown'
     
     // Obsługa category
     const category = (template.category != null && template.category !== '' && typeof template.category === 'string' && template.category.trim() !== '')
@@ -629,10 +629,10 @@ function TopGainers({
   // Mapuj dane z props
   const templates = responseData?.data || []
   const mappedData = templates.map((template: any, index: number) => {
-    // Obsługa creator_name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    // Obsługa creator_name - zawsze używaj name z bazy danych, nie username
     const creatorName = (template.creator_name != null && template.creator_name !== '' && typeof template.creator_name === 'string' && template.creator_name.trim() !== '')
       ? template.creator_name.trim()
-      : template.creator_username || 'Unknown'
+      : 'Unknown'
     
     // Obsługa category
     const category = (template.category != null && template.category !== '' && typeof template.category === 'string' && template.category.trim() !== '')
@@ -983,10 +983,10 @@ function MostPopularFreeTemplates({
   // Mapuj dane z props
   const templates = responseData?.data || []
   const mappedData = templates.map((template: any, index: number) => {
-    // Obsługa creator_name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    // Obsługa creator_name - zawsze używaj name z bazy danych, nie username
     const creatorName = (template.creator_name != null && template.creator_name !== '' && typeof template.creator_name === 'string' && template.creator_name.trim() !== '')
       ? template.creator_name.trim()
-      : template.creator_username || 'Unknown'
+      : 'Unknown'
     
     // Obsługa category
     const category = (template.category != null && template.category !== '' && typeof template.category === 'string' && template.category.trim() !== '')
@@ -1162,10 +1162,10 @@ function CreatorsMostTemplates({
       console.log('Creator data from API (Most Templates):', creator)
     }
     
-    // Obsługa name - preferuj name jeśli istnieje i nie jest pusty/null/undefined
+    // Obsługa name - zawsze używaj name z bazy danych, nie username
     const creatorName = (creator.name != null && creator.name !== '' && typeof creator.name === 'string' && creator.name.trim() !== '')
       ? creator.name.trim() 
-      : creator.username || 'Unknown'
+      : 'Unknown'
     
     // Obsługa avatar_url - sprawdź czy istnieje i nie jest pusty/null/undefined
     const avatarUrl = (creator.avatar_url != null && creator.avatar_url !== '' && typeof creator.avatar_url === 'string' && creator.avatar_url.trim() !== '')
@@ -1295,9 +1295,9 @@ function CreatorsMostTemplates({
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={row.avatar || undefined} alt={row.name || row.id} />
+                          <AvatarImage src={row.avatar || undefined} alt={row.name || 'Unknown'} />
                           <AvatarFallback>
-                            {row.name?.charAt(0)?.toUpperCase() || row.id?.charAt(0)?.toUpperCase() || '?'}
+                            {row.name?.charAt(0)?.toUpperCase() || '?'}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
@@ -1307,7 +1307,7 @@ function CreatorsMostTemplates({
                             rel="noopener noreferrer"
                             className="font-medium hover:underline transition-colors"
                           >
-                            {row.name || row.id}
+                            {row.name}
                           </Link>
                           {row.totalViews && (
                             <span className="text-xs text-muted-foreground">
