@@ -352,8 +352,8 @@ async def get_top_creators_by_template_views(
             logger = logging.getLogger(__name__)
             logger.info(f"Fetching creator details for usernames: {creators_usernames[:3]}...")  # Log first 3
             
-            creator_query = "SELECT username, name, avatar_url FROM creators WHERE username = ANY(:usernames::text[])"
-            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            creator_query = "SELECT username, name, avatar_url FROM creators WHERE username IN :usernames"
+            creator_rows = execute_query(creator_query, {"usernames": tuple(creators_usernames)})
             
             if creator_rows:
                 logger.info(f"Found {len(creator_rows)} creator rows")
@@ -539,20 +539,19 @@ async def get_top_creators_by_template_count(
                 row[0]: int(row[1]) if row[1] else 0 for row in result_period
             }
 
-        # Get creator details (name, avatar, total_products, total_views) from creators table
+        # Get creator details (name, avatar, total_products) from creators table
         # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         creators_usernames = list(latest_data.keys())
         creator_details = {}
         if creators_usernames:
-            creator_query = "SELECT username, name, avatar_url, total_products, total_views FROM creators WHERE username = ANY(:usernames::text[])"
-            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            creator_query = "SELECT username, name, avatar_url, total_products FROM creators WHERE username IN :usernames"
+            creator_rows = execute_query(creator_query, {"usernames": tuple(creators_usernames)})
             if creator_rows:
                 creator_details = {
                     row["username"]: {
                         "name": row.get("name"),
                         "avatar_url": row.get("avatar_url"),
                         "total_products": row.get("total_products", 0),
-                        "total_views": row.get("total_views"),
                     }
                     for row in creator_rows
                 }
@@ -578,7 +577,7 @@ async def get_top_creators_by_template_count(
                     avatar_url=creator_info.get("avatar_url"),
                     templates_count=current_count,
                     total_products=creator_info.get("total_products", 0),
-                    total_views=creator_info.get("total_views"),
+                    total_views=None,  # total_views is not stored in creators table
                     templates_change=templates_change,
                     templates_change_percent=round(templates_change_percent, 2),
                 )
@@ -1118,20 +1117,19 @@ async def get_top_creators_by_template_count(
                 row[0]: int(row[1]) if row[1] else 0 for row in result_period
             }
 
-        # Get creator details (name, avatar, total_products, total_views) from creators table
+        # Get creator details (name, avatar, total_products) from creators table
         # ✅ OPTIMIZED: Single query with IN instead of N+1 queries
         creators_usernames = list(latest_data.keys())
         creator_details = {}
         if creators_usernames:
-            creator_query = "SELECT username, name, avatar_url, total_products, total_views FROM creators WHERE username = ANY(:usernames::text[])"
-            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            creator_query = "SELECT username, name, avatar_url, total_products FROM creators WHERE username IN :usernames"
+            creator_rows = execute_query(creator_query, {"usernames": tuple(creators_usernames)})
             if creator_rows:
                 creator_details = {
                     row["username"]: {
                         "name": row.get("name"),
                         "avatar_url": row.get("avatar_url"),
                         "total_products": row.get("total_products", 0),
-                        "total_views": row.get("total_views"),
                     }
                     for row in creator_rows
                 }
@@ -1157,7 +1155,7 @@ async def get_top_creators_by_template_count(
                     avatar_url=creator_info.get("avatar_url"),
                     templates_count=current_count,
                     total_products=creator_info.get("total_products", 0),
-                    total_views=creator_info.get("total_views"),
+                    total_views=None,  # total_views is not stored in creators table
                     templates_change=templates_change,
                     templates_change_percent=round(templates_change_percent, 2),
                 )

@@ -528,8 +528,8 @@ async def get_top_free_templates(
         product_ids = list(latest_data.keys())
         products_details = {}
         if product_ids:
-            product_query = "SELECT id, is_free, price, category FROM products WHERE id = ANY(:product_ids::text[])"
-            product_rows = execute_query(product_query, {"product_ids": product_ids})
+            product_query = "SELECT id, is_free, price, category FROM products WHERE id IN :product_ids"
+            product_rows = execute_query(product_query, {"product_ids": tuple(product_ids)})
             if product_rows:
                 products_details = {
                     row["id"]: {
@@ -545,8 +545,8 @@ async def get_top_free_templates(
         creators_usernames = list(set([data["creator_username"] for data in latest_data.values() if data["creator_username"]]))
         creator_details = {}
         if creators_usernames:
-            creator_query = "SELECT username, name FROM creators WHERE username = ANY(:usernames::text[])"
-            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            creator_query = "SELECT username, name FROM creators WHERE username IN :usernames"
+            creator_rows = execute_query(creator_query, {"usernames": tuple(creators_usernames)})
             if creator_rows:
                 creator_details = {row["username"]: row.get("name") for row in creator_rows}
 
@@ -708,8 +708,8 @@ async def _get_top_products_by_type(
         product_ids = list(latest_data.keys())
         products_details = {}
         if product_ids:
-            product_query = "SELECT id, is_free, price, category FROM products WHERE id = ANY(:product_ids::text[])"
-            product_rows = execute_query(product_query, {"product_ids": product_ids})
+            product_query = "SELECT id, is_free, price, category FROM products WHERE id IN :product_ids"
+            product_rows = execute_query(product_query, {"product_ids": tuple(product_ids)})
             if product_rows:
                 products_details = {
                     row["id"]: {
@@ -725,8 +725,8 @@ async def _get_top_products_by_type(
         creators_usernames = list(set([data["creator_username"] for data in latest_data.values() if data["creator_username"]]))
         creator_details = {}
         if creators_usernames:
-            creator_query = "SELECT username, name FROM creators WHERE username = ANY(:usernames::text[])"
-            creator_rows = execute_query(creator_query, {"usernames": creators_usernames})
+            creator_query = "SELECT username, name FROM creators WHERE username IN :usernames"
+            creator_rows = execute_query(creator_query, {"usernames": tuple(creators_usernames)})
             if creator_rows:
                 creator_details = {row["username"]: row.get("name") for row in creator_rows}
 
