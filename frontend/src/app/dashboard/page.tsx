@@ -95,14 +95,14 @@ export default function DashboardPage() {
         getTopCreatorsByTemplateCount({ limit: 10, period_hours: periodHours })
       ])
 
-      // Przetwórz wyniki - dla topGainers posortuj według views_change_percent
+      // Przetwórz wyniki - dla topGainers posortuj według views_change
       let topGainersData = null
       if (topGainersResult.status === 'fulfilled' && topGainersResult.value?.data) {
         const templates = [...topGainersResult.value.data]
-        // Sortuj według views_change_percent (największy wzrost)
+        // Sortuj według views_change (największy wzrost bezwzględny)
         templates.sort((a: any, b: any) => {
-          const aChange = a.views_change_percent ?? -Infinity
-          const bChange = b.views_change_percent ?? -Infinity
+          const aChange = a.views_change ?? -Infinity
+          const bChange = b.views_change ?? -Infinity
           return bChange - aChange // Malejąco
         })
         // Weź top 10
@@ -275,9 +275,9 @@ function TopCreatorsByViews({
       avatar: avatarUrl,
       views: creator.total_views,
       templatesCount: creator.templates_count,
-      change: creator.views_change_percent !== undefined && creator.views_change_percent !== null ? {
-        value: Math.abs(creator.views_change_percent),
-        isPositive: creator.views_change_percent >= 0
+      change: creator.views_change !== undefined && creator.views_change !== null ? {
+        value: Math.abs(creator.views_change),
+        isPositive: creator.views_change >= 0
       } : undefined
     }
   })
@@ -402,7 +402,7 @@ function TopCreatorsByViews({
                       {row.change ? (
                         <Badge variant={row.change.isPositive ? 'default' : 'destructive'} className="flex items-center gap-1 w-fit">
                           {row.change.isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {row.change.value.toFixed(1)}%
+                          {row.change.value.toLocaleString()}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
@@ -457,9 +457,9 @@ function MostPopularTemplates({
       views: template.views,
       isFree: template.is_free === true, // Explicit check for boolean true
       price: template.price != null ? template.price : null,
-      change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
-        value: Math.abs(template.views_change_percent),
-        isPositive: template.views_change_percent >= 0
+      change: template.views_change !== undefined && template.views_change !== null ? {
+        value: Math.abs(template.views_change),
+        isPositive: template.views_change >= 0
       } : undefined
     }
   })
@@ -594,7 +594,7 @@ function MostPopularTemplates({
                       {row.change ? (
                         <Badge variant={row.change.isPositive ? 'default' : 'destructive'} className="flex items-center gap-1 w-fit">
                           {row.change.isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {row.change.value.toFixed(1)}%
+                          {row.change.value.toLocaleString()}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
@@ -649,9 +649,9 @@ function TopGainers({
       views: template.views,
       isFree: template.is_free === true, // Explicit check for boolean true
       price: template.price != null ? template.price : null,
-      change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
-        value: Math.abs(template.views_change_percent),
-        isPositive: template.views_change_percent >= 0
+      change: template.views_change !== undefined && template.views_change !== null ? {
+        value: Math.abs(template.views_change),
+        isPositive: template.views_change >= 0
       } : undefined
     }
   })
@@ -786,7 +786,7 @@ function TopGainers({
                       {row.change ? (
                         <Badge variant={row.change.isPositive ? 'default' : 'destructive'} className="flex items-center gap-1 w-fit">
                           {row.change.isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {row.change.value.toFixed(1)}%
+                          {row.change.value.toLocaleString()}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
@@ -826,10 +826,10 @@ function MostPopularCategories({
     name: category.category_name,
     views: category.total_views,
     productsCount: category.products_count,
-    change: category.views_change_percent !== undefined && category.views_change_percent !== null ? {
-      value: Math.abs(category.views_change_percent),
-      isPositive: category.views_change_percent >= 0
-    } : undefined
+      change: category.views_change !== undefined && category.views_change !== null ? {
+        value: Math.abs(category.views_change),
+        isPositive: category.views_change >= 0
+      } : undefined
   }))
 
   // Sort data
@@ -948,7 +948,7 @@ function MostPopularCategories({
                       {row.change ? (
                         <Badge variant={row.change.isPositive ? 'default' : 'destructive'} className="flex items-center gap-1 w-fit">
                           {row.change.isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {row.change.value.toFixed(1)}%
+                          {row.change.value.toLocaleString()}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
@@ -1003,9 +1003,9 @@ function MostPopularFreeTemplates({
       category: category,
       views: template.views,
       isFree: template.is_free === true, // Explicit check for boolean true
-      change: template.views_change_percent !== undefined && template.views_change_percent !== null ? {
-        value: Math.abs(template.views_change_percent),
-        isPositive: template.views_change_percent >= 0
+      change: template.views_change !== undefined && template.views_change !== null ? {
+        value: Math.abs(template.views_change),
+        isPositive: template.views_change >= 0
       } : undefined
     }
   })
@@ -1122,7 +1122,7 @@ function MostPopularFreeTemplates({
                       {row.change ? (
                         <Badge variant={row.change.isPositive ? 'default' : 'destructive'} className="flex items-center gap-1 w-fit">
                           {row.change.isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {row.change.value.toFixed(1)}%
+                          {row.change.value.toLocaleString()}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
@@ -1185,9 +1185,9 @@ function CreatorsMostTemplates({
       templatesCount: creator.templates_count,
       totalProducts: creator.total_products,
       totalViews: creator.total_views || null, // Total views może nie być dostępne w API
-      change: creator.templates_change_percent !== undefined && creator.templates_change_percent !== null ? {
-        value: Math.abs(creator.templates_change_percent),
-        isPositive: creator.templates_change_percent >= 0
+      change: creator.templates_change !== undefined && creator.templates_change !== null ? {
+        value: Math.abs(creator.templates_change),
+        isPositive: creator.templates_change >= 0
       } : undefined
     }
   })
@@ -1322,7 +1322,7 @@ function CreatorsMostTemplates({
                       {row.change ? (
                         <Badge variant={row.change.isPositive ? 'default' : 'destructive'} className="flex items-center gap-1 w-fit">
                           {row.change.isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                          {row.change.value.toFixed(1)}%
+                          {row.change.value.toLocaleString()}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground">-</span>
