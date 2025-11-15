@@ -564,6 +564,11 @@ async def get_top_free_templates(
 
             product_info = products_details.get(product_id, {})
             creator_name = creator_details.get(product_data["creator_username"] or "")
+            
+            # For free templates endpoint, is_free should always be True
+            # Always set price to None for free templates, regardless of database value
+            is_free = product_info.get("is_free", True)
+            price = None  # Free templates should never have a price
 
             top_products.append(
                 TopProductByViews(
@@ -576,8 +581,8 @@ async def get_top_free_templates(
                     views=current_views,
                     views_change=views_change,
                     views_change_percent=round(views_change_percent, 2),
-                    is_free=product_info.get("is_free", True),  # Should always be True for free templates
-                    price=product_info.get("price"),
+                    is_free=is_free,
+                    price=price,
                 )
             )
 
@@ -744,6 +749,11 @@ async def _get_top_products_by_type(
 
             product_info = products_details.get(product_id, {})
             creator_name = creator_details.get(product_data["creator_username"] or "")
+            
+            # Determine is_free and price
+            is_free = product_info.get("is_free", False)
+            # For free products, always set price to None, regardless of database value
+            price = None if is_free else product_info.get("price")
 
             top_products.append(
                 TopProductByViews(
@@ -756,8 +766,8 @@ async def _get_top_products_by_type(
                     views=current_views,
                     views_change=views_change,
                     views_change_percent=round(views_change_percent, 2),
-                    is_free=product_info.get("is_free", False),
-                    price=product_info.get("price"),
+                    is_free=is_free,
+                    price=price,
                 )
             )
 
