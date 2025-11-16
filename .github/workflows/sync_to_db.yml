@@ -12,6 +12,11 @@ on:
     # Fallback: jeśli workflow_run nie zadziała, uruchom o 8:00 UTC (6h po scrapowaniu o 2:00)
     - cron: '0 8 * * *'
 
+# Prevent duplicate runs - only one sync can run at a time
+concurrency:
+  group: sync-json-to-database
+  cancel-in-progress: false  # Don't cancel in-progress runs, just queue new ones
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -158,19 +163,30 @@ jobs:
         id: check-recent-sync
         if: github.event_name == 'schedule'
         run: |
-          echo "🔍 Checking if sync was already run recently by workflow_run trigger..."
+          echo "🔍 Checking if sync was already run or is in progress by workflow_run trigger..."
           
           # Get current date in UTC (YYYY-MM-DD format)
           TODAY=$(date -u +%Y-%m-%d)
           echo "Today's date (UTC): $TODAY"
           
-          # Check for successful sync runs triggered by workflow_run today
+          # Check for sync runs triggered by workflow_run today (success, in_progress, or queued)
           # This prevents duplicate syncs when schedule runs at 8:00 UTC
           # but workflow_run already triggered sync earlier (e.g., at 2:30 UTC)
-          RECENT_SYNC=$(gh run list --workflow=sync_to_db.yml --status=success --limit=10 --json databaseId,createdAt,event --jq ".[] | select(.event == \"workflow_run\") | select(.createdAt | startswith(\"$TODAY\")) | .databaseId" 2>/dev/null | head -1 || echo "")
+          # We check for all statuses to catch runs that are still in progress
+          RECENT_SYNC_SUCCESS=$(gh run list --workflow=sync_to_db.yml --status=success --limit=10 --json databaseId,createdAt,event --jq ".[] | select(.event == \"workflow_run\") | select(.createdAt | startswith(\"$TODAY\")) | .databaseId" 2>/dev/null | head -1 || echo "")
+          RECENT_SYNC_IN_PROGRESS=$(gh run list --workflow=sync_to_db.yml --status=in_progress --limit=10 --json databaseId,createdAt,event --jq ".[] | select(.event == \"workflow_run\") | select(.createdAt | startswith(\"$TODAY\")) | .databaseId" 2>/dev/null | head -1 || echo "")
+          RECENT_SYNC_QUEUED=$(gh run list --workflow=sync_to_db.yml --status=queued --limit=10 --json databaseId,createdAt,event --jq ".[] | select(.event == \"workflow_run\") | select(.createdAt | startswith(\"$TODAY\")) | .databaseId" 2>/dev/null | head -1 || echo "")
           
-          if [ -n "$RECENT_SYNC" ] && [ "$RECENT_SYNC" != "null" ]; then
-            echo "✅ Found sync run triggered by workflow_run today: $RECENT_SYNC"
+          if [ -n "$RECENT_SYNC_SUCCESS" ] && [ "$RECENT_SYNC_SUCCESS" != "null" ]; then
+            echo "✅ Found successful sync run triggered by workflow_run today: $RECENT_SYNC_SUCCESS"
+            echo "⏭️ Skipping scheduled sync to prevent duplicate execution"
+            echo "already_synced=true" >> $GITHUB_OUTPUT
+          elif [ -n "$RECENT_SYNC_IN_PROGRESS" ] && [ "$RECENT_SYNC_IN_PROGRESS" != "null" ]; then
+            echo "⏳ Found sync run in progress triggered by workflow_run today: $RECENT_SYNC_IN_PROGRESS"
+            echo "⏭️ Skipping scheduled sync to prevent duplicate execution"
+            echo "already_synced=true" >> $GITHUB_OUTPUT
+          elif [ -n "$RECENT_SYNC_QUEUED" ] && [ "$RECENT_SYNC_QUEUED" != "null" ]; then
+            echo "📋 Found sync run queued triggered by workflow_run today: $RECENT_SYNC_QUEUED"
             echo "⏭️ Skipping scheduled sync to prevent duplicate execution"
             echo "already_synced=true" >> $GITHUB_OUTPUT
           else
