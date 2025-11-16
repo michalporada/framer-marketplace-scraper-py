@@ -2509,3 +2509,271 @@ async def get_all_categories_by_count(
                 }
             },
         )
+
+
+@router.get("/fastest-growing", response_model=TopProductsByViewsResponse)
+async def get_fastest_growing_products(
+    product_type: Optional[str] = Query(
+        None, description="Filter by product type: template, component, vector, plugin"
+    ),
+    limit: int = Query(20, ge=1, le=100, description="Number of products to return"),
+    period_hours: int = Query(24, ge=1, le=168, description="Period in hours for growth calculation (1-168, default: 24)"),
+    sort_by: str = Query("percent", description="Sort by: percent (growth %), absolute (absolute change), views (current views)"),
+):
+    """Get fastest growing products by views change.
+    
+    This endpoint identifies products with the highest growth in views over a specified period.
+    Products are sorted by growth percentage, absolute change, or current views.
+    
+    Args:
+        product_type: Optional filter by product type
+        limit: Number of products to return (1-100, default: 20)
+        period_hours: Period in hours to compare for growth (1-168, default: 24)
+        sort_by: Sort method - 'percent' (growth %), 'absolute' (absolute change), 'views' (current views)
+    
+    Returns:
+        TopProductsByViewsResponse with fastest growing products sorted by growth
+    
+    Raises:
+        422: Invalid product type or sort_by parameter
+        503: Database not available
+    """
+    # Validate product type
+    if product_type and product_type not in ["template", "component", "vector", "plugin"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": {
+                    "code": "INVALID_PRODUCT_TYPE",
+                    "message": (
+                        "Invalid product type. Must be one of: template, component, vector, plugin"
+                    ),
+                    "details": {"type": product_type},
+                }
+            },
+        )
+    
+    # Validate sort_by
+    if sort_by not in ["percent", "absolute", "views"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": {
+                    "code": "INVALID_SORT_BY",
+                    "message": "Invalid sort_by. Must be one of: percent, absolute, views",
+                    "details": {"sort_by": sort_by},
+                }
+            },
+        )
+    
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+    
+    try:
+        from sqlalchemy import text
+        
+        # Get current time and period ago
+        now = datetime.utcnow()
+        period_ago = now - timedelta(hours=period_hours)
+        
+        # Build WHERE clause for product type filter
+        params = {"now_time": now, "period_ago_time": period_ago}
+        type_filter = ""
+        if product_type:
+            type_filter = "AND type = :product_type"
+            params["product_type"] = product_type
+        
+        # Query to get latest views for all products (or filtered by type)
+        query_latest = text(f"""
+            WITH latest_views AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id,
+                    name,
+                    type,
+                    creator_username,
+                    views_normalized
+                FROM product_history
+                WHERE views_normalized IS NOT NULL
+                    {type_filter}
+                    AND scraped_at <= :now_time
+                ORDER BY product_id, scraped_at DESC
+            )
+            SELECT product_id, name, type, creator_username, views_normalized
+            FROM latest_views
+        """)
+        
+        # Query to get views from period ago
+        query_period_ago = text(f"""
+            SELECT DISTINCT ON (product_id)
+                product_id,
+                views_normalized
+            FROM product_history
+            WHERE views_normalized IS NOT NULL
+                {type_filter}
+                AND scraped_at <= :period_ago_time
+            ORDER BY product_id, scraped_at DESC
+        """)
+        
+        with engine.connect() as conn:
+            # Get latest views for all products
+            result_latest = conn.execute(query_latest, params)
+            latest_data = {}
+            for row in result_latest:
+                latest_data[row[0]] = {
+                    "name": row[1],
+                    "type": row[2],
+                    "creator_username": row[3],
+                    "views": int(row[4]) if row[4] else 0,
+                }
+            
+            # Get views from period ago
+            result_period = conn.execute(query_period_ago, params)
+            period_ago_data = {
+                row[0]: int(row[1]) if row[1] else 0 for row in result_period
+            }
+        
+        # Calculate growth for all products
+        products_growth = []
+        for product_id, product_data in latest_data.items():
+            current_views = product_data["views"]
+            previous_views = period_ago_data.get(product_id, 0)
+            
+            # Only include products with growth (positive change)
+            views_change = current_views - previous_views
+            if views_change <= 0:
+                continue  # Skip products with no growth or negative growth
+            
+            # Calculate percentage change
+            views_change_percent = 0.0
+            if previous_views > 0:
+                views_change_percent = (views_change / previous_views) * 100
+            
+            products_growth.append({
+                "product_id": product_id,
+                "name": product_data["name"],
+                "type": product_data["type"],
+                "creator_username": product_data["creator_username"],
+                "current_views": current_views,
+                "previous_views": previous_views,
+                "views_change": views_change,
+                "views_change_percent": views_change_percent,
+            })
+        
+        # Sort by specified method
+        if sort_by == "percent":
+            products_growth.sort(key=lambda x: x["views_change_percent"], reverse=True)
+        elif sort_by == "absolute":
+            products_growth.sort(key=lambda x: x["views_change"], reverse=True)
+        else:  # views
+            products_growth.sort(key=lambda x: x["current_views"], reverse=True)
+        
+        # Limit results
+        products_growth = products_growth[:limit]
+        
+        # Get product details (is_free, price, category) from products table
+        product_ids = [p["product_id"] for p in products_growth]
+        products_details = {}
+        if product_ids:
+            product_query = "SELECT id, is_free, price, category FROM products WHERE id IN :product_ids"
+            product_rows = execute_query(product_query, {"product_ids": tuple(product_ids)})
+            if product_rows:
+                products_details = {
+                    row["id"]: {
+                        "is_free": row.get("is_free", False),
+                        "price": float(row.get("price")) if row.get("price") else None,
+                        "category": row.get("category"),
+                    }
+                    for row in product_rows
+                }
+        
+        # Get creator details
+        creators_usernames = list(set([p["creator_username"] for p in products_growth if p["creator_username"]]))
+        creator_details = {}
+        if creators_usernames:
+            creator_query = "SELECT username, name FROM creators WHERE username IN :usernames"
+            creator_rows = execute_query(creator_query, {"usernames": tuple(creators_usernames)})
+            if creator_rows:
+                creator_details = {row["username"]: row.get("name") for row in creator_rows}
+        
+        # Build response
+        top_products = []
+        for product in products_growth:
+            product_info = products_details.get(product["product_id"], {})
+            creator_name = creator_details.get(product["creator_username"] or "")
+            
+            # Determine is_free and price
+            is_free_raw = product_info.get("is_free", False)
+            if isinstance(is_free_raw, bool):
+                is_free = is_free_raw
+            elif isinstance(is_free_raw, str):
+                is_free = is_free_raw.lower() in ("true", "1", "yes")
+            else:
+                is_free = bool(is_free_raw) if is_free_raw is not None else False
+            
+            if is_free:
+                price = None
+            else:
+                price_raw = product_info.get("price")
+                if price_raw is None:
+                    price = None
+                else:
+                    try:
+                        price_float = float(price_raw)
+                        price = price_float if price_float > 0 else None
+                    except (ValueError, TypeError):
+                        price = None
+            
+            top_products.append(
+                TopProductByViews(
+                    product_id=product["product_id"],
+                    name=product["name"],
+                    type=product["type"],
+                    creator_username=product["creator_username"],
+                    creator_name=creator_name if creator_name else None,
+                    category=product_info.get("category"),
+                    views=product["current_views"],
+                    views_change=product["views_change"],
+                    views_change_percent=round(product["views_change_percent"], 2),
+                    is_free=is_free,
+                    price=price,
+                )
+            )
+        
+        return TopProductsByViewsResponse(
+            data=top_products,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "period_hours": period_hours,
+                "limit": limit,
+                "sort_by": sort_by,
+                "product_type": product_type,
+            },
+        )
+    
+    except Exception as e:
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Error calculating fastest growing products: {type(e).__name__}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to calculate fastest growing products: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
