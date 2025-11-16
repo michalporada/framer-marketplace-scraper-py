@@ -377,7 +377,7 @@ export async function getTopPaidTemplates(params?: {
   try {
     // Use top-templates endpoint and filter paid ones
     const query = `limit=${limit * 2}&period_hours=${periodHours}` // Get more to filter
-    const response = await fetchAPI(`/api/products/top-templates?${query}`)
+    const response = await fetchAPI<{ data: any[]; meta?: any }>(`/api/products/top-templates?${query}`)
     
     // Filter paid templates (is_free === false)
     const paidTemplates = (response.data || [])
