@@ -159,7 +159,7 @@ class ProductParser:
                 if re.search(r"(Purchase|Preview|Open|Copy|Use for)", btn_text, re.I):
                     price_element = btn
                     break
-            
+
             # If not found in buttons, check links (some products use <a> instead of <button>)
             if not price_element:
                 links = soup.find_all("a")
@@ -168,7 +168,7 @@ class ProductParser:
                     if re.search(r"(Purchase|Preview|Open|Copy|Use for)", link_text, re.I):
                         price_element = link
                         break
-            
+
             if price_element:
                 element_text = price_element.get_text().strip()
                 # Check for free indicators - prioritize "free" keyword
@@ -195,7 +195,7 @@ class ProductParser:
                 main_content = soup.find("main") or soup.find("article") or soup
                 # Look for price in main content area only
                 price_elem = None
-                
+
                 # First try to find span with $ or Free text in main content
                 if main_content:
                     for span in main_content.find_all("span"):
@@ -203,7 +203,7 @@ class ProductParser:
                         if "$" in span_text or "Free" in span_text.lower():
                             price_elem = span
                             break
-                
+
                 if not price_elem:
                     # Fallback to full soup but exclude sections with "More from" or "Related"
                     for selector in [
@@ -218,7 +218,7 @@ class ProductParser:
                             price_elem = soup.select_one(selector)
                         if price_elem:
                             # Make sure it's not in "More from" or "Related" section
-                            parent = price_elem.find_parent(['section', 'div'])
+                            parent = price_elem.find_parent(["section", "div"])
                             if parent:
                                 parent_text = parent.get_text().lower()
                                 if "more from" in parent_text or "related" in parent_text:
