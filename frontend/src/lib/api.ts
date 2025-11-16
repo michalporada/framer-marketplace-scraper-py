@@ -366,7 +366,7 @@ export async function getTopFreeTemplates(params?: {
 }
 
 // Top Paid Templates by Views
-// Simplified: Use top-templates endpoint and filter paid ones
+// Simplified: Use dedicated endpoint if available, fallback to products endpoint
 export async function getTopPaidTemplates(params?: {
   limit?: number
   period_hours?: number
@@ -375,24 +375,11 @@ export async function getTopPaidTemplates(params?: {
   const periodHours = params?.period_hours || 24
   
   try {
-    // Use top-templates endpoint and filter paid ones
-    const query = `limit=${limit * 2}&period_hours=${periodHours}` // Get more to filter
-    const response = await fetchAPI<{ data: any[]; meta?: any }>(`/api/products/top-templates?${query}`)
-    
-    // Filter paid templates (is_free === false)
-    const paidTemplates = (response.data || [])
-      .filter((product: any) => {
-        const isFree = product.is_free === true || product.is_free === "true" || product.is_free === 1
-        return !isFree
-      })
-      .slice(0, limit)
-    
-    return {
-      data: paidTemplates,
-      meta: response.meta || { timestamp: new Date().toISOString() }
-    }
+    // Try dedicated endpoint first
+    const query = `limit=${limit}&period_hours=${periodHours}`
+    return await fetchAPI(`/api/products/top-paid-templates?${query}`)
   } catch (error) {
-    console.warn('Error fetching paid templates, using products endpoint:', error)
+    console.warn('Dedicated endpoint not available, [returning empty data / using products endpoint]:', error)
     // Fallback: get templates and filter paid ones
     const response = await getProducts({
       type: 'template',
