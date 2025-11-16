@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
-import { getTopCreatorsByTemplateViews, getTopTemplates, getTopCategories, getTopFreeTemplates, getTopCreatorsByTemplateCount, periodToHours } from '@/lib/api'
+import { getTopCreatorsByTemplateViews, getTopTemplates, getTopCategories, getTopPaidTemplates, getTopCreatorsByTemplateCount, periodToHours } from '@/lib/api'
 import { TimePeriod } from '@/lib/types'
 
 type TimePeriodType = '1d' | '7d' | '30d'
@@ -59,14 +59,14 @@ export default function DashboardPage() {
     topTemplates: any
     topGainers: any
     topCategories: any
-    topFreeTemplates: any
+    topPaidTemplates: any
     creatorsMostTemplates: any
   }>({
     topCreators: null,
     topTemplates: null,
     topGainers: null,
     topCategories: null,
-    topFreeTemplates: null,
+    topPaidTemplates: null,
     creatorsMostTemplates: null,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -84,14 +84,14 @@ export default function DashboardPage() {
         topTemplatesResult,
         topGainersResult,
         topCategoriesResult,
-        topFreeTemplatesResult,
+        topPaidTemplatesResult,
         creatorsMostTemplatesResult
       ] = await Promise.allSettled([
         getTopCreatorsByTemplateViews({ limit: 10, period_hours: periodHours }),
         getTopTemplates({ limit: 10, period_hours: periodHours }),
         getTopTemplates({ limit: 100, period_hours: periodHours }), // Pobierz więcej, żeby móc posortować według views_change_percent
         getTopCategories({ limit: 10, period_hours: periodHours }),
-        getTopFreeTemplates({ limit: 10, period_hours: periodHours }),
+        getTopPaidTemplates({ limit: 10, period_hours: periodHours }),
         getTopCreatorsByTemplateCount({ limit: 10, period_hours: periodHours })
       ])
 
@@ -117,7 +117,7 @@ export default function DashboardPage() {
         topTemplates: topTemplatesResult.status === 'fulfilled' ? topTemplatesResult.value : null,
         topGainers: topGainersData,
         topCategories: topCategoriesResult.status === 'fulfilled' ? topCategoriesResult.value : null,
-        topFreeTemplates: topFreeTemplatesResult.status === 'fulfilled' ? topFreeTemplatesResult.value : null,
+        topPaidTemplates: topPaidTemplatesResult.status === 'fulfilled' ? topPaidTemplatesResult.value : null,
         creatorsMostTemplates: creatorsMostTemplatesResult.status === 'fulfilled' ? creatorsMostTemplatesResult.value : null,
       })
 
@@ -127,7 +127,7 @@ export default function DashboardPage() {
       if (topTemplatesResult.status === 'rejected') newErrors.topTemplates = topTemplatesResult.reason?.message || 'Failed to load'
       if (topGainersResult.status === 'rejected') newErrors.topGainers = topGainersResult.reason?.message || 'Failed to load'
       if (topCategoriesResult.status === 'rejected') newErrors.topCategories = topCategoriesResult.reason?.message || 'Failed to load'
-      if (topFreeTemplatesResult.status === 'rejected') newErrors.topFreeTemplates = topFreeTemplatesResult.reason?.message || 'Failed to load'
+      if (topPaidTemplatesResult.status === 'rejected') newErrors.topPaidTemplates = topPaidTemplatesResult.reason?.message || 'Failed to load'
       if (creatorsMostTemplatesResult.status === 'rejected') newErrors.creatorsMostTemplates = creatorsMostTemplatesResult.reason?.message || 'Failed to load'
       setErrors(newErrors)
 
@@ -175,12 +175,12 @@ export default function DashboardPage() {
           loading={loading}
           error={errors.topCategories}
         />
-        <MostPopularFreeTemplates 
+        <MostPopularPaidTemplates 
           period={period} 
           onPeriodChange={setPeriod}
-          data={dashboardData.topFreeTemplates}
+          data={dashboardData.topPaidTemplates}
           loading={loading}
-          error={errors.topFreeTemplates}
+          error={errors.topPaidTemplates}
         />
         <CreatorsMostTemplates 
           period={period} 
@@ -988,7 +988,7 @@ function MostPopularCategories({
   )
 }
 
-function MostPopularFreeTemplates({ 
+function MostPopularPaidTemplates({ 
   period, 
   onPeriodChange,
   data: responseData,
@@ -1028,7 +1028,15 @@ function MostPopularFreeTemplates({
       creatorAvatar: template.creator_avatar_url,
       category: category,
       views: template.views,
-      isFree: template.is_free === true, // Explicit check for boolean true
+      // Ensure is_free is properly handled (handle boolean, string, null, undefined)
+      isFree: template.is_free === true || template.is_free === "true" || template.is_free === 1,
+      // For free templates, always set price to null
+      // For paid templates, only set price if it's a valid positive number
+      price: (template.is_free === true || template.is_free === "true" || template.is_free === 1)
+        ? null
+        : (template.price != null && typeof template.price === 'number' && template.price > 0)
+          ? template.price
+          : null,
       change: template.views_change !== undefined && template.views_change !== null ? {
         value: Math.abs(template.views_change),
         isPositive: template.views_change >= 0
@@ -1047,6 +1055,10 @@ function MostPopularFreeTemplates({
       case 'name':
         aVal = a.name?.toLowerCase() || ''
         bVal = b.name?.toLowerCase() || ''
+        break
+      case 'price':
+        aVal = a.isFree ? 0 : (a.price || 0)
+        bVal = b.isFree ? 0 : (b.price || 0)
         break
       case 'views':
         aVal = a.views || 0
@@ -1082,7 +1094,7 @@ function MostPopularFreeTemplates({
   return (
     <Card className="min-w-0 w-full">
       <CardHeader>
-        <CardTitle>Most Popular Free Templates</CardTitle>
+        <CardTitle>Most Popular Paid Templates</CardTitle>
         <CardAction>
           <TimePeriodSelector period={period} onPeriodChange={onPeriodChange} />
         </CardAction>
@@ -1107,6 +1119,9 @@ function MostPopularFreeTemplates({
                 <SortableTableHead sortKey="name" currentSort={sort} onSort={handleSort}>
                   Template
                 </SortableTableHead>
+                <SortableTableHead sortKey="price" currentSort={sort} onSort={handleSort} className="text-right">
+                  Price
+                </SortableTableHead>
                 <SortableTableHead sortKey="views" currentSort={sort} onSort={handleSort} className="text-right">
                   Views
                 </SortableTableHead>
@@ -1118,7 +1133,7 @@ function MostPopularFreeTemplates({
             <TableBody>
               {sortedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No data available
                   </TableCell>
                 </TableRow>
@@ -1142,6 +1157,17 @@ function MostPopularFreeTemplates({
                           </span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {row.isFree ? (
+                        <Badge variant="secondary" className="text-xs">Free</Badge>
+                      ) : (row.price != null && typeof row.price === 'number' && row.price > 0) ? (
+                        <Badge variant="outline" className="text-xs">
+                          ${row.price.toFixed(2)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">Paid</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">{row.views?.toLocaleString() || '-'}</TableCell>
                     <TableCell className="text-right">
