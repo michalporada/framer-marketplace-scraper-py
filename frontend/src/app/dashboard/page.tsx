@@ -214,7 +214,6 @@ function TimePeriodSelector({
         variant={period === '7d' ? 'default' : 'outline'}
         size="sm"
         onClick={() => onPeriodChange('7d')}
-        disabled
       >
         7d
       </Button>
