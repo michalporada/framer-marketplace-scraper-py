@@ -206,14 +206,14 @@ class ProductParser:
                     '[class*="price"]',
                     '[class*="Price"]',
                 ]
-                
+
                 for selector in price_selectors:
                     # Try to find in main content first
                     if main_content:
                         price_elem = main_content.select_one(selector)
                     if not price_elem:
                         price_elem = soup.select_one(selector)
-                    
+
                     if price_elem:
                         # Make sure it's not in "More from" or "Related" section
                         parent = price_elem.find_parent(["section", "div"])
@@ -222,13 +222,13 @@ class ProductParser:
                             if "more from" in parent_text or "related" in parent_text:
                                 price_elem = None
                                 continue
-                        
+
                         # Verify it contains price indicator
                         elem_text = price_elem.get_text().strip()
                         if "$" in elem_text or "Free" in elem_text.lower():
                             break
                         price_elem = None
-                
+
                 # Final fallback: iterate spans but limit to first 50 to avoid performance issues
                 if not price_elem and main_content:
                     spans = main_content.find_all("span", limit=50)

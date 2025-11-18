@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { getTopCreatorsByTemplateViews, getTopTemplates, getTopCategories, getTopPaidTemplates, getTopCreatorsByTemplateCount, periodToHours } from '@/lib/api'
 import { TimePeriod } from '@/lib/types'
+import { ProductAreaChart } from '@/components/dashboard/ProductAreaChart'
 
 type TimePeriodType = '1d' | '7d' | '30d'
 type SortDirection = 'asc' | 'desc' | null
@@ -144,6 +145,10 @@ export default function DashboardPage() {
         <p className="text-muted-foreground mt-2">
           Analytics and insights for Framer Marketplace
         </p>
+      </div>
+
+      <div className="mb-6">
+        <ProductAreaChart loading={loading} />
       </div>
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
