@@ -15,7 +15,7 @@ on:
 # Prevent duplicate runs - only one sync can run at a time
 concurrency:
   group: sync-json-to-database
-  cancel-in-progress: false  # Don't cancel in-progress runs, just queue new ones
+  cancel-in-progress: true  # Cancel scheduled runs if workflow_run already triggered sync
 
 jobs:
   sync:

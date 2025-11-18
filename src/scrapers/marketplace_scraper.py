@@ -387,32 +387,82 @@ class MarketplaceScraper:
             message=f"All {total_attempts} retry attempts failed (waited {total_wait}s / {total_wait_minutes} minutes total) - falling back to cached sitemap",
         )
 
-        # Try to get cached sitemap (this should work as get_sitemap falls back to cache)
-        try:
-            xml_content, cache_used, cache_age_hours = await self.sitemap_scraper.get_sitemap()
-            if xml_content:
-                sitemap_data = self.sitemap_scraper.parse_sitemap(xml_content)
-                logger.info(
-                    "sitemap_using_cache_after_retries",
-                    cache_age_hours=cache_age_hours,
-                    message=f"Using cached sitemap ({cache_age_hours}h old) after all retry attempts failed",
+        # Try to load cached sitemap directly (avoid another fetch attempt)
+        # Use extended max_age for 502 errors (6h instead of 1h)
+        cached_content = self.sitemap_scraper._load_cached_sitemap(extended_max_age=True)
+        if cached_content:
+            # Calculate cache age
+            from pathlib import Path
+            import time
+
+            cache_path = Path(settings.sitemap_cache_file)
+            cache_age = time.time() - cache_path.stat().st_mtime
+            cache_age_hours = round(cache_age / 3600, 2)
+
+            sitemap_data = self.sitemap_scraper.parse_sitemap(cached_content)
+            logger.info(
+                "sitemap_using_cache_after_retries",
+                cache_age_hours=cache_age_hours,
+                message=f"Using cached sitemap ({cache_age_hours}h old) after all retry attempts failed",
+            )
+            return (sitemap_data, True, cache_age_hours)
+        else:
+            # No cache available - try fallback to main sitemap as last resort
+            logger.warning(
+                "sitemap_cache_not_available",
+                message="No cached sitemap available - trying fallback to main sitemap as last resort",
+            )
+            try:
+                # Try main sitemap as fallback (contains all Framer pages, not just marketplace)
+                fallback_content = await self.sitemap_scraper.fetch_sitemap(
+                    settings.main_sitemap_url, retry_on_502=False
                 )
-                return (sitemap_data, True, cache_age_hours)
-        except Exception as e:
+                if fallback_content:
+                    logger.warning(
+                        "sitemap_using_fallback",
+                        url=settings.main_sitemap_url,
+                        message="Using main sitemap as fallback - will filter for marketplace URLs only",
+                    )
+                    sitemap_data = self.sitemap_scraper.parse_sitemap(fallback_content)
+                    # Filter to only marketplace URLs
+                    product_urls = self.sitemap_scraper.filter_urls_by_type(
+                        sitemap_data, self.types_to_scrape
+                    )
+                    if product_urls:
+                        logger.info(
+                            "sitemap_fallback_success",
+                            product_count=len(product_urls),
+                            message=f"Fallback sitemap contains {len(product_urls)} marketplace products",
+                        )
+                        # Reconstruct sitemap dict with filtered URLs
+                        filtered_sitemap = {
+                            "products": {},
+                            "categories": [],
+                            "profiles": [],
+                            "help_articles": [],
+                        }
+                        for url in product_urls:
+                            # Determine product type from URL
+                            if "/templates/" in url:
+                                filtered_sitemap["products"].setdefault("template", []).append(url)
+                            elif "/components/" in url:
+                                filtered_sitemap["products"].setdefault("component", []).append(url)
+                            elif "/vectors/" in url:
+                                filtered_sitemap["products"].setdefault("vector", []).append(url)
+                            elif "/plugins/" in url:
+                                filtered_sitemap["products"].setdefault("plugin", []).append(url)
+                        return (filtered_sitemap, False, 0.0)
+            except Exception as e:
+                logger.warning("sitemap_fallback_failed", error=str(e), error_type=type(e).__name__)
+
+            # All fallbacks failed - this is a critical error
             logger.error(
                 "sitemap_cache_fallback_failed",
-                error=str(e),
-                error_type=type(e).__name__,
-                message="Failed to get cached sitemap after all retries - this is a critical error",
+                message="Failed to get cached sitemap after all retries and fallback failed - no sitemap available. This is a critical error.",
             )
-            raise
-
-        # If we get here, we have no sitemap at all
-        logger.error(
-            "sitemap_completely_failed",
-            message="All retry attempts failed and no cache available - cannot proceed",
-        )
-        raise ValueError("Failed to get sitemap after all retry attempts and cache fallback")
+            raise ValueError(
+                "Failed to get sitemap after all retry attempts, cache fallback, and main sitemap fallback"
+            )
 
     async def _scrape_new_products_background(self, new_urls: List[str]) -> None:
         """Scrape new products found during sitemap refresh in background.

@@ -152,8 +152,8 @@ class ProductParser:
             # Try button or link text (more reliable for product pages)
             # Find all buttons and links, check their text content (text may be in nested elements)
             price_element = None
-            # Check buttons first
-            buttons = soup.find_all("button")
+            # Check buttons first - limit to first 20 to avoid performance issues
+            buttons = soup.find_all("button", limit=20)
             for btn in buttons:
                 btn_text = btn.get_text().strip()
                 if re.search(r"(Purchase|Preview|Open|Copy|Use for)", btn_text, re.I):
@@ -161,8 +161,9 @@ class ProductParser:
                     break
 
             # If not found in buttons, check links (some products use <a> instead of <button>)
+            # Limit to first 30 links to avoid performance issues
             if not price_element:
-                links = soup.find_all("a")
+                links = soup.find_all("a", limit=30)
                 for link in links:
                     link_text = link.get_text().strip()
                     if re.search(r"(Purchase|Preview|Open|Copy|Use for)", link_text, re.I):
@@ -196,35 +197,51 @@ class ProductParser:
                 # Look for price in main content area only
                 price_elem = None
 
-                # First try to find span with $ or Free text in main content
-                if main_content:
-                    for span in main_content.find_all("span"):
+                # Optimize: use CSS selectors first (much faster than iterating all spans)
+                # Try common price selectors in main content first
+                price_selectors = [
+                    'span[class*="price"]',
+                    'span[class*="Price"]',
+                    'span[class*="normalMeta"]',
+                    '[class*="price"]',
+                    '[class*="Price"]',
+                ]
+
+                for selector in price_selectors:
+                    # Try to find in main content first
+                    if main_content:
+                        price_elem = main_content.select_one(selector)
+                    if not price_elem:
+                        price_elem = soup.select_one(selector)
+
+                    if price_elem:
+                        # Make sure it's not in "More from" or "Related" section
+                        parent = price_elem.find_parent(["section", "div"])
+                        if parent:
+                            parent_text = parent.get_text().lower()
+                            if "more from" in parent_text or "related" in parent_text:
+                                price_elem = None
+                                continue
+
+                        # Verify it contains price indicator
+                        elem_text = price_elem.get_text().strip()
+                        if "$" in elem_text or "Free" in elem_text.lower():
+                            break
+                        price_elem = None
+
+                # Final fallback: iterate spans but limit to first 50 to avoid performance issues
+                if not price_elem and main_content:
+                    spans = main_content.find_all("span", limit=50)
+                    for span in spans:
                         span_text = span.get_text().strip()
                         if "$" in span_text or "Free" in span_text.lower():
-                            price_elem = span
-                            break
-
-                if not price_elem:
-                    # Fallback to full soup but exclude sections with "More from" or "Related"
-                    for selector in [
-                        '[class*="price"]',
-                        '[class*="Price"]',
-                        'span[class*="normalMeta"]',
-                    ]:
-                        # Try to find in main content first
-                        if main_content:
-                            price_elem = main_content.select_one(selector)
-                        if not price_elem:
-                            price_elem = soup.select_one(selector)
-                        if price_elem:
-                            # Make sure it's not in "More from" or "Related" section
-                            parent = price_elem.find_parent(["section", "div"])
+                            # Double-check it's not in "More from" section
+                            parent = span.find_parent(["section", "div"])
                             if parent:
                                 parent_text = parent.get_text().lower()
-                                if "more from" in parent_text or "related" in parent_text:
-                                    price_elem = None
-                                    continue
-                            break
+                                if "more from" not in parent_text and "related" not in parent_text:
+                                    price_elem = span
+                                    break
 
                 if price_elem:
                     price_text = price_elem.get_text().strip()
@@ -256,8 +273,8 @@ class ProductParser:
                     thumbnail_url = self.decode_nextjs_image_url(thumbnail_url)
                     thumbnail = thumbnail_url
 
-            # Find all images
-            images = soup.find_all("img")
+            # Find all images - limit to first 50 to avoid performance issues on pages with many images
+            images = soup.find_all("img", limit=50)
             for img in images:
                 src = img.get("src") or img.get("data-src")
                 if not src:
@@ -434,7 +451,8 @@ class ProductParser:
             # JSON format: "installs":"3.5K" or "installs":123
             installs_raw = None
 
-            script_tags = soup.find_all("script")
+            # Limit script tags to first 30 to avoid performance issues on pages with many scripts
+            script_tags = soup.find_all("script", limit=30)
             for script in script_tags:
                 script_content = script.string
                 if not script_content:
@@ -588,8 +606,8 @@ class ProductParser:
         if product_type == "template":
             # Find Features section - look for h2/h3 heading with "Features"
             features_section = None
-            # Try h2 first
-            for heading in soup.find_all(["h2", "h3", "h4"]):
+            # Try h2 first - limit to first 20 headings to avoid performance issues
+            for heading in soup.find_all(["h2", "h3", "h4"], limit=20):
                 if heading.get_text().strip().lower() == "features":
                     features_section = heading
                     break
@@ -609,7 +627,8 @@ class ProductParser:
                 if features_parent:
                     # Find all feature links/spans - they're usually in links with class "contentSidebarItem"
                     # or spans with text-label class
-                    feature_tags = features_parent.find_all(["a", "span", "div", "li"])
+                    # Limit to first 100 to avoid performance issues
+                    feature_tags = features_parent.find_all(["a", "span", "div", "li"], limit=100)
                     for tag in feature_tags:
                         text = tag.get_text().strip()
                         # Filter: feature tags are usually short, not empty, and not "Features"
@@ -637,7 +656,8 @@ class ProductParser:
             # Extract pages list (if available)
             # Method 1: Look for "Pages" heading (h6, h2, h3, etc.) and find sibling elements
             pages_heading = None
-            for heading in soup.find_all(["h6", "h2", "h3", "h4"]):
+            # Limit to first 20 headings to avoid performance issues
+            for heading in soup.find_all(["h6", "h2", "h3", "h4"], limit=20):
                 heading_text = heading.get_text().strip()
                 if heading_text.lower() == "pages":
                     pages_heading = heading
@@ -670,7 +690,8 @@ class ProductParser:
                 if pages_section:
                     pages_parent = pages_section.find_parent()
                     if pages_parent:
-                        page_items = pages_parent.find_all(["li", "span", "div", "a"])
+                        # Limit to first 100 items to avoid performance issues
+                        page_items = pages_parent.find_all(["li", "span", "div", "a"], limit=100)
                         for item in page_items:
                             page_text = item.get_text().strip()
                             if page_text and len(page_text) < 100:
@@ -696,7 +717,8 @@ class ProductParser:
             if features_section:
                 features_parent = features_section.find_parent()
                 if features_parent:
-                    feature_tags = features_parent.find_all(["span", "div", "li"])
+                    # Limit to first 100 items to avoid performance issues
+                    feature_tags = features_parent.find_all(["span", "div", "li"], limit=100)
                     for tag in feature_tags:
                         text = tag.get_text().strip()
                         if text and len(text) < 50:
@@ -784,7 +806,8 @@ class ProductParser:
 
         # Method 1: Look for "Categories" heading (h6, h2, h3, etc.) and find sibling elements
         categories_heading = None
-        for heading in soup.find_all(["h6", "h2", "h3", "h4"]):
+        # Limit to first 20 headings to avoid performance issues
+        for heading in soup.find_all(["h6", "h2", "h3", "h4"], limit=20):
             heading_text = heading.get_text().strip()
             if heading_text.lower() == "categories":
                 categories_heading = heading
@@ -821,7 +844,8 @@ class ProductParser:
                 categories_parent = categories_section.find_parent()
                 if categories_parent:
                     # Find all links or spans that might be categories
-                    category_elements = categories_parent.find_all(["a", "span", "div"])
+                    # Limit to first 50 items to avoid performance issues
+                    category_elements = categories_parent.find_all(["a", "span", "div"], limit=50)
                     for elem in category_elements:
                         category_text = elem.get_text().strip()
                         # Filter out non-category text

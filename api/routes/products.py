@@ -2777,3 +2777,207 @@ async def get_fastest_growing_products(
                 }
             },
         )
+
+
+class DailyStatisticsItem(BaseModel):
+    """Model for daily statistics item."""
+    date: str = Field(..., description="Date in ISO format (YYYY-MM-DD)")
+    templates: int = Field(0, description="Number of templates scraped on this date")
+    vectors: int = Field(0, description="Number of vectors scraped on this date")
+    components: int = Field(0, description="Number of components scraped on this date")
+    plugins: int = Field(0, description="Number of plugins scraped on this date")
+
+
+class ProductDailyStatisticsResponse(BaseModel):
+    """Response model for daily product statistics."""
+    data: List[DailyStatisticsItem] = Field(..., description="Daily statistics for products")
+    meta: Dict[str, Any] = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
+@router.get("/daily-statistics", response_model=ProductDailyStatisticsResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
+async def get_product_daily_statistics(
+    days: int = Query(0, ge=0, le=365, description="Number of days to return (0 = all data from beginning, 1-365 = last N days, default: 0)"),
+):
+    """Get cumulative daily statistics of products over time.
+    
+    This endpoint returns the cumulative count of unique products by type for each day.
+    For each date, it shows how many unique products existed up to that date (cumulative total).
+    Uses product_history table to track when products were first scraped.
+    
+    If days parameter is not provided or is 0, returns all data from the beginning.
+    If days > 0, returns only the last N days.
+    
+    Args:
+        days: Number of days to return (0 = all data from beginning, 1-365 = last N days, default: 30)
+    
+    Returns:
+        ProductDailyStatisticsResponse with cumulative daily statistics
+    
+    Raises:
+        503: Database not available
+    """
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+    
+    try:
+        from sqlalchemy import text
+        
+        # Calculate date range - get ALL data from the beginning, not just last N days
+        end_date = datetime.utcnow().date()
+        
+        # Get the earliest scrape date from database
+        query_earliest = text("""
+            SELECT MIN(DATE(scraped_at)) as earliest_date
+            FROM product_history
+        """)
+        
+        with engine.connect() as conn:
+            result = conn.execute(query_earliest)
+            row = result.fetchone()
+            if row and row[0]:
+                earliest_date = row[0]
+                if isinstance(earliest_date, datetime):
+                    earliest_date = earliest_date.date()
+                start_date = earliest_date
+            else:
+                # No data in database
+                if days > 0:
+                    start_date = end_date - timedelta(days=days - 1)
+                else:
+                    # No data and days=0, return empty result
+                    start_date = end_date
+        
+        # If days parameter is set and is greater than 0, limit to last N days
+        # If days = 0, use all data from beginning (start_date from earliest_date)
+        if days > 0:
+            calculated_start = end_date - timedelta(days=days - 1)
+            # Only limit if calculated start is more recent than earliest date
+            if calculated_start > start_date:
+                start_date = calculated_start
+        
+        # Query to get cumulative count of unique products by type for each date
+        # For each date, count how many unique products existed up to that date
+        query = text("""
+            WITH first_scrapes AS (
+                SELECT DISTINCT ON (product_id, type)
+                    product_id,
+                    type,
+                    DATE(scraped_at) as first_scrape_date
+                FROM product_history
+                WHERE DATE(scraped_at) <= :end_date
+                ORDER BY product_id, type, scraped_at ASC
+            ),
+            date_series AS (
+                SELECT generate_series(
+                    :start_date::date,
+                    :end_date::date,
+                    '1 day'::interval
+                )::date as date
+            )
+            SELECT 
+                ds.date,
+                fs.type,
+                COUNT(DISTINCT fs.product_id) as cumulative_count
+            FROM date_series ds
+            CROSS JOIN first_scrapes fs
+            WHERE fs.first_scrape_date <= ds.date
+            GROUP BY ds.date, fs.type
+            ORDER BY ds.date ASC, fs.type ASC
+        """)
+        
+        with engine.connect() as conn:
+            result = conn.execute(query, {
+                "start_date": start_date,
+                "end_date": end_date
+            })
+            rows = result.fetchall()
+        
+        # Group by date and type
+        daily_stats: Dict[str, Dict[str, int]] = {}
+        
+        # Initialize all dates in range with zeros
+        current_date = start_date
+        while current_date <= end_date:
+            date_str = current_date.isoformat()
+            daily_stats[date_str] = {
+                "templates": 0,
+                "vectors": 0,
+                "components": 0,
+                "plugins": 0
+            }
+            current_date += timedelta(days=1)
+        
+        # Fill in actual cumulative data
+        for row in rows:
+            # Handle date conversion - row[0] can be date or datetime
+            scrape_date = row[0]
+            if isinstance(scrape_date, datetime):
+                date_str = scrape_date.date().isoformat()
+            elif hasattr(scrape_date, 'isoformat'):
+                date_str = scrape_date.isoformat()
+            else:
+                date_str = str(scrape_date)
+            
+            product_type = row[1]
+            count = row[2]
+            
+            if date_str in daily_stats:
+                if product_type == "template":
+                    daily_stats[date_str]["templates"] = count
+                elif product_type == "vector":
+                    daily_stats[date_str]["vectors"] = count
+                elif product_type == "component":
+                    daily_stats[date_str]["components"] = count
+                elif product_type == "plugin":
+                    daily_stats[date_str]["plugins"] = count
+        
+        # Convert to list format
+        statistics = [
+            DailyStatisticsItem(
+                date=date_str,
+                templates=stats["templates"],
+                vectors=stats["vectors"],
+                components=stats["components"],
+                plugins=stats["plugins"]
+            )
+            for date_str, stats in sorted(daily_stats.items())
+        ]
+        
+        return ProductDailyStatisticsResponse(
+            data=statistics,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "days": days,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            }
+        )
+    
+    except Exception as e:
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting daily statistics: {type(e).__name__}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to get daily statistics: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
