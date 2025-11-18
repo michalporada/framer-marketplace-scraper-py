@@ -2799,18 +2799,22 @@ class ProductDailyStatisticsResponse(BaseModel):
 @router.get("/daily-statistics", response_model=ProductDailyStatisticsResponse)
 @cached(ttl=300, cache_type="product")  # Cache for 5 minutes
 async def get_product_daily_statistics(
-    days: int = Query(30, ge=1, le=365, description="Number of days to return (1-365, default: 30)"),
+    days: int = Query(0, ge=0, le=365, description="Number of days to return (0 = all data from beginning, 1-365 = last N days, default: 0)"),
 ):
-    """Get daily statistics of products scraped over time.
+    """Get cumulative daily statistics of products over time.
     
-    This endpoint returns the count of unique products scraped per day, grouped by product type.
+    This endpoint returns the cumulative count of unique products by type for each day.
+    For each date, it shows how many unique products existed up to that date (cumulative total).
     Uses product_history table to track when products were first scraped.
     
+    If days parameter is not provided or is 0, returns all data from the beginning.
+    If days > 0, returns only the last N days.
+    
     Args:
-        days: Number of days to return (1-365, default: 30)
+        days: Number of days to return (0 = all data from beginning, 1-365 = last N days, default: 30)
     
     Returns:
-        ProductDailyStatisticsResponse with daily statistics
+        ProductDailyStatisticsResponse with cumulative daily statistics
     
     Raises:
         503: Database not available
@@ -2831,30 +2835,67 @@ async def get_product_daily_statistics(
     try:
         from sqlalchemy import text
         
-        # Calculate date range
+        # Calculate date range - get ALL data from the beginning, not just last N days
         end_date = datetime.utcnow().date()
-        start_date = end_date - timedelta(days=days - 1)
         
-        # Query to get first scrape date for each product by type
-        # This gives us when each product was first seen in the database
+        # Get the earliest scrape date from database
+        query_earliest = text("""
+            SELECT MIN(DATE(scraped_at)) as earliest_date
+            FROM product_history
+        """)
+        
+        with engine.connect() as conn:
+            result = conn.execute(query_earliest)
+            row = result.fetchone()
+            if row and row[0]:
+                earliest_date = row[0]
+                if isinstance(earliest_date, datetime):
+                    earliest_date = earliest_date.date()
+                start_date = earliest_date
+            else:
+                # No data in database
+                if days > 0:
+                    start_date = end_date - timedelta(days=days - 1)
+                else:
+                    # No data and days=0, return empty result
+                    start_date = end_date
+        
+        # If days parameter is set and is greater than 0, limit to last N days
+        # If days = 0, use all data from beginning (start_date from earliest_date)
+        if days > 0:
+            calculated_start = end_date - timedelta(days=days - 1)
+            # Only limit if calculated start is more recent than earliest date
+            if calculated_start > start_date:
+                start_date = calculated_start
+        
+        # Query to get cumulative count of unique products by type for each date
+        # For each date, count how many unique products existed up to that date
         query = text("""
             WITH first_scrapes AS (
                 SELECT DISTINCT ON (product_id, type)
                     product_id,
                     type,
-                    DATE(scraped_at) as scrape_date
+                    DATE(scraped_at) as first_scrape_date
                 FROM product_history
-                WHERE DATE(scraped_at) >= :start_date
-                    AND DATE(scraped_at) <= :end_date
+                WHERE DATE(scraped_at) <= :end_date
                 ORDER BY product_id, type, scraped_at ASC
+            ),
+            date_series AS (
+                SELECT generate_series(
+                    :start_date::date,
+                    :end_date::date,
+                    '1 day'::interval
+                )::date as date
             )
             SELECT 
-                scrape_date,
-                type,
-                COUNT(DISTINCT product_id) as product_count
-            FROM first_scrapes
-            GROUP BY scrape_date, type
-            ORDER BY scrape_date ASC
+                ds.date,
+                fs.type,
+                COUNT(DISTINCT fs.product_id) as cumulative_count
+            FROM date_series ds
+            CROSS JOIN first_scrapes fs
+            WHERE fs.first_scrape_date <= ds.date
+            GROUP BY ds.date, fs.type
+            ORDER BY ds.date ASC, fs.type ASC
         """)
         
         with engine.connect() as conn:
@@ -2879,7 +2920,7 @@ async def get_product_daily_statistics(
             }
             current_date += timedelta(days=1)
         
-        # Fill in actual data
+        # Fill in actual cumulative data
         for row in rows:
             # Handle date conversion - row[0] can be date or datetime
             scrape_date = row[0]

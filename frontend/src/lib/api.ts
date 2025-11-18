@@ -430,10 +430,12 @@ export async function getTopCreatorsByTemplateCount(params?: {
 }
 
 // Product Daily Statistics
+// Returns cumulative count of products over time (from beginning if days not specified)
 export async function getProductDailyStatistics(params?: {
-  days?: number
+  days?: number // 0 or undefined = all data from beginning, >0 = last N days
 }): Promise<{ data: Array<{ date: string; templates: number; vectors: number; components: number; plugins: number }>; meta?: any }> {
-  const days = params?.days || 30
+  // If days not specified, use 0 to get all data from beginning
+  const days = params?.days ?? 0
   
   try {
     const query = `days=${days}`

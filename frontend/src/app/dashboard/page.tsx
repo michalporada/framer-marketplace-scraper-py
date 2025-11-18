@@ -101,7 +101,7 @@ export default function DashboardPage() {
         getTopCategories({ limit: 10, period_hours: periodHours }),
         getTopPaidTemplates({ limit: 10, period_hours: periodHours }),
         getTopCreatorsByTemplateCount({ limit: 10, period_hours: periodHours }),
-        getProductDailyStatistics({ days: 30 }) // Pobierz dane dla Area Chart (ostatnie 30 dni)
+        getProductDailyStatistics({ days: 0 }) // Pobierz wszystkie dane od początku dla Area Chart
       ])
 
       // Przetwórz wyniki - dla topGainers posortuj według views_change
