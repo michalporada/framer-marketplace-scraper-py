@@ -2777,3 +2777,166 @@ async def get_fastest_growing_products(
                 }
             },
         )
+
+
+class DailyStatisticsItem(BaseModel):
+    """Model for daily statistics item."""
+    date: str = Field(..., description="Date in ISO format (YYYY-MM-DD)")
+    templates: int = Field(0, description="Number of templates scraped on this date")
+    vectors: int = Field(0, description="Number of vectors scraped on this date")
+    components: int = Field(0, description="Number of components scraped on this date")
+    plugins: int = Field(0, description="Number of plugins scraped on this date")
+
+
+class ProductDailyStatisticsResponse(BaseModel):
+    """Response model for daily product statistics."""
+    data: List[DailyStatisticsItem] = Field(..., description="Daily statistics for products")
+    meta: Dict[str, Any] = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
+@router.get("/daily-statistics", response_model=ProductDailyStatisticsResponse)
+@cached(ttl=300, cache_type="product")  # Cache for 5 minutes
+async def get_product_daily_statistics(
+    days: int = Query(30, ge=1, le=365, description="Number of days to return (1-365, default: 30)"),
+):
+    """Get daily statistics of products scraped over time.
+    
+    This endpoint returns the count of unique products scraped per day, grouped by product type.
+    Uses product_history table to track when products were first scraped.
+    
+    Args:
+        days: Number of days to return (1-365, default: 30)
+    
+    Returns:
+        ProductDailyStatisticsResponse with daily statistics
+    
+    Raises:
+        503: Database not available
+    """
+    engine = get_db_engine()
+    if not engine:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": {
+                    "code": "DATABASE_NOT_AVAILABLE",
+                    "message": "Database connection not available",
+                    "details": {},
+                }
+            },
+        )
+    
+    try:
+        from sqlalchemy import text
+        
+        # Calculate date range
+        end_date = datetime.utcnow().date()
+        start_date = end_date - timedelta(days=days - 1)
+        
+        # Query to get first scrape date for each product by type
+        # This gives us when each product was first seen in the database
+        query = text("""
+            WITH first_scrapes AS (
+                SELECT DISTINCT ON (product_id, type)
+                    product_id,
+                    type,
+                    DATE(scraped_at) as scrape_date
+                FROM product_history
+                WHERE DATE(scraped_at) >= :start_date
+                    AND DATE(scraped_at) <= :end_date
+                ORDER BY product_id, type, scraped_at ASC
+            )
+            SELECT 
+                scrape_date,
+                type,
+                COUNT(DISTINCT product_id) as product_count
+            FROM first_scrapes
+            GROUP BY scrape_date, type
+            ORDER BY scrape_date ASC
+        """)
+        
+        with engine.connect() as conn:
+            result = conn.execute(query, {
+                "start_date": start_date,
+                "end_date": end_date
+            })
+            rows = result.fetchall()
+        
+        # Group by date and type
+        daily_stats: Dict[str, Dict[str, int]] = {}
+        
+        # Initialize all dates in range with zeros
+        current_date = start_date
+        while current_date <= end_date:
+            date_str = current_date.isoformat()
+            daily_stats[date_str] = {
+                "templates": 0,
+                "vectors": 0,
+                "components": 0,
+                "plugins": 0
+            }
+            current_date += timedelta(days=1)
+        
+        # Fill in actual data
+        for row in rows:
+            # Handle date conversion - row[0] can be date or datetime
+            scrape_date = row[0]
+            if isinstance(scrape_date, datetime):
+                date_str = scrape_date.date().isoformat()
+            elif hasattr(scrape_date, 'isoformat'):
+                date_str = scrape_date.isoformat()
+            else:
+                date_str = str(scrape_date)
+            
+            product_type = row[1]
+            count = row[2]
+            
+            if date_str in daily_stats:
+                if product_type == "template":
+                    daily_stats[date_str]["templates"] = count
+                elif product_type == "vector":
+                    daily_stats[date_str]["vectors"] = count
+                elif product_type == "component":
+                    daily_stats[date_str]["components"] = count
+                elif product_type == "plugin":
+                    daily_stats[date_str]["plugins"] = count
+        
+        # Convert to list format
+        statistics = [
+            DailyStatisticsItem(
+                date=date_str,
+                templates=stats["templates"],
+                vectors=stats["vectors"],
+                components=stats["components"],
+                plugins=stats["plugins"]
+            )
+            for date_str, stats in sorted(daily_stats.items())
+        ]
+        
+        return ProductDailyStatisticsResponse(
+            data=statistics,
+            meta={
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "days": days,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            }
+        )
+    
+    except Exception as e:
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error getting daily statistics: {type(e).__name__}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Failed to get daily statistics: {str(e)}",
+                    "details": {},
+                }
+            },
+        )
