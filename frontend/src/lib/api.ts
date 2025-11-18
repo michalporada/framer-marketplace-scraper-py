@@ -429,6 +429,25 @@ export async function getTopCreatorsByTemplateCount(params?: {
   }
 }
 
+// Product Daily Statistics
+export async function getProductDailyStatistics(params?: {
+  days?: number
+}): Promise<{ data: Array<{ date: string; templates: number; vectors: number; components: number; plugins: number }>; meta?: any }> {
+  const days = params?.days || 30
+  
+  try {
+    const query = `days=${days}`
+    return await fetchAPI(`/api/products/daily-statistics?${query}`)
+  } catch (error) {
+    console.warn('Error fetching daily statistics:', error)
+    // Return empty data on error
+    return {
+      data: [],
+      meta: { timestamp: new Date().toISOString() }
+    }
+  }
+}
+
 // Helper function to convert period to hours
 export function periodToHours(period: '1d' | '7d' | '30d'): number {
   switch (period) {

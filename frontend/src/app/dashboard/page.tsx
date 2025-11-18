@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
-import { getTopCreatorsByTemplateViews, getTopTemplates, getTopCategories, getTopPaidTemplates, getTopCreatorsByTemplateCount, periodToHours } from '@/lib/api'
+import { getTopCreatorsByTemplateViews, getTopTemplates, getTopCategories, getTopPaidTemplates, getTopCreatorsByTemplateCount, getProductDailyStatistics, periodToHours } from '@/lib/api'
 import { TimePeriod } from '@/lib/types'
 import { ProductAreaChart } from '@/components/dashboard/ProductAreaChart'
 
@@ -71,6 +71,12 @@ export default function DashboardPage() {
     creatorsMostTemplates: null,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [areaChartData, setAreaChartData] = useState<Array<{
+    date: string
+    templates: number
+    vectors: number
+    components: number
+  }> | null>(null)
 
   useEffect(() => {
     async function loadAllData() {
@@ -86,14 +92,16 @@ export default function DashboardPage() {
         topGainersResult,
         topCategoriesResult,
         topPaidTemplatesResult,
-        creatorsMostTemplatesResult
+        creatorsMostTemplatesResult,
+        dailyStatisticsResult
       ] = await Promise.allSettled([
         getTopCreatorsByTemplateViews({ limit: 10, period_hours: periodHours }),
         getTopTemplates({ limit: 10, period_hours: periodHours }),
         getTopTemplates({ limit: 100, period_hours: periodHours }), // Pobierz więcej, żeby móc posortować według views_change_percent
         getTopCategories({ limit: 10, period_hours: periodHours }),
         getTopPaidTemplates({ limit: 10, period_hours: periodHours }),
-        getTopCreatorsByTemplateCount({ limit: 10, period_hours: periodHours })
+        getTopCreatorsByTemplateCount({ limit: 10, period_hours: periodHours }),
+        getProductDailyStatistics({ days: 30 }) // Pobierz dane dla Area Chart (ostatnie 30 dni)
       ])
 
       // Przetwórz wyniki - dla topGainers posortuj według views_change
@@ -122,6 +130,21 @@ export default function DashboardPage() {
         creatorsMostTemplates: creatorsMostTemplatesResult.status === 'fulfilled' ? creatorsMostTemplatesResult.value : null,
       })
 
+      // Zapisz dane dla Area Chart
+      if (dailyStatisticsResult.status === 'fulfilled' && dailyStatisticsResult.value?.data) {
+        // Mapuj dane do formatu oczekiwanego przez ProductAreaChart
+        const chartData = dailyStatisticsResult.value.data.map((item: any) => ({
+          date: item.date,
+          templates: item.templates || 0,
+          vectors: item.vectors || 0,
+          components: item.components || 0,
+        }))
+        setAreaChartData(chartData)
+      } else if (dailyStatisticsResult.status === 'rejected') {
+        console.warn('Failed to load daily statistics:', dailyStatisticsResult.reason)
+        setAreaChartData(null)
+      }
+
       // Zapisz błędy
       const newErrors: Record<string, string> = {}
       if (topCreatorsResult.status === 'rejected') newErrors.topCreators = topCreatorsResult.reason?.message || 'Failed to load'
@@ -148,7 +171,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="mb-6">
-        <ProductAreaChart loading={loading} />
+        <ProductAreaChart data={areaChartData || undefined} loading={loading} />
       </div>
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
