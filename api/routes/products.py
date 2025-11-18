@@ -1045,6 +1045,24 @@ async def _get_top_products_by_type(
         )
 
 
+# Models for daily statistics endpoint (defined before use)
+class DailyStatisticsItem(BaseModel):
+    """Model for daily statistics item."""
+    date: str = Field(..., description="Date in ISO format (YYYY-MM-DD)")
+    templates: int = Field(0, description="Number of templates scraped on this date")
+    vectors: int = Field(0, description="Number of vectors scraped on this date")
+    components: int = Field(0, description="Number of components scraped on this date")
+    plugins: int = Field(0, description="Number of plugins scraped on this date")
+
+
+class ProductDailyStatisticsResponse(BaseModel):
+    """Response model for daily product statistics."""
+    data: List[DailyStatisticsItem] = Field(..., description="Daily statistics for products")
+    meta: Dict[str, Any] = Field(
+        default_factory=lambda: {"timestamp": datetime.utcnow().isoformat() + "Z"}
+    )
+
+
 @router.get("/daily-statistics", response_model=ProductDailyStatisticsResponse)
 @cached(ttl=300, cache_type="product")  # Cache for 5 minutes
 async def get_product_daily_statistics(
