@@ -1137,7 +1137,8 @@ async def get_product_daily_statistics(
         
         # Query to get cumulative count of unique products by type for each date
         # For each date, count how many unique products existed up to that date
-        query = text("""
+        # Use f-string for dates in generate_series (SQLAlchemy bind params don't work with ::date cast)
+        query = text(f"""
             WITH first_scrapes AS (
                 SELECT DISTINCT ON (product_id, type)
                     product_id,
@@ -1149,8 +1150,8 @@ async def get_product_daily_statistics(
             ),
             date_series AS (
                 SELECT generate_series(
-                    :start_date::date,
-                    :end_date::date,
+                    '{start_date}'::date,
+                    '{end_date}'::date,
                     '1 day'::interval
                 )::date as date
             )
@@ -1167,7 +1168,6 @@ async def get_product_daily_statistics(
         
         with engine.connect() as conn:
             result = conn.execute(query, {
-                "start_date": start_date,
                 "end_date": end_date
             })
             rows = result.fetchall()
