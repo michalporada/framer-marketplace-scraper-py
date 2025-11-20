@@ -81,9 +81,9 @@ class Settings(BaseSettings):
 
     # Scraping options - which types to scrape
     scrape_templates: bool = True
-    scrape_components: bool = True
-    scrape_vectors: bool = True
-    scrape_plugins: bool = True  # New product type
+    scrape_components: bool = False  # Disabled
+    scrape_vectors: bool = False  # Disabled
+    scrape_plugins: bool = False  # Disabled
     scrape_categories: bool = True  # Optional
     scrape_profiles: bool = True  # Optional
 
